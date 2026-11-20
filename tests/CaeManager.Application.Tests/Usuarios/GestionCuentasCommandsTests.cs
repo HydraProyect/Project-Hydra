@@ -441,7 +441,8 @@ public class GestionCuentasCommandsTests
     /// un Coordinador CAE conserva la suya y solo pierde la marca, que sigue el relevo de ADR-011 § 2.7.
     /// </summary>
     private (CambiarActivacionUsuarioCommandHandler Handler, CatalogoIncorporacionCarteraFalso Catalogo, CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa Transaccion)
-        DesactivacionDelPrincipal(Guid? coordinador, bool coordinadorActivo = true)
+        DesactivacionDelPrincipal(Guid? coordinador, bool coordinadorActivo = true,
+            CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo? outbound = null)
     {
         var catalogo = new CatalogoIncorporacionCarteraFalso();
         catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionExterna, Propietario, "Talleres Norte", Cuenta, "CoordinadorCae", true, null)));
@@ -453,8 +454,65 @@ public class GestionCuentasCommandsTests
         var handler = new CambiarActivacionUsuarioCommandHandler(
             new GestionCuentasFalsa { [Cuenta] = CuentaPropia("CoordinadorCae") }, ActorCon("Administrador"), EnSuTenant, transaccion,
             _bloqueoDelRelevo, catalogo,
-            new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles, HayOtroAdministrador, new AvisoSinGestorCaeAnotado(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles, HayOtroAdministrador, new AvisoSinGestorCaeAnotado(), outbound ?? CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
         return (handler, catalogo, transaccion);
+    }
+
+    /// <summary>
+    /// D3 (DECISION_LOG 2026-11-19 punto 2 y 2026-11-20 punto 6): el relevo como consecuencia de una baja sigue permitido
+    /// con el Tenant beneficiario cerrado, con el Tenant de origen del Operador CAE externo cerrado o con los dos, también
+    /// cuando emite una Asignación de Cartera nueva (al Coordinador CAE propio o, sin él, por escalado). Es la otra cara de
+    /// R1: lo que se deniega es asumir sin baja previa (<c>PrincipalSinRelevoTests</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    [InlineData(true, true, false)]
+    public async Task D3_el_relevo_del_principal_por_su_baja_sigue_permitido_con_Outbound_cerrado(
+        bool beneficiarioCerrado, bool operadorCerrado, bool conCoordinadorPropio)
+    {
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(
+            t => (beneficiarioCerrado && t == Propietario) || (operadorCerrado && t == Tenant));
+        var (handler, catalogo, transaccion) = DesactivacionDelPrincipal(conCoordinadorPropio ? Coordinador : null, outbound: outbound);
+
+        (await handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
+
+        PrincipalDe(catalogo).Should().Be(Coordinador, "el relevo sustituye al principal que se va y no amplía");
+        catalogo.CarterasVivas.Single(c => c.Cartera.UsuarioId == Coordinador).Cartera.Rol.Should().Be("CoordinadorCae");
+        transaccion.Confirmadas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): al reactivar, la cuenta que pasa a ser la única elegible no
+    /// asume las operaciones sin principal si Outbound está cerrado para su Tenant beneficiario o para el Tenant de origen
+    /// del Operador CAE: no hay baja previa que lo justifique. La reactivación se confirma igual.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_reactivar_al_unico_elegible_no_asume_las_operaciones_sin_principal_con_Outbound_cerrado(
+        bool beneficiarioCerrado, bool operadorCerrado)
+    {
+        var catalogo = new CatalogoIncorporacionCarteraFalso();
+        catalogo.Asignables.Add((Tenant, new TenantCandidatoIncorporacion(Propietario, "Talleres Norte", OperacionExterna)));
+        var roles = new DirectorioRolesEnOrigen();
+        roles.Asignar(Cuenta, Tenant, "CoordinadorCae");
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(
+            t => (beneficiarioCerrado && t == Propietario) || (operadorCerrado && t == Tenant));
+        var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
+        var handler = new CambiarActivacionUsuarioCommandHandler(
+            new GestionCuentasFalsa { [Cuenta] = CuentaPropia("CoordinadorCae") }, ActorCon("Administrador"), EnSuTenant, transaccion,
+            _bloqueoDelRelevo, catalogo, new DirectorioDestinosCarteraFalso(null), roles, HayOtroAdministrador,
+            new AvisoSinGestorCaeAnotado(), outbound);
+
+        (await handler.Handle(new(Cuenta, true), default)).EsExitoso.Should().BeTrue();
+
+        PrincipalDe(catalogo).Should().Be(beneficiarioCerrado || operadorCerrado ? null : Cuenta,
+            "con los dos abiertos la única cuenta elegible recibe la operación sin principal; con uno cerrado, no");
+        transaccion.Confirmadas.Should().Be(1);
     }
 
     private static Guid? PrincipalDe(CatalogoIncorporacionCarteraFalso catalogo) =>

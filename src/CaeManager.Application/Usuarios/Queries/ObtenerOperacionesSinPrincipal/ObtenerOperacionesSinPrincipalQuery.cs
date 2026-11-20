@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -27,13 +28,24 @@ public enum SituacionDePrincipal
 /// solo el nombre. <paramref name="PersonasAsignadas"/> cuenta las carteras vivas de Gestor CAE
 /// y de Coordinador CAE; <paramref name="NombrePrincipal"/> solo viene en
 /// <see cref="SituacionDePrincipal.CoordinadorCaePrincipal"/>.
+/// <paramref name="OutboundCerrado"/> dice si D3 deniega asumirla: Outbound cerrado para su Tenant
+/// beneficiario o para el Tenant de origen del Operador CAE externo (R1, DECISION_LOG 2026-11-20,
+/// punto 5), con la misma regla que el comando
+/// (<see cref="EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync"/>).
 /// </summary>
 public record OperacionEnAlertaDePrincipal(
     Guid AsignacionOperacionId, Guid PropietarioTenantId, string NombreTenant,
-    SituacionDePrincipal Situacion, int PersonasAsignadas, string? NombrePrincipal, bool EsDeQuienConsulta)
+    SituacionDePrincipal Situacion, int PersonasAsignadas, string? NombrePrincipal, bool EsDeQuienConsulta,
+    bool OutboundCerrado)
 {
-    /// <summary>Solo se asume lo que no tiene principal vivo.</summary>
-    public bool SePuedeAsumir => Situacion != SituacionDePrincipal.CoordinadorCaePrincipal;
+    /// <summary>Si no tiene principal vivo.</summary>
+    public bool EstaSinPrincipal => Situacion != SituacionDePrincipal.CoordinadorCaePrincipal;
+
+    /// <summary>
+    /// Solo se ofrece «Asumir» donde <see cref="AsumirPrincipalDeOperacionCommand"/> lo permitiría:
+    /// sin principal vivo y sin Outbound cerrado (D3, R1). La fila se lista igual.
+    /// </summary>
+    public bool SePuedeAsumir => EstaSinPrincipal && !OutboundCerrado;
 }
 
 /// <summary>
@@ -44,9 +56,13 @@ public record AlertaDePrincipal(bool LaVe, IReadOnlyList<OperacionEnAlertaDePrin
 {
     public static readonly AlertaDePrincipal Ninguna = new(false, []);
 
-    public IEnumerable<OperacionEnAlertaDePrincipal> SinPrincipal => Operaciones.Where(o => o.SePuedeAsumir);
+    /// <summary>Las operaciones sin principal vivo, se puedan asumir o no.</summary>
+    public IEnumerable<OperacionEnAlertaDePrincipal> SinPrincipal => Operaciones.Where(o => o.EstaSinPrincipal);
 
-    public IEnumerable<OperacionEnAlertaDePrincipal> ConCoordinadorCaePrincipal => Operaciones.Where(o => !o.SePuedeAsumir);
+    /// <summary>De <see cref="SinPrincipal"/>, las que se pueden asumir: las que cuenta el aviso de la campana.</summary>
+    public IEnumerable<OperacionEnAlertaDePrincipal> Asumibles => Operaciones.Where(o => o.SePuedeAsumir);
+
+    public IEnumerable<OperacionEnAlertaDePrincipal> ConCoordinadorCaePrincipal => Operaciones.Where(o => !o.EstaSinPrincipal);
 }
 
 /// <summary>
@@ -64,6 +80,14 @@ public record AlertaDePrincipal(bool LaVe, IReadOnlyList<OperacionEnAlertaDePrin
 /// </para>
 ///
 /// <para>
+/// D3, R1 (DECISION_LOG 2026-11-20, punto 5): una operación sin principal con Outbound cerrado para
+/// su Tenant beneficiario o para el Tenant de origen del Operador CAE externo se lista igual, pero
+/// sin «Asumir» (<see cref="OperacionEnAlertaDePrincipal.SePuedeAsumir"/>): la visibilidad de la
+/// acción sigue la autorización real del comando. El Tenant de origen se pregunta una vez y cada
+/// Tenant beneficiario distinto otra, solo si hay operaciones sin principal.
+/// </para>
+///
+/// <para>
 /// No concede nada: listar una operación no da acceso a su Tenant. Sin cartera vigente, alcance cero.
 /// </para>
 /// </summary>
@@ -73,7 +97,8 @@ public record ObtenerOperacionesSinPrincipalQuery : IRequest<AlertaDePrincipal>;
 public class ObtenerOperacionesSinPrincipalQueryHandler(
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
-    ICatalogoIncorporacionCartera catalogo)
+    ICatalogoIncorporacionCartera catalogo,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<ObtenerOperacionesSinPrincipalQuery, AlertaDePrincipal>
 {
     public async Task<AlertaDePrincipal> Handle(
@@ -118,12 +143,21 @@ public class ObtenerOperacionesSinPrincipalQueryHandler(
                 ? new Dictionary<Guid, string>()
                 : await directorioUsuarios.ObtenerNombresVisiblesAsync(principales, cancellationToken);
 
+            // D3, R1: la misma regla que el comando, solo para las operaciones sin principal.
+            var abiertos = await EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync(
+                outboundCerrado,
+                enAlerta.Where(o => o.Situacion != SituacionDePrincipal.CoordinadorCaePrincipal)
+                    .Select(o => o.Operacion.PropietarioTenantId),
+                origen.Value, cancellationToken);
+
             return new AlertaDePrincipal(true, enAlerta
                 .Select(o => new OperacionEnAlertaDePrincipal(
                     o.Operacion.AsignacionOperacionId, o.Operacion.PropietarioTenantId, o.Operacion.Nombre,
                     o.Situacion, o.Personas,
                     o.Principal is { } p ? nombres.GetValueOrDefault(p.UsuarioId) ?? string.Empty : null,
-                    o.Principal?.UsuarioId == actorId))
+                    o.Principal?.UsuarioId == actorId,
+                    OutboundCerrado: o.Situacion != SituacionDePrincipal.CoordinadorCaePrincipal
+                                     && !abiertos.Contains(o.Operacion.PropietarioTenantId)))
                 .OrderBy(o => o.Situacion)
                 .ThenBy(o => o.NombreTenant)
                 .ToList());

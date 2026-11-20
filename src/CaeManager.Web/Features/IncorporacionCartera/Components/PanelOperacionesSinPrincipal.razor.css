@@ -8,6 +8,11 @@
     text-align: end;
 }
 
+.sin-principal-motivo {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
 .sin-principal-solo-lectores {
     position: absolute;
     width: 1px;

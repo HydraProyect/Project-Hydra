@@ -282,7 +282,7 @@ public class CambiarActivacionUsuarioCommandHandler(
             return Result.Exito();
 
         return await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(
-                catalogo, directorioUsuarios, bloqueoCartera, usuarioId, operadorTenantId, cancellationToken)
+                catalogo, directorioUsuarios, bloqueoCartera, outboundCerrado, usuarioId, operadorTenantId, cancellationToken)
             ? Result.Exito()
             : Result.Fallo(PrincipalNoRelevado);
     }

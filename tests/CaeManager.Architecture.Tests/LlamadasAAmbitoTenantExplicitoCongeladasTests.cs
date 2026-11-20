@@ -174,7 +174,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     ///
     /// <para>
     /// Actualizado 2026-10-08 (Gestor CAE principal, ADR-011 § 2.7): entran
-    /// <c>DesignarGestorCaePrincipalCommand.cs</c> (2 llamadas),
+    /// <c>DesignarGestorCaePrincipalCommand.cs</c> (4 llamadas),
     /// <c>RelevoDePrincipalDeCartera.cs</c> (3) y
     /// <c>ObtenerPersonasConCarteraQuery.cs</c> (1). El Tenant propietario sale
     /// siempre de una cartera viva leída del catálogo y acotada al Operador CAE
@@ -367,23 +367,23 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "ObtenerTenantOrigenIdAsync() del propio usuario, en sus dos llamadas (la autoridad sobre un Gestor CAE y, desde I4, ResolverActorAsync para revocar un apoyo): para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor. De la petición solo salen la Asignación de Operación y la persona"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor (las líneas Outbound de D3 se leen en EscaladoDePrincipalDeCartera). De la petición solo salen la Asignación de Operación y la persona"),
         ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Ningún Guid llega de la petición"),
         // I5 (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): alerta «sin principal», escalado y «Asumir».
         ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "operadorTenantId, las dos veces: el Operador CAE de la Asignación de Operación que el comando llamante ya resolvió y autorizó (su Tenant de origen, o el de la operación que acaba de abrir tras validar al Operador CAE). Solo sirve para contar en Identity las cuentas activas de cada perfil de ese Operador CAE; no lee datos de negocio ni llega de la petición"),
+                "operadorTenantId, tres veces: el Operador CAE de la Asignación de Operación que el comando llamante ya resolvió y autorizó (su Tenant de origen, o el de la operación que acaba de abrir tras validar al Operador CAE). Sirve para contar en Identity las cuentas activas de cada perfil de ese Operador CAE y para leer su línea Outbound (D3); y cada Tenant beneficiario de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync de ese Operador CAE, para leer su línea Outbound (D3, R1). BeneficiariosDondeSePuedeAsumirAsync lo llaman también AsumirPrincipalDeOperacionCommand y ObtenerOperacionesSinPrincipalQuery, con el Tenant de origen ya resuelto y autorizado y los Tenants beneficiarios de ese mismo catálogo. Ninguno llega de la petición"),
         ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las operaciones de su Operador CAE; y decision.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync de ese Operador CAE de origen, tras autorizar a quien asume por su perfil leído en Identity. De la petición solo llega el identificador de la Asignación de Operación"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las operaciones de su Operador CAE (las líneas Outbound de D3 se leen en EscaladoDePrincipalDeCartera); y decision.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync de ese Operador CAE de origen, tras autorizar a quien asume por su perfil leído en Identity. De la petición solo llega el identificador de la Asignación de Operación"),
         ["src/CaeManager.Application/Usuarios/Queries/ObtenerOperacionesSinPrincipal/ObtenerOperacionesSinPrincipalQuery.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
-                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y el catálogo de carteras de su propia organización; no ensancha nada (mismo criterio que ObtenerPersonasConCarteraQuery)"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y el catálogo de carteras de su propia organización; no ensancha nada (mismo criterio que ObtenerPersonasConCarteraQuery). Las líneas Outbound con que decide si ofrece «Asumir» (D3, R1) se leen en EscaladoDePrincipalDeCartera"),
         ["src/CaeManager.Application/Usuarios/Queries/ObtenerPersonasConCartera/ObtenerPersonasConCarteraQuery.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
-                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y los nombres de su propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y los nombres de su propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae). Las líneas Outbound con que decide si se puede designar principal donde no lo hay (D3, R1) se leen en EscaladoDePrincipalDeCartera"),
         ["src/CaeManager.Application/Usuarios/Queries/ObtenerEquipoDeCoordinador/ObtenerEquipoDeCoordinadorQuery.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio Coordinador CAE, para leer su rol en Identity y la lista de su equipo en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -679,6 +679,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] = 1,
+            // 2 → 4 → 2 (2026-11-20, D3 R1): sin principal actual, la lectura de la línea Outbound del Tenant de origen y la
+            // del Tenant beneficiario pasaron a EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync, la regla
+            // única que también aplica «Asumir».
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
@@ -686,7 +689,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             // 2 → 3 (2026-11-19, D3): la lectura de la línea Outbound del Tenant beneficiario de cada cartera a traspasar, con el
             // mismo propietarioTenantId ya validado que la escritura de su cartera.
             ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs"] = 3,
-            ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 2,
+            // 2 → 4 (2026-11-20, D3, R1): la lectura de la línea Outbound del Tenant de origen del Operador CAE y la de
+            // cada Tenant beneficiario de las operaciones que se asumirían sin baja previa, con esos mismos Guid. Desde la
+            // ronda 2 viven en BeneficiariosDondeSePuedeAsumirAsync, la regla única de «Asumir», del primer usuario elegible
+            // y de la alerta que ofrece «Asumir».
+            ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 4,
+            // 2 → 3 → 2 (2026-11-20, D3, R1): la lectura de la línea Outbound del Tenant de origen del Operador CAE pasó a
+            // EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync, con la del Tenant beneficiario.
             ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,

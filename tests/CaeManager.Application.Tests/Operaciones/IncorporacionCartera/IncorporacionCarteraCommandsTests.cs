@@ -605,6 +605,42 @@ public class IncorporacionCarteraCommandsTests
             .Which.TenantActivo.Should().Be(_empresa.Id);
     }
 
+    /// <summary>
+    /// D3 (DECISION_LOG 2026-11-19, punto 2, y 2026-11-20, punto 6, R2): revocar es una baja (DN-7), y su relevo de
+    /// principal sigue permitido con Outbound cerrado para el Tenant beneficiario o, por analogía, para el Tenant de origen
+    /// del Operador CAE externo. Por la tubería de D3 (<see cref="CaeManager.Application.Common.LimiteTenantTecBehavior{TRequest,TResponse}"/>) con el
+    /// puerto cerrado registrado: ni el behavior ni el handler lo deniegan, y el Coordinador CAE recibe la marca.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_revocar_la_incorporacion_del_principal_releva_aunque_Outbound_este_cerrado(bool beneficiario, bool operador)
+    {
+        _outbound = new OutboundCerradoTenantTecFijo(t => (beneficiario && t == _empresa.Id) || (operador && t == _operador));
+        var solicitud = Aceptada();
+        _catalogo.CarterasVivas.Add((_operador, new CaeManager.Application.Operaciones.CarteraVivaDeOperacion(
+            _operacion.Id, _empresa.Id, _empresa.Nombre, _gestor, "GestorCae", true, null)));
+        var cuenta = new CaeManager.Application.Clientes.DestinoCartera(true, "GestorCae", _coordinador, EsOperadorDelegado: false);
+        var handler = Revocar(Como(_coordinador, "CoordinadorCae"), cuenta);
+        var comando = new RevocarIncorporacionCarteraCommand(solicitud.Id);
+
+        var servicios = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions
+            .AddSingleton<CaeManager.Application.Comercial.LineaOutbound.IOutboundCerradoTenantTec>(servicios, _outbound);
+        await using var proveedor = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions
+            .BuildServiceProvider(servicios);
+        var resultado = await new CaeManager.Application.Common.LimiteTenantTecBehavior<RevocarIncorporacionCarteraCommand, CaeManager.Domain.Common.Result>(
+                new CaeManager.Application.Tests.Configuracion.TenantActualFijo(_empresa.Id), proveedor)
+            .Handle(comando, ct => handler.Handle(comando, ct), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+
+        _catalogo.CarterasVivas.Where(c => c.Cartera.EsPrincipal).Select(c => c.Cartera.UsuarioId).Should().Equal(
+            [_coordinador], "el relevo como consecuencia de una baja sigue permitido");
+        _catalogo.CambiosDeMarca.Where(c => c.Paso == "relevar").Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Un_Coordinador_CAE_revoca_la_incorporacion_de_un_Gestor_CAE_y_le_avisa()
     {

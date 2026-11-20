@@ -1,4 +1,5 @@
 using CaeManager.Application.Comercial.LineaOutbound;
+using CaeManager.Application.Common;
 
 namespace CaeManager.Application.Tests.Comercial;
 
@@ -14,9 +15,13 @@ public sealed class OutboundCerradoTenantTecFijo(Func<Guid, bool> cerrado) : IOu
 
     public List<Guid> Preguntados { get; } = [];
 
+    /// <summary>Cada pregunta con el Tenant activo explícito (<see cref="AmbitoTenantExplicito"/>) con que se hizo.</summary>
+    public List<(Guid Preguntado, Guid? Ambito)> Ambitos { get; } = [];
+
     public Task<bool> EstaCerradoAsync(Guid tenantBeneficiarioId, CancellationToken cancellationToken = default)
     {
         Preguntados.Add(tenantBeneficiarioId);
+        Ambitos.Add((tenantBeneficiarioId, AmbitoTenantExplicito.TenantIdActual));
         return Task.FromResult(cerrado(tenantBeneficiarioId));
     }
 }

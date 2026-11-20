@@ -418,7 +418,8 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, _) =>
             new DesignarGestorCaePrincipalCommandHandler(
                     usuario, directorio, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
-                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new DesignarGestorCaePrincipalCommand(_operacion, destino), CancellationToken.None));
 
     /// <summary>Si la sesión de ese usuario puede abrir el Tenant, y con qué rol efectivo por la vía de Operación.</summary>

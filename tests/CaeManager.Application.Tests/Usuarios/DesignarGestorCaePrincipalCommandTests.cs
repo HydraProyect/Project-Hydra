@@ -1,6 +1,8 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
@@ -45,6 +47,7 @@ public class DesignarGestorCaePrincipalCommandTests
         public BloqueoCarteraUsuarioFalso Bloqueo { get; } = new();
         public DirectorioRolesEnOrigen Roles { get; } = new();
         public DirectorioPorUsuario Cuentas { get; } = new();
+        public OutboundCerradoTenantTecFijo Outbound { get; init; } = OutboundCerradoTenantTecFijo.Abierto();
         public Guid ActorId { get; init; } = Actor;
         public Guid TenantOrigen { get; init; } = Operador;
         private string? _rolDeSesion = "Administrador";
@@ -99,7 +102,7 @@ public class DesignarGestorCaePrincipalCommandTests
         public IEnumerable<Guid> ConCartera => Catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId);
 
         public DesignarGestorCaePrincipalCommandHandler Handler() => new(
-            new CurrentUserServicePorAmbito(ActorId, TenantOrigen, RolDeSesion), Roles, Cuentas, Catalogo, Transaccion, Bloqueo);
+            new CurrentUserServicePorAmbito(ActorId, TenantOrigen, RolDeSesion), Roles, Cuentas, Catalogo, Transaccion, Bloqueo, Outbound);
 
         public Task<Domain.Common.Result> Designar(Guid usuarioId, Guid? operacion = null) =>
             Handler().Handle(new DesignarGestorCaePrincipalCommand(operacion ?? Operacion, usuarioId), default);
@@ -363,10 +366,88 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Transaccion.Confirmadas.Should().Be(0);
     }
 
+    // ---------- D3, R1 (DECISION_LOG 2026-11-20, punto 5) ----------
+
+    /// <summary>La misma operación, sin principal: GestorA conserva su cartera, ya sin la marca.</summary>
+    private static Escenario SinPrincipal(OutboundCerradoTenantTecFijo outbound)
+    {
+        var e = new Escenario { Outbound = outbound }.ActorConRol("Administrador");
+        e.Catalogo.CarterasVivas.RemoveAll(c => c.Cartera.UsuarioId == GestorA);
+        e.Cartera(GestorA);
+        return e;
+    }
+
+    private static OutboundCerradoTenantTecFijo CerradoPara(bool beneficiario, bool operador) =>
+        new(t => (beneficiario && t == Propietario) || (operador && t == Operador));
+
+    [Theory]
+    [InlineData(true, false)]  // Tenant beneficiario cerrado
+    [InlineData(false, true)]  // Tenant de origen del Operador CAE externo cerrado
+    [InlineData(true, true)]   // los dos
+    public async Task D3_designar_sin_principal_actual_se_deniega_con_Outbound_cerrado(bool beneficiario, bool operador)
+    {
+        var e = SinPrincipal(CerradoPara(beneficiario, operador));
+
+        var resultado = await e.Designar(GestorC);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        e.Principal.Should().BeNull("asumir sin una baja previa no deja principal con Outbound cerrado");
+        e.Catalogo.CambiosDeMarca.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_designar_con_principal_actual_sustituye_aunque_Outbound_este_cerrado(bool beneficiario, bool operador)
+    {
+        var outbound = CerradoPara(beneficiario, operador);
+        var e = new Escenario { Outbound = outbound }.ActorConRol("Administrador");
+
+        var resultado = await e.Designar(GestorC);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        e.Principal.Should().Be(GestorC, "la sustitución, como el relevo, no amplía y sigue permitida");
+        outbound.Preguntados.Should().BeEmpty("con principal actual no se consulta la línea Outbound");
+    }
+
+    [Fact]
+    public async Task D3_designar_sin_principal_con_los_dos_abiertos_no_cambia_y_pregunta_por_los_dos()
+    {
+        var outbound = OutboundCerradoTenantTecFijo.Abierto();
+        var e = SinPrincipal(outbound);
+
+        var resultado = await e.Designar(GestorC);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        e.Principal.Should().Be(GestorC);
+        e.Catalogo.CambiosDeMarca.Select(c => (c.Paso, c.UsuarioId)).Should().Equal(
+            ("encender", GestorC), ("guardar", Guid.Empty));
+        // Cada Tenant se lee con él mismo como Tenant activo.
+        outbound.Ambitos.Should().Equal((Operador, (Guid?)Operador), (Propietario, (Guid?)Propietario));
+    }
+
+    /// <summary>
+    /// La regla única de D3 (<see cref="EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync"/>) sin
+    /// operaciones sin principal no pregunta por ningún Tenant, tampoco por el de origen del Operador CAE externo.
+    /// </summary>
+    [Fact]
+    public async Task D3_la_regla_sin_Tenants_beneficiarios_no_pregunta_por_ninguno()
+    {
+        var outbound = OutboundCerradoTenantTecFijo.Abierto();
+
+        var abiertos = await EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync(
+            outbound, [], Operador, default);
+
+        abiertos.Should().BeEmpty();
+        outbound.Preguntados.Should().BeEmpty();
+    }
+
     // ---------- Relevo automático al retirar la cartera principal ----------
 
     private static AsignarCarteraGestorCaeCommandHandler Retirada(Escenario e) => new(
-        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
+        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo, e.Outbound);
 
     private static async Task RetirarAsync(Escenario e, Guid gestor)
     {
@@ -394,6 +475,25 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Bloqueo.Exclusivos.Should().Equal(GestorA);
         e.Bloqueo.Compartidos.Should().Equal([Coordinador1],
             "el relevo toma el candado compartido de quien va a recibir la marca antes de validar su cuenta");
+    }
+
+    /// <summary>
+    /// D3 (DECISION_LOG 2026-11-19, punto 2, y 2026-11-20, punto 6, R2): retirar la cartera principal es una baja, y su
+    /// relevo sigue permitido con Outbound cerrado para el Tenant beneficiario o, por analogía, para el Tenant de origen
+    /// del Operador CAE externo: el Coordinador CAE recibe la marca y, si hace falta, una cartera nueva.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_retirar_la_cartera_principal_releva_aunque_Outbound_este_cerrado(bool beneficiario, bool operador)
+    {
+        var e = new Escenario { Outbound = CerradoPara(beneficiario, operador) }.ActorConRol("Administrador");
+
+        await RetirarAsync(e, GestorA);
+
+        e.Principal.Should().Be(Coordinador1, "el relevo como consecuencia de una baja sigue permitido");
+        e.Catalogo.CarterasVivas.Single(c => c.Cartera.UsuarioId == Coordinador1).Cartera.Rol.Should().Be("CoordinadorCae");
     }
 
     [Fact]
@@ -450,6 +550,96 @@ public class DesignarGestorCaePrincipalCommandTests
 
     // ---------- Lectura ----------
 
+    private static ObtenerPersonasConCarteraQueryHandler Lectura(Escenario e) => new(
+        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo, e.Outbound);
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): la lectura de la que sale el diálogo «Asignar empresas» dice, de una
+    /// operación sin principal, si Outbound está cerrado para su Tenant beneficiario o para el Tenant de origen del
+    /// Operador CAE externo, con la misma regla que el comando, para no ofrecer «Designar principal» donde se deniega.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]  // Tenant beneficiario cerrado
+    [InlineData(false, true)]  // Tenant de origen del Operador CAE externo cerrado
+    [InlineData(true, true)]   // los dos
+    public async Task D3_la_lectura_no_deja_designar_sin_principal_con_Outbound_cerrado(bool beneficiario, bool operador)
+    {
+        var outbound = CerradoPara(beneficiario, operador);
+        var e = SinPrincipal(outbound);
+
+        var operacion = (await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(Propietario), default))
+            .Should().ContainSingle().Subject;
+
+        operacion.Principal.Should().BeNull("control positivo del escenario");
+        operacion.OutboundCerrado.Should().BeTrue();
+        operacion.SePuedeDesignarPorOutbound.Should().BeFalse();
+        outbound.Preguntados.Should().Equal(operador ? [Operador] : [Operador, Propietario],
+            "el Tenant de origen primero y, solo si está abierto, el Tenant beneficiario");
+        outbound.Ambitos.Should().OnlyContain(p => p.Preguntado == p.Ambito, "cada Tenant se lee con él como Tenant activo");
+
+        (await e.Designar(GestorC)).Error.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo,
+            "la lectura no ofrece lo que el comando deniega, y el comando lo deniega");
+    }
+
+    [Fact]
+    public async Task D3_la_lectura_deja_designar_sin_principal_con_los_dos_abiertos()
+    {
+        var outbound = OutboundCerradoTenantTecFijo.Abierto();
+        var e = SinPrincipal(outbound);
+
+        var operacion = (await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(Propietario), default))
+            .Should().ContainSingle().Subject;
+
+        operacion.Principal.Should().BeNull("control positivo del escenario");
+        operacion.OutboundCerrado.Should().BeFalse();
+        operacion.SePuedeDesignarPorOutbound.Should().BeTrue();
+        outbound.Ambitos.Should().Equal((Operador, (Guid?)Operador), (Propietario, (Guid?)Propietario));
+        (await e.Designar(GestorC)).EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_la_lectura_deja_designar_con_principal_actual_aunque_Outbound_este_cerrado(bool beneficiario, bool operador)
+    {
+        var outbound = CerradoPara(beneficiario, operador);
+        var e = new Escenario { Outbound = outbound }.ActorConRol("Administrador");
+
+        var operacion = (await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(Propietario), default))
+            .Should().ContainSingle().Subject;
+
+        operacion.Principal!.UsuarioId.Should().Be(GestorA, "control positivo del escenario");
+        operacion.OutboundCerrado.Should().BeFalse("con principal designar sustituye y sigue permitido");
+        operacion.SePuedeDesignarPorOutbound.Should().BeTrue();
+        outbound.Preguntados.Should().BeEmpty("sin operaciones sin principal no se consulta ninguna línea Outbound");
+    }
+
+    /// <summary>
+    /// D3, R1: con dos operaciones sin principal de Tenants beneficiarios distintos, la marca va por el Tenant de cada
+    /// operación. Que haya otro Tenant beneficiario abierto no deja designar en el cerrado, ni al revés.
+    /// </summary>
+    [Fact]
+    public async Task D3_la_lectura_marca_cada_operacion_sin_principal_por_su_propio_Tenant_beneficiario()
+    {
+        var otroPropietario = Guid.Parse("7a1d0000-0000-0000-0000-0000000000d3");
+        var otraOperacion = Guid.Parse("7a1d0000-0000-0000-0000-0000000000d4");
+        var outbound = new OutboundCerradoTenantTecFijo(t => t == Propietario);
+        var e = SinPrincipal(outbound);
+        e.Catalogo.CarterasVivas.Add((Operador, new CarteraVivaDeOperacion(
+            otraOperacion, otroPropietario, "Montajes del Sur", GestorB, "GestorCae", false, null)));
+
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(), default);
+
+        var cerrada = operaciones.Single(o => o.TenantId == Propietario);
+        var abierta = operaciones.Single(o => o.TenantId == otroPropietario);
+        cerrada.Principal.Should().BeNull("control positivo del escenario");
+        abierta.Principal.Should().BeNull("control positivo del escenario");
+        cerrada.SePuedeDesignarPorOutbound.Should().BeFalse();
+        abierta.SePuedeDesignarPorOutbound.Should().BeTrue();
+        outbound.Preguntados.Should().BeEquivalentTo([Operador, Propietario, otroPropietario]);
+    }
+
     [Fact]
     public async Task La_lectura_da_por_operacion_quien_es_el_principal_y_quienes_de_apoyo()
     {
@@ -457,9 +647,7 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Catalogo.CarterasVivas.Add((Operador, new CarteraVivaDeOperacion(
             Operacion, Propietario, "Talleres Norte", Coordinador2, "GestorCae", false, new DateTime(2026, 12, 31, 0, 0, 0, DateTimeKind.Utc))));
 
-        var operaciones = await new ObtenerPersonasConCarteraQueryHandler(
-                new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo)
-            .Handle(new ObtenerPersonasConCarteraQuery(Propietario), default);
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(Propietario), default);
 
         var operacion = operaciones.Should().ContainSingle().Subject;
         operacion.AsignacionOperacionId.Should().Be(Operacion);
@@ -481,9 +669,7 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Roles.Avatares[GestorA] = "buho-ambar";
         e.Roles.Avatares[GestorC] = "zorro-azul";
 
-        var operaciones = await new ObtenerPersonasConCarteraQueryHandler(
-                new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo)
-            .Handle(new ObtenerPersonasConCarteraQuery(Propietario), default);
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(Propietario), default);
 
         var operacion = operaciones.Should().ContainSingle().Subject;
         operacion.Principal!.UsuarioId.Should().Be(GestorA, "control positivo del escenario");
@@ -500,9 +686,7 @@ public class DesignarGestorCaePrincipalCommandTests
     {
         var e = new Escenario { TenantOrigen = mismoOperador ? Operador : OtroOperador, RolDeSesion = rol }.ActorConRol(rol);
 
-        var operaciones = await new ObtenerPersonasConCarteraQueryHandler(
-                new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo)
-            .Handle(new ObtenerPersonasConCarteraQuery(), default);
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(), default);
 
         operaciones.Should().BeEmpty();
     }
@@ -526,9 +710,7 @@ public class DesignarGestorCaePrincipalCommandTests
         var e = new Escenario { TenantOrigen = origen, RolDeSesion = rolDeSesion };
         e.Roles.Asignar(Actor, dondeTieneElRol == "otro-tenant" ? OtroOperador : origen, rolEnIdentity);
 
-        var operaciones = await new ObtenerPersonasConCarteraQueryHandler(
-                new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo)
-            .Handle(new ObtenerPersonasConCarteraQuery(), default);
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(), default);
 
         if (ve)
             operaciones.Should().ContainSingle().Which.Principal!.UsuarioId.Should().Be(GestorA);

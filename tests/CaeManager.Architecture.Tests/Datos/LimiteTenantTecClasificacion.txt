@@ -48,15 +48,15 @@ AsignarCarteraGestorCaeCommand	cerrado-handler	cada Tenant de TenantsAAsignar, p
 AsignarCentrosControlAccesoCommand	no-aplica	Inbound (IComandoInbound, AF-01): fija los Centros de la portería de una cuenta con el rol Control de acceso del Tenant TCE (UsuarioControlAccesoCentro); no crea operación Outbound ni Asignación de Cartera u Operación
 AsignarClienteConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarEjecutivoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
-AsignarRolACuentaCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+AsignarRolACuentaCommand	abierto	cambio de rol, no un alta de Outbound; su asignación automática de principal al primer usuario elegible (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva) es asumir sin baja previa y AsignacionAutomaticaDePrincipal la deniega con el Tenant beneficiario o el Tenant de origen del Operador CAE externo cerrados (R1, DECISION_LOG 2026-11-20 punto 5)
 AsignarTecnicoProyectoCommand	no-aplica
 AsignarTrabajadoresAutorizacionCommand	no-aplica
-AsumirPrincipalDeOperacionCommand	abierto	relevo de principal: permitido cuando sustituye a un principal que se fue por una baja (opción (A), DECISION_LOG 2026-11-19 punto 2); hueco declarado: asumir una operación que nunca tuvo principal en un Tenant beneficiario cerrado emite una Asignación de Cartera nueva sin baja previa, pendiente de decisión R1 (recomendado cerrarlo en una PR posterior)
+AsumirPrincipalDeOperacionCommand	cerrado-handler	asumir sin baja previa (una operación que nunca tuvo principal, o con la cartera del principal Expirada sin relevo), por el Tenant beneficiario y por el Tenant de origen del Operador CAE externo (R1, DECISION_LOG 2026-11-20 punto 5), con la misma regla con que ObtenerOperacionesSinPrincipalQuery ofrece «Asumir»; el relevo como consecuencia de una baja no pasa por aquí y sigue permitido (DECISION_LOG 2026-11-19 punto 2 y 2026-11-20 punto 6)
 AutoConcederPrivilegioCommand	no-aplica
 AvisarCambioSubencargadoCommand	no-aplica
 BorrarCredencialAccesoEmpresaContrasenaCommand	no-aplica
 BuscarDatosPurgablesCommand	no-aplica
-CambiarActivacionUsuarioCommand	cerrado-handler	el traspaso al desactivar retira sin traspasar la cartera de un Tenant beneficiario cerrado o de un Operador CAE cerrado (EP-4); su relevo de principal sigue abierto
+CambiarActivacionUsuarioCommand	cerrado-handler	el traspaso al desactivar retira sin traspasar la cartera de un Tenant beneficiario cerrado o de un Operador CAE cerrado (EP-4); su relevo de principal al desactivar sigue permitido con cualquiera de los dos cerrado (DECISION_LOG 2026-11-19 punto 2 y 2026-11-20 punto 6); la asignación automática de principal al reactivar la deniegan los dos (R1, 2026-11-20 punto 5)
 CambiarActivoProveedorPlataformaCommand	no-aplica
 CambiarAddOnSubidaAutomaticaCommand	no-aplica
 CambiarConectorApiProveedorPlataformaCommand	no-aplica
@@ -121,7 +121,7 @@ CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propi
 CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
 CrearTipoDocumentoCommand	no-aplica
 CrearTrabajadorCommand	no-aplica
-CrearUsuarioCommand	cerrado-handler	cada Asignación de Cartera del alta, por su Tenant beneficiario y por el Tenant de origen del Operador CAE (EP-4); la asignación automática de principal sigue abierta
+CrearUsuarioCommand	cerrado-handler	cada Asignación de Cartera del alta, por su Tenant beneficiario y por el Tenant de origen del Operador CAE (EP-4); la asignación automática de principal la deniega AsignacionAutomaticaDePrincipal por los mismos dos (R1, DECISION_LOG 2026-11-20 punto 5)
 CrearVehiculoCommand	no-aplica
 CrearVisitaCommand	no-aplica
 DarDeBajaAsignacionCommand	no-aplica
@@ -141,7 +141,7 @@ DesconectarBuzonCommand	no-aplica
 DeshacerCambioEstadoAcreditacionCommand	no-aplica
 DeshacerDerivacionAlertaCriticaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 DeshacerSubidaDesdeExtensionCommand	no-aplica
-DesignarGestorCaePrincipalCommand	abierto	marca la principal entre carteras vivas, sin alta; mismo trato que el relevo (DN-7): relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+DesignarGestorCaePrincipalCommand	cerrado-handler	sin principal actual, designar es asumir la operación sin una baja previa y se deniega con el Tenant beneficiario, el Tenant de origen del Operador CAE externo o los dos cerrados (R1, DECISION_LOG 2026-11-20 punto 5); con principal actual sustituye, tiene el trato del relevo (DN-7) y sigue permitido (DECISION_LOG 2026-11-19 punto 2 y 2026-11-20 punto 6)
 DiagnosticarDatosPurgablesCommand	no-aplica
 DividirAdjuntoPdfCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EditarCanalGestionCommand	cerrado-behavior
@@ -159,7 +159,7 @@ EditarRequisitoPlantillaCommand	no-aplica
 EditarSubcontrataCommand	cerrado-handler	solo si añade Clientes empresariales (D3/DN-4 y EP-4 dentro de lo que abre D5)
 EditarTipoDocumentoCommand	no-aplica
 EditarTrabajadorCommand	no-aplica
-EditarUsuarioCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+EditarUsuarioCommand	abierto	cambio de datos o de rol, no un alta de Outbound; su asignación automática de principal al primer usuario elegible (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva) es asumir sin baja previa y AsignacionAutomaticaDePrincipal la deniega con el Tenant beneficiario o el Tenant de origen del Operador CAE externo cerrados (R1, DECISION_LOG 2026-11-20 punto 5)
 EditarVehiculoCommand	no-aplica
 EditarVisitaCommand	no-aplica
 EjecutarImportacionCombinadaCommand	cerrado-behavior
@@ -348,7 +348,7 @@ RevocarClaveApiCommand	no-aplica
 RevocarClaveApiDeMiOrganizacionCommand	no-aplica
 RevocarConcesionPrivilegioCommand	no-aplica
 RevocarCredencialCommand	no-aplica
-RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva; relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva; relevo de principal permitido como consecuencia de la baja con el Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2, y con el Tenant de origen del Operador CAE externo cerrado (R2, DECISION_LOG 2026-11-20 punto 6)
 RevocarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
 RevocarOperadorCaeExternoPorSoporteCommand	no-aplica
 SolicitarCertificacionTgssCommand	no-aplica

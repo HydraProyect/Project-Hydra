@@ -1818,7 +1818,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             ? TextosUsuarios["PrincipalDeOtraPersona", RotuloPrincipal(otro), otro.Nombre].Value
             : TextosUsuarios["PrincipalSin"].Value;
 
-        return new(rotulo, TextosUsuarios["PrincipalJuntoAlRotulo", deOtra].Value, SePuedeDesignar: usuario.Activo);
+        // D3, R1: sin principal y con Outbound cerrado, DesignarGestorCaePrincipalCommand lo deniega;
+        // la acción no se ofrece (la regla la calcula ObtenerPersonasConCarteraQuery).
+        return new(rotulo, TextosUsuarios["PrincipalJuntoAlRotulo", deOtra].Value,
+            SePuedeDesignar: usuario.Activo && operacion.SePuedeDesignarPorOutbound);
     }
 
     /// <summary>

@@ -331,8 +331,10 @@
 
             // Empresas del Operador CAE sin principal: un solo elemento resumen que lleva a la lista
             // donde se asumen. La Query devuelve vacío a quien no es Coordinador CAE, Dirección CAE
-            // ni Administrador del Operador CAE.
-            var sinPrincipal = (await Mediator.Send(new ObtenerOperacionesSinPrincipalQuery())).SinPrincipal.Count();
+            // ni Administrador del Operador CAE. Cuenta solo las que se pueden asumir: una sin
+            // principal que D3 no deja asumir (R1) se ve en la lista, pero no es un aviso que se
+            // pueda atender desde allí.
+            var sinPrincipal = (await Mediator.Send(new ObtenerOperacionesSinPrincipalQuery())).Asumibles.Count();
             if (sinPrincipal > 0)
             {
                 items.Add(new ItemAviso(TipoAviso.SinPrincipal, Guid.Empty, "cartera-sin-principal",

@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -23,11 +24,28 @@ public record PersonaConCartera(Guid UsuarioId, string Nombre, string Rol, DateT
 /// (organización) de esa operación; solo lo lleva la lectura hecha desde el Tenant propietario
 /// (<c>ObtenerOperadoresCaeDeMiTenantQuery</c>): a quien pregunta desde el Operador CAE no hace
 /// falta decirle cuál es el suyo.
+///
+/// <para>
+/// <paramref name="OutboundCerrado"/> dice si D3 deniega designar principal en una operación que no
+/// lo tiene: es asumirla sin una baja previa, y no se puede con Outbound cerrado para su Tenant
+/// beneficiario o para el Tenant de origen del Operador CAE externo (R1, DECISION_LOG 2026-11-20,
+/// punto 5; <see cref="EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync"/>). Con
+/// principal es siempre <c>false</c>: designar sustituye y sigue permitido. Solo lo calcula
+/// <see cref="ObtenerPersonasConCarteraQuery"/>, la lectura del Operador CAE de la que sale el
+/// diálogo que ofrece «Designar principal».
+/// </para>
 /// </summary>
 public record CarterasDeOperacion(
     Guid AsignacionOperacionId, Guid TenantId, string NombreTenant,
     PersonaConCartera? Principal, IReadOnlyList<PersonaConCartera> Apoyos,
-    string? NombreOperador = null);
+    string? NombreOperador = null, bool OutboundCerrado = false)
+{
+    /// <summary>
+    /// Solo se ofrece «Designar principal» donde <c>DesignarGestorCaePrincipalCommand</c> lo
+    /// permitiría por D3: con principal (sustitución) o, sin él, sin Outbound cerrado.
+    /// </summary>
+    public bool SePuedeDesignarPorOutbound => Principal is not null || !OutboundCerrado;
+}
 
 /// <summary>
 /// Las personas con cartera viva en los Tenants que opera el Operador CAE de quien pregunta,
@@ -39,6 +57,14 @@ public record CarterasDeOperacion(
 /// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>); en particular, vacía para un usuario del propio Tenant propietario, cuya
 /// lectura es <c>ObtenerOperadoresCaeDeMiTenantQuery</c>. Es lectura: quién puede cambiar el
 /// principal lo decide <c>DesignarGestorCaePrincipalCommand</c>.
+///
+/// <para>
+/// D3, R1 (DECISION_LOG 2026-11-20, punto 5): para las operaciones sin principal dice si Outbound
+/// está cerrado (<see cref="CarterasDeOperacion.OutboundCerrado"/>), con la misma regla que el
+/// comando, para que el diálogo no ofrezca «Designar principal» donde el comando lo deniega: la
+/// visibilidad de la acción sigue su autorización real. El Tenant de origen se pregunta una vez y
+/// cada Tenant beneficiario distinto otra, solo si hay operaciones sin principal.
+/// </para>
 /// </summary>
 [AreaDelEncargo("Usuarios")]
 public record ObtenerPersonasConCarteraQuery(Guid? TenantId = null) : IRequest<IReadOnlyList<CarterasDeOperacion>>;
@@ -46,7 +72,8 @@ public record ObtenerPersonasConCarteraQuery(Guid? TenantId = null) : IRequest<I
 public class ObtenerPersonasConCarteraQueryHandler(
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
-    ICatalogoIncorporacionCartera catalogo)
+    ICatalogoIncorporacionCartera catalogo,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<ObtenerPersonasConCarteraQuery, IReadOnlyList<CarterasDeOperacion>>
 {
     private static readonly string[] RolesQueLeen = ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
@@ -79,12 +106,24 @@ public class ObtenerPersonasConCarteraQueryHandler(
                 new(c.UsuarioId, nombres.GetValueOrDefault(c.UsuarioId) ?? string.Empty, c.Rol, c.VigenciaHasta,
                     avatares.GetValueOrDefault(c.UsuarioId));
 
-            return carteras
-                .GroupBy(c => c.AsignacionOperacionId)
-                .Select(g => new CarterasDeOperacion(
-                    g.Key, g.First().PropietarioTenantId, g.First().NombreTenant,
-                    g.Where(c => c.EsPrincipal).Select(Persona).FirstOrDefault(),
-                    g.Where(c => !c.EsPrincipal).Select(Persona).OrderBy(p => p.Nombre).ToList()))
+            var operaciones = carteras.GroupBy(c => c.AsignacionOperacionId).ToList();
+
+            // D3, R1: la misma regla que el comando, solo para las operaciones sin principal.
+            var abiertos = await EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync(
+                outboundCerrado,
+                operaciones.Where(g => !g.Any(c => c.EsPrincipal)).Select(g => g.First().PropietarioTenantId),
+                origen.Value, cancellationToken);
+
+            return operaciones
+                .Select(g =>
+                {
+                    var principal = g.Where(c => c.EsPrincipal).Select(Persona).FirstOrDefault();
+                    return new CarterasDeOperacion(
+                        g.Key, g.First().PropietarioTenantId, g.First().NombreTenant,
+                        principal,
+                        g.Where(c => !c.EsPrincipal).Select(Persona).OrderBy(p => p.Nombre).ToList(),
+                        OutboundCerrado: principal is null && !abiertos.Contains(g.First().PropietarioTenantId));
+                })
                 .OrderBy(o => o.NombreTenant)
                 .ToList();
         }
