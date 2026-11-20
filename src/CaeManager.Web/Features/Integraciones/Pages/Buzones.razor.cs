@@ -171,7 +171,8 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     }
 
     /// <summary>
-    /// «Hoy, 8:31» / «Ayer, 17:40» (lienzo) y, para lo más antiguo, el formato único «15/11/2026 08:31» (D-19). Hora y día peninsulares
+    /// «Hoy, 08:31» / «Ayer, 17:40» (lienzo, con la hora en dos dígitos de D-19) y, para lo más antiguo, el formato único
+    /// «15/11/2026 08:31» (D-19). Hora y día peninsulares
     /// (<see cref="DiaDeNegocio"/>), nunca la zona del servidor. Sin ningún correo recibido: «Sin correos aún»; sin dato
     /// (la petición falló o el buzón no está en la respuesta): «—».
     /// </summary>
@@ -181,7 +182,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         if (actividad.UltimoCorreoUtc is not { } instanteUtc) return Textos["SinCorreosAun"];
 
         var local = instanteUtc.EnHoraPeninsular();
-        var hora = local.ToString("H:mm", CultureInfo.InvariantCulture);
+        var hora = local.ToString("HH:mm", CultureInfo.InvariantCulture);
         var hoy = DiaDeNegocio.Hoy();
         var dia = DiaDeNegocio.De(instanteUtc);
         // Lo anterior a ayer no está en el lienzo: lleva el formato único de fecha y hora en pantalla (D-19), no uno propio.

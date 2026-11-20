@@ -685,8 +685,9 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     [Fact]
     public void Ultimo_correo_se_escribe_Hoy_Ayer_o_la_fecha_en_hora_peninsular_y_Sin_correos_aun_si_no_hay_ninguno()
     {
-        // Reloj fijado a las 22:30 UTC del 15/06/2026, que en Madrid (UTC+2) ya es el 16 a las 0:30: el día de negocio es el
-        // peninsular, no el UTC. Un correo de las 22:10 UTC (0:10 del 16) es «Hoy»; uno de las 10:00 UTC del 15 es «Ayer».
+        // Reloj fijado a las 22:30 UTC del 15/06/2026, que en Madrid (UTC+2) ya es el 16 a las 00:30: el día de negocio es el
+        // peninsular, no el UTC. Un correo de las 22:10 UTC (00:10 del 16) es «Hoy»; uno de las 10:00 UTC del 15 es «Ayer».
+        // La hora va en dos dígitos (D-19).
         using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijoBuzones(new DateTimeOffset(2026, 6, 15, 22, 30, 0, TimeSpan.Zero)));
         var ahora = new DateTime(2026, 6, 15, 22, 10, 0, DateTimeKind.Utc);
         var ayerAMediodia = new DateTime(2026, 6, 15, 10, 0, 0, DateTimeKind.Utc);
@@ -705,7 +706,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         string Celda(string nombre) => cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains($"{nombre}@"))
             .QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim();
-        Celda("hoy").Should().Be("Hoy, 0:10");
+        Celda("hoy").Should().Be("Hoy, 00:10");
         Celda("ayer").Should().Be("Ayer, 12:00");
         Celda("viejo").Should().Be("15/01/2026 10:05");
         Celda("vacio").Should().Be("Sin correos aún");

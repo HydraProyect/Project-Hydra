@@ -10,15 +10,20 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 /// <summary>
 /// Los dos datos de actividad que la tabla de Buzones enseña por buzón (columnas «Último correo» y «Abiertas», lienzo
 /// «Comunicaciones multi-buzón», tablero de Buzones). Una sola petición para todos los buzones de la página: el coste no
-/// crece con su número (tres consultas fijas, sin consulta por fila). La página la pide por el puerto del Núcleo
+/// crece con su número ni hay consulta por fila. Son cuatro sentencias fijas: los buzones medibles, las conexiones que
+/// <see cref="ConversacionesVisibles.FiltrarAsync"/> excluye, las abiertas y los últimos correos, más las que el alcance
+/// necesite para resolverse (memoizado en la petición); el techo medido en PostgreSQL lo fija
+/// <c>ObtenerActividadBuzonesQueryBajoRuntimeTests</c>. La página la pide por el puerto del Núcleo
 /// <see cref="IActividadBuzones"/> (<see cref="ActividadBuzonesService"/>), no directamente (ADR-013).
 ///
 /// <para>
 /// <b>Visibilidad.</b> Los dos datos se calculan sobre las conversaciones que <see cref="ConversacionesVisibles.FiltrarAsync"/>
 /// deja ver a quien pregunta (R-3a): la misma regla que la bandeja y que el detalle. Quien ve la bandeja entera ve aquí la
 /// cifra entera; un Gestor CAE con una cartera acotada, solo la de sus hilos; un Tenant solo Inbound, solo los hilos anclados a
-/// una Empresa (la petición es de Comunicaciones y corre con el ámbito de D6=a); y un buzón personal de otro Gestor CAE no sale en
-/// la respuesta (la regla lo cierra también para el Administrador; la tabla enseña «—»). Esta petición no abre ningún hilo ni ningún dato que la
+/// una Empresa (la petición es de Comunicaciones y corre con el ámbito de D6=a). Solo vuelven claves para los buzones medibles
+/// del Tenant actual (los compartidos y el personal propio): un buzón personal de otro Gestor CAE (la regla lo cierra también
+/// para el Administrador), uno eliminado, uno de otro Tenant o un id que no existe faltan de la respuesta, y la tabla enseña
+/// «—». Esta petición no abre ningún hilo ni ningún dato que la
 /// bandeja no abra: solo agrega lo ya visible. No toca la autorización.
 /// </para>
 ///
@@ -56,15 +61,16 @@ public class ObtenerActividadBuzonesQueryHandler(
         var ids = request.ConexionIds.Distinct().ToList();
         if (ids.Count == 0) return new Dictionary<Guid, ActividadBuzonDto>();
 
-        // El buzón personal de otro Gestor CAE no se mide: sus hilos no son visibles aquí, y un «0» o un «Sin correos aún»
-        // afirmarían que está vacío. Queda fuera de la respuesta y la tabla enseña «—». Es la misma exclusión que hace
-        // ConversacionesVisibles para los hilos, aplicada a la conexión.
+        // Solo se miden los buzones del Tenant actual que se pueden medir: los compartidos y el personal propio. La lectura va
+        // con el filtro de Tenant y de borrado lógico (y RLS): un id de otro Tenant, uno que no existe o una conexión
+        // eliminada no vuelven, y tampoco el buzón personal de otro Gestor CAE, cuyos hilos no son visibles aquí (un «0» o un
+        // «Sin correos aún» afirmarían que está vacío; es la misma exclusión que hace ConversacionesVisibles para los hilos,
+        // aplicada a la conexión). Esos ids faltan de la respuesta y la tabla enseña «—».
         var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        var ajenos = await integracionesContext.ConexionesIntegracion
-            .Where(c => ids.Contains(c.Id) && c.GestorPropietarioId != null && c.GestorPropietarioId != usuarioActualId)
+        ids = await integracionesContext.ConexionesIntegracion
+            .Where(c => ids.Contains(c.Id) && (c.GestorPropietarioId == null || c.GestorPropietarioId == usuarioActualId))
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
-        ids = ids.Except(ajenos).ToList();
         if (ids.Count == 0) return new Dictionary<Guid, ActividadBuzonDto>();
 
         var visibles = await ConversacionesVisibles.FiltrarAsync(

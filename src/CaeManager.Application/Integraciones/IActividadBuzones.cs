@@ -15,14 +15,17 @@ namespace CaeManager.Application.Integraciones;
 ///
 /// <para>
 /// <b>Visibilidad.</b> Los dos datos se calculan sobre las conversaciones que <c>ConversacionesVisibles.FiltrarAsync</c>
-/// deja ver a quien pregunta (R-3a): la misma regla que la bandeja y que el detalle. Un buzón personal de otro Gestor CAE no
-/// sale en la respuesta (la tabla enseña «—»), como tampoco un buzón que no se ha podido medir. No abre ningún hilo ni dato
-/// que la bandeja no abra: solo agrega lo ya visible. No toca la autorización.
+/// deja ver a quien pregunta (R-3a): la misma regla que la bandeja y que el detalle. Solo se miden los buzones del Tenant
+/// actual que quien pregunta puede medir: los compartidos y su buzón personal. Un buzón personal de otro Gestor CAE, una
+/// conexión eliminada, un buzón de otro Tenant o un id que no existe no tienen clave en la respuesta (la tabla enseña «—»).
+/// No abre ningún hilo ni dato que la bandeja no abra: solo agrega lo ya visible. No toca la autorización.
 /// </para>
 /// </summary>
 public interface IActividadBuzones
 {
-    /// <returns>La actividad de cada buzón medido; la clave falta si el buzón no se ha medido (la tabla enseña «—»).</returns>
+    /// <returns>
+    /// La actividad de cada buzón medible de los pedidos; los demás ids faltan del diccionario (la tabla enseña «—»).
+    /// </returns>
     Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> ObtenerAsync(
         IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken = default);
 }

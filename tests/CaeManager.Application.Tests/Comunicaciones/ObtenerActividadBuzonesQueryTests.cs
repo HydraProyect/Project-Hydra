@@ -204,6 +204,21 @@ public class ObtenerActividadBuzonesQueryTests
     }
 
     [Fact]
+    public async Task Un_id_que_no_es_un_buzon_del_Tenant_no_tiene_clave_en_la_respuesta()
+    {
+        // Un id que no existe o que es de otro Tenant no vuelve de la lectura de conexiones (en PostgreSQL, por el filtro de
+        // Tenant y la RLS; aquí, por no estar en el contexto): no es un buzón medible y falta del diccionario, así que la
+        // tabla enseña «—» y no «Sin correos aún» con 0 abiertas, que afirmarían haberlo medido.
+        var escenario = new Escenario();
+        var buzon = escenario.Buzon();
+        var inexistente = Guid.NewGuid();
+
+        var actividad = await escenario.Actividad(buzon, inexistente);
+
+        actividad.Keys.Should().BeEquivalentTo([buzon]);
+    }
+
+    [Fact]
     public async Task Sin_buzones_no_consulta_nada_y_devuelve_un_diccionario_vacio()
     {
         var escenario = new Escenario();
