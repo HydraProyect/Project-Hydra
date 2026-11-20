@@ -1,0 +1,469 @@
+/*
+  Visor de documento a pantalla completa (tablero «Visor-Documento» del lienzo de Comunicaciones). Solo tokens del DS.
+  Dos variantes sin equivalente en el DS, declaradas con ds-excepcion para el auditor (DN-H opción a, 2026-11-20).
+*/
+
+/* ds-excepcion: visor a pantalla completa; el DS no tiene variante de modal completo, así que el panel ocupa todo el overlay (Modal.razor solo tiene tres anchos).
+   Capa 1090: por encima de Modal (1050) y Drawer (1040), y por debajo de los avisos (1100) y del tooltip propio (1150): un aviso lanzado
+   desde la página mientras el visor está abierto (p. ej. «Adjunto asignado») tiene que verse. El lienzo pone 1150 porque dibuja el aviso
+   dentro del propio visor; aquí los avisos los pinta AnfitrionToasts. */
+.vz-ov {
+    position: fixed;
+    inset: 0;
+    z-index: 1090;
+    display: flex;
+    align-items: stretch;
+    padding: var(--space-6);
+    background-color: var(--color-scrim);
+}
+
+@supports (backdrop-filter: blur(1px)) {
+    .vz-ov {
+        backdrop-filter: var(--scrim-filtro);
+    }
+
+    @media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
+        .vz-ov {
+            backdrop-filter: none;
+        }
+    }
+}
+
+.vz-pn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    background-color: var(--color-overlay);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.vz-pn:focus-visible {
+    outline: none;
+}
+
+.vz-cab {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-default);
+}
+
+.vz-ico-doc {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vz-tit {
+    flex: 1 1 260px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.vz-tit-h {
+    margin: 0;
+    font: var(--font-heading-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vz-meta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.vz-grupo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* ds-excepcion: Boton no tiene variante solo-icono (hoy se llena como un botón con texto, ~48x36); botones cuadrados de 36 px mientras tanto. Se alcanzan con ::deep porque la clase llega al Boton y no a su ámbito. La variante boton-icono en Boton es el seguimiento natural. */
+.vz-cab ::deep .vz-btn-icono,
+.vz-cola ::deep .vz-btn-icono {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+}
+
+/* ds-excepcion: la X del visor va sin borde, como el boton-cerrar del lienzo (Boton no tiene variante de cierre); mismo seguimiento que el solo-icono de arriba */
+.vz-cab ::deep .vz-btn-cerrar {
+    border: 0;
+}
+
+.vz-pct {
+    display: inline-block;
+    min-width: 64px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cola de adjuntos: «Documento n de N», anterior, siguiente y una marca por adjunto */
+.vz-cola {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-1) var(--space-4);
+    background-color: var(--color-surface-subtle);
+    border-bottom: var(--border-default);
+}
+
+.vz-cola-pos {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font: var(--font-label);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.vz-cola-n {
+    min-width: 92px;
+    text-align: center;
+    border-radius: var(--radius-sm);
+}
+
+.vz-cola-n:focus-visible,
+.vz-marca:focus-visible,
+.vz-pag:focus-visible,
+.vz-lienzo:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+.vz-lienzo:focus-visible {
+    outline-offset: -2px;
+}
+
+.vz-marcas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* ds-excepcion: marca cuadrada por adjunto de la cola (estado + posición); no hay un componente de marca seleccionable en el DS */
+.vz-marca {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-label);
+    font-variant-numeric: tabular-nums;
+}
+
+.vz-marca-asignado {
+    background-color: var(--color-surface-subtle);
+    color: var(--color-neutral-700);
+    border-color: var(--color-border-control);
+}
+
+.vz-marca-rechazado {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+    border-color: var(--color-danger-700);
+}
+
+/* El adjunto actual se marca con borde; el contorno queda para el foco */
+.vz-marca[aria-current="true"] {
+    border: 2px solid var(--color-primary-500);
+}
+
+@media (pointer: coarse) {
+    .vz-marca {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+.vz-cola-adj {
+    flex: 1 1 220px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.vz-cola-nombre {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.vz-cola-peso {
+    flex: none;
+    font: var(--font-caption);
+    white-space: nowrap;
+}
+
+.vz-cola-resto {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.vz-atajos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* ds-excepcion: tecla de atajo (kbd) pintada como el .atajo del bundle del lienzo; el DS de la app no tiene un componente de tecla */
+.vz-atajo {
+    padding: 0 var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+/* Cuerpo: miniaturas a la izquierda y hojas en el lienzo */
+.vz-cuerpo {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.vz-nav {
+    flex: none;
+    width: 112px;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    background-color: var(--color-surface-subtle);
+    border-right: var(--border-default);
+}
+
+.vz-pag {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+/* ds-excepcion: el papel del documento y sus miniaturas se quedan claros también en tema oscuro, como el papel del editor de plantillas; se usan los tonos neutros fijos del DS (que no cambian con el tema) en vez de las superficies */
+.vz-papel,
+.vz-mini {
+    --vz-papel-texto-suave: var(--color-papel-caja-texto);
+    --vz-papel-borde: var(--color-neutral-300);
+    --vz-papel-borde-fuerte: var(--color-neutral-400);
+    --color-text: var(--color-neutral-900);
+    --color-text-muted: var(--color-papel-caja-texto);
+    --color-surface: var(--color-neutral-0);
+    --color-border: var(--color-neutral-300);
+    --color-border-strong: var(--color-neutral-400);
+}
+
+.vz-mini {
+    width: 84px;
+    height: 118px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-2);
+    overflow: hidden;
+    background-color: var(--color-neutral-0);
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-tarjeta-lista);
+}
+
+.vz-mini-actual {
+    border-color: var(--color-primary-500);
+}
+
+.vz-mini > span {
+    display: block;
+    height: 3px;
+    background-color: var(--vz-papel-borde);
+    border-radius: var(--radius-full);
+}
+
+.vz-mini > span:first-child {
+    height: 6px;
+    width: 60%;
+    background-color: var(--vz-papel-borde-fuerte);
+}
+
+.vz-w100 {
+    width: 100%;
+}
+
+.vz-w90 {
+    width: 90%;
+}
+
+.vz-w95 {
+    width: 95%;
+}
+
+.vz-w70 {
+    width: 70%;
+}
+
+.vz-lienzo {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    background-color: var(--color-bg);
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    /* safe: si la hoja (zoom o giro) es más ancha que el lienzo, empieza en el borde izquierdo en vez de desbordar por los dos lados, donde el lado izquierdo no se puede desplazar */
+    align-items: safe center;
+    gap: var(--space-5);
+}
+
+/* Ancho de la hoja = 6,2 px por punto de zoom (620 px al 100 %). Hasta el 100 % se ajusta al lienzo; por encima crece y el lienzo desplaza. */
+.vz-hoja {
+    flex: none;
+    width: min(calc(var(--vz-zoom, 100) * 6.2px), 100%);
+    transform-origin: center;
+}
+
+.vz-hoja-ampliada {
+    width: calc(var(--vz-zoom, 100) * 6.2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .vz-hoja {
+        transition: width var(--motion-base) var(--ease-standard);
+    }
+}
+
+/* Girada un cuarto de vuelta, la hoja ocupa a lo ancho lo que mide a lo alto (1,414 veces su ancho) pero la caja de maquetación no cambia: sin este margen (~0,207 veces el ancho a cada lado) el borde izquierdo quedaría fuera del origen del desplazamiento. */
+.vz-giro-90,
+.vz-giro-270 {
+    margin-inline: calc(var(--vz-zoom, 100) * 6.2px * 0.207);
+}
+
+.vz-giro-90 {
+    transform: rotate(90deg);
+}
+
+.vz-giro-180 {
+    transform: rotate(180deg);
+}
+
+.vz-giro-270 {
+    transform: rotate(270deg);
+}
+
+.vz-papel {
+    aspect-ratio: 1 / 1.414;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: var(--color-neutral-0);
+    color: var(--color-neutral-900);
+    box-shadow: var(--shadow-overlay);
+}
+
+.vz-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.vz-sin-vista {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--vz-papel-texto-suave);
+}
+
+.vz-sin-vista-titulo {
+    margin: 0;
+    font: var(--font-label);
+    color: var(--color-neutral-900);
+}
+
+.vz-sin-vista-texto {
+    margin: 0;
+    font: var(--font-caption);
+}
+
+@media (max-width: 760px) {
+    .vz-cuerpo {
+        flex-direction: column;
+    }
+
+    .vz-nav {
+        display: none;
+    }
+
+    .vz-lienzo {
+        padding: var(--space-4);
+    }
+
+    .vz-cola {
+        padding: var(--space-1) var(--space-3);
+        gap: var(--space-1) var(--space-2);
+    }
+
+    .vz-cola-n {
+        min-width: 0;
+    }
+
+    .vz-grupo {
+        display: none;
+    }
+
+    .vz-tit {
+        flex-basis: 100%;
+    }
+
+    .vz-atajos {
+        display: none;
+    }
+}
