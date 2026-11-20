@@ -29,7 +29,7 @@ ActualizarPerfilDocumentoOficialGlobalCommand	no-aplica
 ActualizarPresupuestoIaCommand	no-aplica
 ActualizarProyectoCommand	no-aplica
 ActualizarSeguridadAccesoCommand	no-aplica
-ActualizarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
+ActualizarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
 ActualizarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 ActualizarVerificacionIaGlobalCommand	no-aplica
 AgregarTurnoTareaAsistenteCommand	no-aplica
@@ -43,12 +43,13 @@ AprobarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant
 AsignarAdjuntosLoteCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarAliasTrabajadorCommand	no-aplica
 AsignarCarteraGestorCaeCommand	cerrado-handler	cada Tenant de TenantsAAsignar, por su Tenant beneficiario, y por el Tenant de origen del Operador CAE de la cartera (EP-4)
+AsignarCentrosControlAccesoCommand	no-aplica	Inbound (IComandoInbound, AF-01): fija los Centros de la portería de una cuenta con el rol Control de acceso del Tenant TCE (UsuarioControlAccesoCentro); no crea operación Outbound ni Asignación de Cartera u Operación
 AsignarClienteConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarEjecutivoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
-AsignarRolACuentaCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7), a la espera de confirmación de Chris
+AsignarRolACuentaCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2
 AsignarTecnicoProyectoCommand	no-aplica
 AsignarTrabajadoresAutorizacionCommand	no-aplica
-AsumirPrincipalDeOperacionCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7), a la espera de confirmación de Chris
+AsumirPrincipalDeOperacionCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2
 AutoConcederPrivilegioCommand	no-aplica
 AvisarCambioSubencargadoCommand	no-aplica
 BorrarCredencialAccesoEmpresaContrasenaCommand	no-aplica
@@ -114,7 +115,7 @@ CrearProyectoCommand	no-aplica
 CrearRequisitoPropioCommand	no-aplica
 CrearSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 CrearTareaAsistenteCommand	no-aplica
-CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
+CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
 CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
 CrearTipoDocumentoCommand	no-aplica
 CrearTrabajadorCommand	no-aplica
@@ -138,7 +139,7 @@ DesconectarBuzonCommand	no-aplica
 DeshacerCambioEstadoAcreditacionCommand	no-aplica
 DeshacerDerivacionAlertaCriticaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 DeshacerSubidaDesdeExtensionCommand	no-aplica
-DesignarGestorCaePrincipalCommand	abierto	marca la principal entre carteras vivas, sin alta; mismo trato que el relevo, a la espera de confirmación de Chris (DN-7)
+DesignarGestorCaePrincipalCommand	abierto	marca la principal entre carteras vivas, sin alta; mismo trato que el relevo (DN-7): relevo de principal permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2
 DiagnosticarDatosPurgablesCommand	no-aplica
 DividirAdjuntoPdfCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EditarCanalGestionCommand	cerrado-behavior
@@ -156,7 +157,7 @@ EditarRequisitoPlantillaCommand	no-aplica
 EditarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 EditarTipoDocumentoCommand	no-aplica
 EditarTrabajadorCommand	no-aplica
-EditarUsuarioCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7), a la espera de confirmación de Chris
+EditarUsuarioCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2
 EditarVehiculoCommand	no-aplica
 EditarVisitaCommand	no-aplica
 EjecutarImportacionCombinadaCommand	cerrado-behavior
@@ -186,7 +187,7 @@ EliminarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Ou
 EliminarProyectoCommand	no-aplica
 EliminarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 EliminarSubcontratasCommand	pendiente	D5 (Subcontratas del Tenant TEC)
-EliminarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
+EliminarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
 EliminarTrabajadorCommand	no-aplica
 EliminarTrabajadoresCommand	no-aplica
 EliminarUsuarioPendienteCommand	no-aplica
@@ -345,7 +346,7 @@ RevocarClaveApiCommand	no-aplica
 RevocarClaveApiDeMiOrganizacionCommand	no-aplica
 RevocarConcesionPrivilegioCommand	no-aplica
 RevocarCredencialCommand	no-aplica
-RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva, a la espera de confirmación de Chris
+RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva; relevo de principal permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2
 RevocarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
 RevocarOperadorCaeExternoPorSoporteCommand	no-aplica
 SolicitarCertificacionTgssCommand	no-aplica

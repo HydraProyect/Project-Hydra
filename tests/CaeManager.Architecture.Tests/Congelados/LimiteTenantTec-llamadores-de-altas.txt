@@ -4,8 +4,9 @@
 # LimiteTenantTecClasificacionTests.Los_llamadores_de_las_altas_de_Outbound_son_los_congelados: una llamada nueva da rojo
 # hasta que se cierre (RegistroLimiteTenantTec o el handler con IOutboundCerradoTenantTec) o se clasifique abierta con su
 # motivo en Datos/LimiteTenantTecClasificacion.txt. Los ficheros que no son Commands: las sobrecargas de Infrastructure
-# que solo llaman los Commands de arriba, el relevo de principal (RelevoDePrincipalDeCartera, abierto a la espera de
-# Chris) y los seeders, que no corren sobre un Tenant marcado. Formato: fichero :: símbolo = n.
+# que solo llaman los Commands de arriba, el relevo de principal (RelevoDePrincipalDeCartera, abierto: relevo de principal
+# permitido como consecuencia de la baja, opción (A), DECISION_LOG 2026-11-19 punto 2) y los seeders, que no corren sobre
+# un Tenant marcado. Formato: fichero :: símbolo = n.
 src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs :: new Centro = 1
 src/CaeManager.Application/Clientes/Commands/CrearCliente/CrearClienteCommand.cs :: Empresa.CrearComoCliente = 1
 src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs :: TarifaOperadorCae.Registrar = 1
