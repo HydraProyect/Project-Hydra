@@ -769,7 +769,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
     {
         var tenant = new TenantActualAmbiental { TenantId = tenantId };
         return (
-            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto, new LimiteEmpresaPropiaSinAplicar()).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
+            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto, new LimiteEmpresaPropiaSinAplicar(), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
             await new RestaurarVehiculoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarVehiculoCommand(s.VehiculoId), CancellationToken.None),
             await new RestaurarProyectoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarProyectoCommand(s.ProyectoId), CancellationToken.None),
             await new RestaurarGestionCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarGestionCommand(s.GestionId), CancellationToken.None));
@@ -924,7 +924,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarSubcontrataCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar(), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(contextoRestaurar), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
 
         var resultado = await handler.Handle(new RestaurarSubcontrataCommand(clienteId), CancellationToken.None);
 

@@ -13,7 +13,17 @@ namespace CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 
 [AreaDelEncargo("Subcontratas")]
 public record CrearSubcontrataCommand(
-    string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds) : ICommand<Guid>;
+    string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds)
+    : ICommand<Guid>, ILimiteTenantTecSegunDatos
+{
+    /// <summary>
+    /// D3 (DN-4) y EP-4 («sin Clientes empresariales propios fuera de un ContratoAcceso»): D5 abre las Subcontratas al Tenant
+    /// TEC, pero relacionar la Subcontrata nueva con Clientes empresariales es dar de alta Relaciones Empresariales de
+    /// Outbound, y se cierra al Tenant TEC participante sin línea Outbound igual que en <c>CrearEmpresaCommand</c>. La
+    /// Subcontrata sin Clientes empresariales (solo con Empresas propias) sigue abierta.
+    /// </summary>
+    public bool AbreLoCerradoAlTenantTec => ClienteIds is { Count: > 0 };
+}
 
 public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontrataCommand>
 {

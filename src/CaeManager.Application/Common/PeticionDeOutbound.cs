@@ -23,7 +23,15 @@ public static class PeticionDeOutbound
 {
     private const string Raiz = "CaeManager.Application.";
 
-    /// <summary>Áreas (primer segmento bajo <c>CaeManager.Application</c>) que el registro asigna a Outbound.</summary>
+    /// <summary>
+    /// Áreas (primer segmento bajo <c>CaeManager.Application</c>) que el registro de módulos de ADR-013 asigna a Outbound;
+    /// esta lista es su copia en tiempo de ejecución, no una decisión sobre ningún Tenant. Subcontratas sigue aquí aunque D5
+    /// (2026-11-19) la abra al Tenant TEC, porque el registro la sigue asignando a Outbound. De esta clasificación salen el
+    /// cierre al Tenant solo Inbound (<see cref="CerradaAlSoloInbound"/>, que consumen la guarda por servicio y
+    /// <see cref="AmbitoInboundBehavior{TRequest,TResponse}"/>) y el punto de integración pendiente de D3 descrito en
+    /// <see cref="RegistroLimiteTenantTec"/>; la apertura al Tenant TEC vive en
+    /// <see cref="RegistroLimiteTenantTec.AbiertasAlTenantTec"/>.
+    /// </summary>
     private static readonly HashSet<string> AreasDeOutbound = new(StringComparer.Ordinal)
     {
         "Contactos", "Contacto", "Marco", "Clientes", "AsistenteIa", "Proyectos", "Subcontratas", "Visitas", "Gestiones",
