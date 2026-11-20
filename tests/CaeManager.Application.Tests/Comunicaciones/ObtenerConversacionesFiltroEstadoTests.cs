@@ -178,7 +178,10 @@ public class ObtenerConversacionesFiltroEstadoTests
             GruposEstadoConversacion.EsAbierta(estado).Should().Be(enAbiertas);
         }
 
-        GruposEstadoConversacion.Estados(GrupoEstadoConversacion.Abiertas).Should().BeEquivalentTo(GruposEstadoConversacion.Abiertas);
+        // Contenido fijado a mano, no contra la propia propiedad: si la máquina de estados añade un estado vivo, este test obliga a
+        // decidir a conciencia si entra en «Abiertas» (y, con él, en el indicador de acción por aprobar de DN-L).
+        GruposEstadoConversacion.Estados(GrupoEstadoConversacion.Abiertas).Should().BeEquivalentTo(
+            [EstadoConversacion.Abierta, EstadoConversacion.Pendiente, EstadoConversacion.EsperandoRespuestaExterna, EstadoConversacion.EnEsperaDeTercero]);
         GruposEstadoConversacion.Estados(GrupoEstadoConversacion.Archivadas).Should().BeEquivalentTo(
             [EstadoConversacion.Resuelta, EstadoConversacion.Cerrada]);
     }
