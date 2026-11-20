@@ -455,30 +455,13 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     }
 
     /// <summary>La trampa real (Tab cíclico y foco devuelto a quien abrió el visor) vive en dialogo-foco.js y la prueba dialogoFoco.test.mjs; aquí se fija que el visor la activa sobre su panel y la libera al cerrarse.</summary>
-    private sealed class TrampaFocoFalsa : IJSObjectReference
-    {
-        public int Liberaciones { get; private set; }
-
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
-        {
-            if (identifier == "dispose") Liberaciones++;
-            return ValueTask.FromResult(default(TValue)!);
-        }
-
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
-            InvokeAsync<TValue>(identifier, args);
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
     [Fact]
     public async Task El_foco_queda_atrapado_en_el_panel_al_abrirse_y_se_libera_al_cerrarse()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        var trampa = new TrampaFocoFalsa();
         var modulo = JSInterop.SetupModule("./js/dialogo-foco.js");
-        modulo.Setup<IJSObjectReference>("atraparFoco", _ => true).SetResult(trampa);
+        var trampa = modulo.SetupModule("atraparFoco", _ => true);
 
         var cut = Render<VisorDocumentoPantallaCompleta>(p => p
             .Add(x => x.Visible, true)
@@ -486,11 +469,11 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
 
         await cut.WaitForAssertionAsync(() => modulo.Invocations["atraparFoco"].Should().HaveCount(1), Plazo);
         modulo.Invocations["atraparFoco"][0].Arguments[0].Should().BeOfType<ElementReference>();
-        trampa.Liberaciones.Should().Be(0);
+        trampa.Invocations["dispose"].Should().BeEmpty();
 
         cut.Render(p => p.Add(x => x.Visible, false));
 
-        await cut.WaitForAssertionAsync(() => trampa.Liberaciones.Should().Be(1), Plazo);
+        await cut.WaitForAssertionAsync(() => trampa.Invocations["dispose"].Should().HaveCount(1), Plazo);
     }
 
     [Fact]
