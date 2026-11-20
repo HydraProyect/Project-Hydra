@@ -64,6 +64,7 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
     private Guid _otroCompartido;
     private Guid _personalPropio;
     private Guid _personalDeOtroGestor;
+    private Guid _eliminado;
     private Guid _deOtroTenant;
     private Guid _deSoloInbound;
 
@@ -92,8 +93,9 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
     /// <summary>
     /// En el buzón compartido: un hilo abierto del Cliente empresarial en cartera con dos correos entrantes y una respuesta
     /// nuestra posterior, uno abierto de otro Cliente empresarial, uno resuelto del Cliente en cartera y uno abierto sin
-    /// ancla (triaje). Uno abierto en el otro compartido, otro en el buzón personal del Administrador y otro en el de otro
-    /// Gestor CAE. La Gestora CAE con cartera solo tiene el primer Cliente empresarial.
+    /// ancla (triaje). En el otro compartido, uno abierto del Cliente en cartera y otro, más reciente, del Cliente fuera de
+    /// cartera. Uno abierto en el buzón personal del Administrador, otro en el de otro Gestor CAE y otro, el más reciente de
+    /// todos, en una conexión eliminada (borrado lógico). La Gestora CAE con cartera solo tiene el primer Cliente empresarial.
     /// </summary>
     private async Task SembrarTenantPropioAsync()
     {
@@ -108,6 +110,7 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         _otroCompartido = await BuzonAsync("otro-compartido@propio.test");
         _personalPropio = await BuzonAsync("administrador@propio.test", gestor: _administrador);
         _personalDeOtroGestor = await BuzonAsync("otro-gestor@propio.test", gestor: _otroGestor);
+        _eliminado = await BuzonAsync("eliminado@propio.test", eliminado: true);
 
         await HiloAsync(_compartido, EstadoConversacion.Abierta, clienteId: enCartera.Id, mensajes:
             [(DireccionMensaje.Entrante, Base), (DireccionMensaje.Entrante, Base.AddHours(2)), (DireccionMensaje.Saliente, Base.AddHours(9))]);
@@ -118,8 +121,11 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         await HiloAsync(_compartido, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(4))]);
         await HiloAsync(_otroCompartido, EstadoConversacion.Abierta, clienteId: enCartera.Id, mensajes:
             [(DireccionMensaje.Entrante, Base.AddHours(6))]);
+        await HiloAsync(_otroCompartido, EstadoConversacion.Abierta, clienteId: fueraDeCartera.Id, mensajes:
+            [(DireccionMensaje.Entrante, Base.AddHours(6).AddMinutes(30))]);
         await HiloAsync(_personalPropio, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(7))]);
         await HiloAsync(_personalDeOtroGestor, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(8))]);
+        await HiloAsync(_eliminado, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(12))]);
 
         // Asignación de Operación interna acotada al Cliente empresarial en cartera, y bajo ella la Asignación de Cartera
         // de la Gestora CAE (el mismo patrón que VisibilidadTriageTests).
@@ -132,11 +138,17 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Un buzón con un hilo abierto y, además, un hilo abierto del Tenant ajeno, más reciente que los propios, que apunta al
+    /// buzón compartido del Tenant propio: <c>Conversacion.ConexionIntegracionId</c> no tiene clave foránea. Las cifras del
+    /// buzón compartido solo son las esperadas si la RLS y el filtro de Tenant de <c>Conversaciones</c> lo dejan fuera.
+    /// </summary>
     private async Task SembrarTenantAjenoAsync()
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantAjeno);
         _deOtroTenant = await BuzonAsync("compartido@ajeno.test");
         await HiloAsync(_deOtroTenant, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(10))]);
+        await HiloAsync(_compartido, EstadoConversacion.Abierta, mensajes: [(DireccionMensaje.Entrante, Base.AddHours(11))]);
     }
 
     /// <summary>
@@ -166,9 +178,10 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         await siembra.SaveChangesAsync();
     }
 
-    private async Task<Guid> BuzonAsync(string email, Guid? gestor = null)
+    private async Task<Guid> BuzonAsync(string email, Guid? gestor = null, bool eliminado = false)
     {
         var conexion = new ConexionIntegracion(email, email, gestorPropietarioId: gestor);
+        if (eliminado) conexion.MarcarComoEliminado(_administrador);
         _propietario.ConexionesIntegracion.Add(conexion);
         await _propietario.SaveChangesAsync();
         return conexion.Id;
@@ -199,20 +212,25 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Devuelve_el_ultimo_correo_entrante_y_las_abiertas_de_cada_buzon_y_no_el_buzon_personal_de_otro_Gestor_CAE()
+    public async Task Devuelve_el_ultimo_correo_entrante_y_las_abiertas_de_cada_buzon_y_no_el_buzon_personal_de_otro_Gestor_CAE_ni_uno_eliminado()
     {
         var composicion = ComponerAdministrador(_tenant);
 
+        // Control del instrumento: la conexión eliminada existe (con su hilo abierto) y solo el borrado lógico la oculta.
+        (await _propietario.ConexionesIntegracion.IgnoreQueryFilters().AnyAsync(c => c.Id == _eliminado && c.EstaEliminado))
+            .Should().BeTrue();
+
         var actividad = await composicion.Actividad.ObtenerAsync(
-            [_compartido, _otroCompartido, _personalPropio, _personalDeOtroGestor]);
+            [_compartido, _otroCompartido, _personalPropio, _personalDeOtroGestor, _eliminado]);
 
         // «Último correo»: el entrante más reciente de cualquier estado (el resuelto de las 12:00 UTC no gana al de las
-        // 14:00 UTC), nunca la respuesta nuestra de las 18:00 UTC. «Abiertas»: las tres abiertas, no la resuelta.
+        // 14:00 UTC), nunca la respuesta nuestra de las 18:00 UTC. «Abiertas»: las tres abiertas, no la resuelta. El
+        // Administrador ve entero el otro compartido: los dos Clientes empresariales, hasta las 15:30 UTC.
         actividad[_compartido].Should().Be(new ActividadBuzonDto(Base.AddHours(5), 3));
-        actividad[_otroCompartido].Should().Be(new ActividadBuzonDto(Base.AddHours(6), 1));
+        actividad[_otroCompartido].Should().Be(new ActividadBuzonDto(Base.AddHours(6).AddMinutes(30), 2));
         actividad[_personalPropio].Should().Be(new ActividadBuzonDto(Base.AddHours(7), 1));
         actividad.Keys.Should().BeEquivalentTo([_compartido, _otroCompartido, _personalPropio],
-            "el buzón personal de otro Gestor CAE no se mide ni para el Administrador: la tabla enseña «—»");
+            "ni el buzón personal de otro Gestor CAE ni una conexión eliminada se miden, tampoco para el Administrador: la tabla enseña «—»");
     }
 
     [Fact]
@@ -224,12 +242,17 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         (await _propietario.ConexionesIntegracion.IgnoreQueryFilters().AnyAsync(c => c.Id == _deOtroTenant)).Should().BeTrue();
         (await composicion.Runtime.ConexionesIntegracion.IgnoreQueryFilters().AnyAsync(c => c.Id == _deOtroTenant))
             .Should().BeFalse("app.tenant_id es el Tenant propio: la RLS oculta la conexión del Tenant ajeno");
+        // Y el hilo del Tenant ajeno que apunta al buzón compartido propio existe: sin la RLS y el filtro de Tenant de
+        // Conversaciones sumaría una abierta y movería el último correo a las 20:00 UTC.
+        (await _propietario.Conversaciones.IgnoreQueryFilters()
+                .AnyAsync(c => c.ConexionIntegracionId == _compartido && c.TenantId == _tenantAjeno))
+            .Should().BeTrue();
 
         var actividad = await composicion.Actividad.ObtenerAsync([_compartido, _deOtroTenant]);
 
         actividad.Keys.Should().BeEquivalentTo([_compartido], "un id de otro Tenant no es un buzón medible: falta y la tabla enseña «—»");
         actividad[_compartido].Should().Be(new ActividadBuzonDto(Base.AddHours(5), 3),
-            "el hilo del Tenant ajeno, más reciente, no entra en las cifras del buzón propio");
+            "los hilos del Tenant ajeno, más recientes, incluido el que apunta a este buzón, no entran en sus cifras");
     }
 
     [Fact]
@@ -241,7 +264,8 @@ public class ObtenerActividadBuzonesQueryBajoRuntimeTests : IAsyncLifetime
         var actividad = await composicion.Actividad.ObtenerAsync([_compartido, _otroCompartido]);
 
         // Ve el abierto y el resuelto de su Cliente empresarial; no el del otro Cliente empresarial (14:00 UTC) ni el
-        // triaje (13:00 UTC), que el Administrador sí cuenta en el primer test.
+        // triaje (13:00 UTC), que el Administrador sí cuenta en el primer test. En el otro compartido, tampoco el del
+        // Cliente empresarial fuera de cartera (15:30 UTC).
         actividad[_compartido].Should().Be(new ActividadBuzonDto(Base.AddHours(3), 1));
         actividad[_otroCompartido].Should().Be(new ActividadBuzonDto(Base.AddHours(6), 1));
     }
