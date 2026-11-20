@@ -251,7 +251,8 @@ public class GuardDeCierreDeAristaTests : IAsyncLifetime
     private EditarSubcontrataCommandHandler EditarSubcontrata(CaeManagerDbContext contexto) =>
         new(new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
             new GuardDeCierreDeArista(contexto, contexto, contexto),
-            CrearAlcanceConAccesoTotal(contexto), contexto);
+            CrearAlcanceConAccesoTotal(contexto), contexto,
+            new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
     private IAlcanceDatosService CrearAlcanceConAccesoTotal(CaeManagerDbContext contexto) =>
         new AlcanceDatosService(
