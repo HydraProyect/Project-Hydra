@@ -119,7 +119,9 @@ public class TenantSoloInboundTests
 
     /// <summary>
     /// Una línea Outbound programada (su inicio aún no ha llegado) también es una línea Outbound: el Tenant no es solo
-    /// Inbound. Mata el mutante que exigiría a la línea Outbound el inicio ya alcanzado, como a la Inbound.
+    /// Inbound. Mata el mutante que exigiría a la línea Outbound el inicio ya alcanzado, como a la Inbound. Como
+    /// <c>ProductoContratado.Contratar</c> rechaza un inicio futuro, la fila solo llega así con un desfase de reloj
+    /// entre quien la escribe y quien la lee, o escrita fuera del dominio: el test la fabrica con un <c>ahoraUtc</c> posterior.
     /// </summary>
     [Fact]
     public async Task Una_linea_Outbound_programada_sigue_siendo_una_linea_Outbound()

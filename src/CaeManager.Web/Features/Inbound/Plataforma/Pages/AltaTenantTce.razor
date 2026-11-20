@@ -149,11 +149,12 @@
                     @* Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y nunca viene marcada.
                        ContratarLineaInboundCommand la guarda en la fila de la línea Inbound; sin ella, el Tenant conserva
                        Outbound. *@
-                    <label class="alta-tce-opc" data-campo="declara-solo-inbound">
-                        <input type="checkbox" checked="@_declaraSoloInbound" disabled="@Ocupado"
+                    <div class="alta-tce-opc" data-campo="declara-solo-inbound">
+                        <input type="checkbox" id="alta-tce-declara-solo-inbound" checked="@_declaraSoloInbound" disabled="@Ocupado"
+                               aria-describedby="alta-tce-declara-solo-inbound-texto"
                                @onchange="CambiarDeclaracionSoloInbound" />
-                        <span><b>@Textos["DeclaracionSoloInboundTitulo"]</b> @Textos["DeclaracionSoloInboundTexto"]</span>
-                    </label>
+                        <span><label for="alta-tce-declara-solo-inbound"><b>@Textos["DeclaracionSoloInboundTitulo"]</b></label> <span class="alta-tce-opc-texto" id="alta-tce-declara-solo-inbound-texto">@Textos["DeclaracionSoloInboundTexto"]</span></span>
+                    </div>
                 }
 
                 @if (_error is not null)

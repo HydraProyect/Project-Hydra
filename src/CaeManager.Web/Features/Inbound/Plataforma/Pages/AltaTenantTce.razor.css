@@ -145,9 +145,29 @@
     margin-top: 3px;
 }
 
-/* El <label> solo envuelve el título; la ayuda va a su lado, fuera del nombre accesible del radio. */
+/* El <label> solo envuelve el título; la ayuda va a su lado, fuera del nombre accesible del control. Su ::after cubre
+   la tarjeta entera, así que un clic en la ayuda o en el relleno sigue eligiendo la opción, como cuando el <label>
+   envolvía todo. */
+.alta-tce-opc {
+    position: relative;
+}
+
 .alta-tce-opc label {
     display: block;
+}
+
+.alta-tce-opc label::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+
+/* El texto de la casilla de la declaración del alta sigue en línea con el título y con su letra, como antes. */
+.alta-tce-opc span.alta-tce-opc-texto {
+    display: inline;
+    font: inherit;
+    color: inherit;
 }
 
 .alta-tce-opc b {
