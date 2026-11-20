@@ -18,7 +18,8 @@ namespace CaeManager.Application.Common;
 /// Tenant TEC no es Operador CAE de nadie). No mira al actor (DN-6): con Sesión Privilegiada, por un Operador CAE
 /// externo o por un Encargo de administración, se aplica igual; por eso este behavior no depende de quién es el usuario.
 /// Los Commands cuyo Tenant beneficiario sale de los datos cargados (las Asignaciones de Cartera, la tarifa del Operador CAE,
-/// la edición y la restauración de una Empresa) llevan la guarda en su handler (ver <see cref="RegistroLimiteTenantTec"/>).
+/// la edición y la restauración de una Empresa o de una Subcontrata) llevan la guarda en su handler (ver
+/// <see cref="RegistroLimiteTenantTec"/>).
 /// </para>
 ///
 /// <para>

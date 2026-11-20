@@ -376,7 +376,7 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public async Task Un_canal_sin_conversaciones_dice_Sin_resultados_y_Quitar_filtros_lo_deja_en_Todos_y_Todas()
+    public async Task Un_canal_sin_conversaciones_en_una_vista_distinta_de_Todas_dice_Sin_resultados_y_Quitar_filtros_lo_deja_en_Todos_y_Todas()
     {
         var (cut, mediador) = RenderizarConUnaConversacion();
         await ElegirVistaAsync(cut, "Mías");

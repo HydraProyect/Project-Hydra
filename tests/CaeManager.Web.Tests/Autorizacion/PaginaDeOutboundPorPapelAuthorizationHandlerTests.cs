@@ -132,6 +132,32 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         soloInboundFijo.Lecturas.Should().Be(0);
     }
 
+    public static TheoryData<Type> PaginasDeSubcontratas =>
+    [
+        typeof(Features.Subcontratas.Pages.Subcontratas),
+        typeof(Features.Subcontratas.Pages.SubcontrataDetalle),
+    ];
+
+    /// <summary>
+    /// D5 (DECISION_LOG del 2026-11-19): la lista y la ficha de Subcontratas se abren al Tenant TEC, que entra con el papel
+    /// de Tenant de origen (su Administrador) o con el de su Operador CAE externo, y con Sesión Privilegiada (DN-6). La
+    /// página no consulta ni el Producto Contratado ni el límite de D3: no se registra ninguno, y si el handler los
+    /// resolviera, el test fallaría. Conserva la marca de Outbound, que le sigue cerrando el papel Inbound.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PaginasDeSubcontratas))]
+    public async Task Las_paginas_de_Subcontratas_se_abren_al_Tenant_TEC_y_siguen_cerradas_al_papel_Inbound(Type pagina)
+    {
+        PaginaDeOutboundPorPapelAuthorizationHandler.EsPaginaDeOutbound(pagina).Should().BeTrue();
+
+        foreach (var papel in new[] { PapelActivo.TenantDeOrigen, PapelActivo.Outbound, PapelActivo.SinPapel })
+            (await AutorizarAsync(Con(Roles.Administrador), Ruta(pagina), new UsuarioConPapel(papel), CualquieraAutenticado))
+                .Succeeded.Should().BeTrue("D5 abre {0} al Tenant TEC (papel {1})", pagina.Name, papel);
+
+        (await AutorizarAsync(Con(Roles.Administrador), Ruta(pagina), new UsuarioConPapel(PapelActivo.Inbound), CualquieraAutenticado))
+            .Succeeded.Should().BeFalse("la apertura es al Tenant TEC, no al papel Inbound");
+    }
+
     public static TheoryData<Type> PaginasSinMarca =>
     [
         typeof(Features.Usuarios.Pages.Usuarios),

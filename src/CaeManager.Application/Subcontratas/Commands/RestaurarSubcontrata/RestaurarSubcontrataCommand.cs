@@ -1,7 +1,9 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.RelacionesEmpresariales;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +15,9 @@ namespace CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 ///
 /// Revierte solo el borrado lógico de la Empresa: la baja no toca sus Relaciones Empresariales, sus
 /// credenciales de portal ni sus documentos, y exige que no tenga trabajadores, así que no hay nada
-/// más que restaurar.
+/// más que restaurar. Precisamente por eso, restaurarla devuelve a Outbound las Relaciones Empresariales
+/// vigentes con Clientes empresariales que conservaba, y eso se cierra al Tenant TEC participante sin
+/// línea Outbound (D3, DN-7), como en <c>RestaurarEmpresaCommand</c> sobre la misma fila.
 /// </summary>
 [AreaDelEncargo("Subcontratas")]
 public record RestaurarSubcontrataCommand(Guid Id) : ICommand;
@@ -21,6 +25,7 @@ public record RestaurarSubcontrataCommand(Guid Id) : ICommand;
 public class RestaurarSubcontrataCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia,
+    IRelacionEmpresarialRepository relaciones, IOutboundCerradoTenantTec outboundCerrado,
     IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RestaurarSubcontrataCommand, Result>
 {
@@ -54,6 +59,15 @@ public class RestaurarSubcontrataCommandHandler(
             if (subcontrata.EsPropia
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);
+
+            // D3 (DN-4, DN-7) y EP-4: D5 abre las Subcontratas al Tenant TEC, pero no las Relaciones Empresariales con
+            // Clientes empresariales. Restaurar una Subcontrata que las tenga vigentes las devuelve a Outbound, y las
+            // restauraciones se deniegan al Tenant TEC participante sin línea Outbound; sin esta guarda, este comando sería
+            // un rodeo de la de RestaurarEmpresaCommand sobre la misma fila. La Subcontrata sin Clientes empresariales sigue
+            // abierta. El Tenant beneficiario es el Tenant activo, dueño de la fila; sin él, falla cerrado.
+            if ((await relaciones.ObtenerContrapartesVigentesAsync(subcontrata.Id, ct)).ClienteIds.Any()
+                && (tenantActual.TenantId is not { } tenantId || await outboundCerrado.EstaCerradoAsync(tenantId, ct)))
+                return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
 
             subcontrata.Restaurar();
             await unitOfWork.SaveChangesAsync(ct);

@@ -56,15 +56,16 @@
     </header>
 
     @{
-        // «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
-        // El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. Lo usan la lista y la tabla.
+        // Vacíos de la lista por vista (lienzo «Pulida: bandeja de la cartera», L-15): «Sin resultados» con búsqueda, «Sin buzones
+        // conectados», «No quedan conversaciones» con «Al día» en la vista por defecto y «Nada en «vista»» en las demás. Los textos
+        // y la lógica salen de Bandeja.razor.cs (TituloVacio, AyudaVacio, AlDiaVacio). El texto y el estado vacío van en un mismo
+        // bloque centrado, a 8 px entre piezas, como en la maqueta. Lo usan la lista y la tabla.
         RenderFragment vacioLista = @<div class="bandeja-vacio-bloque">
-            @if (!HayFiltrosActivos)
+            @if (AlDiaVacio)
             {
-                <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
+                <div class="bandeja-al-dia"><span>@TextosLista["AlDia"]</span></div>
             }
-            <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
-                         Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
+            <EstadoVacio SinIcono="true" Titulo="@TituloVacio" Descripcion="@AyudaVacio">
                 <Accion>
                     @if (HayFiltrosActivos)
                     {
@@ -278,13 +279,15 @@
                         @if (_errorCargaLista)
                         {
                             <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
-                                <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                                <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["RecargarLista"]</Boton></Accion>
                             </EstadoVacio>
                         }
                         else if (_cargandoLista)
                         {
-                            <EstadoCargando Filas="6" />
-                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                            <div class="carga-lista">
+                                <EstadoCargando Filas="4" />
+                                <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                            </div>
                         }
                         else if (_conversaciones.Count == 0)
                         {
@@ -375,13 +378,15 @@
                 @if (_errorCargaLista)
                 {
                     <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
-                        <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                        <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["RecargarLista"]</Boton></Accion>
                     </EstadoVacio>
                 }
                 else if (_cargandoLista)
                 {
-                    <EstadoCargando Filas="6" />
-                    <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                    <div class="carga-lista">
+                        <EstadoCargando Filas="4" />
+                        <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                    </div>
                 }
                 else if (_conversaciones.Count > 0)
                 {

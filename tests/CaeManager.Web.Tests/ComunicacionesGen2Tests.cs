@@ -230,6 +230,10 @@ public partial class ComunicacionesGen2Tests : BunitContext
 
         public List<MensajeBuzonPersonalDto> BuzonPersonal { get; } = [];
 
+        /// <summary>Lo que devolvería <c>ObtenerConexionesIntegracionQuery</c>: por defecto, un buzón de correo habilitado (L-15, «Sin buzones conectados»).</summary>
+        public List<ConexionIntegracionListaDto> ConexionesBuzon { get; } =
+            [new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null)];
+
         public List<MacroListaDto> Macros { get; } = [];
         private readonly List<(Guid ConversacionId, EventoDetalleDto Evento)> _plantillasAplicadas = [];
 
@@ -294,6 +298,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
                 ObtenerClientesParaSelectorQuery => Clientes.ToList(),
                 ObtenerConversacionesQuery q => Pagina(q),
                 ObtenerMensajesBuzonPersonalQuery => BuzonPersonal.ToList(),
+                ObtenerConexionesIntegracionQuery => ConexionesBuzon.ToList(),
                 ObtenerConversacionPorIdQuery q => DetalleConPlantillas(q.Id),
                 ObtenerClientePorIdQuery q => new ClienteDetalleDto(
                     q.Id, Clientes.First(c => c.Id == q.Id).RazonSocial, "A11111111", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
@@ -1645,7 +1650,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Si_la_lista_falla_dice_No_pudimos_cargar_la_lista_y_Reintentar_la_vuelve_a_pedir()
+    public async Task Si_la_lista_falla_dice_No_pudimos_cargar_la_lista_y_Recargar_la_lista_la_vuelve_a_pedir()
     {
         var escenario = new Escenario();
         escenario.Conversaciones.Add(Conversacion("Documentación pendiente", ClienteRefrielectric));
@@ -1657,7 +1662,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
 
         cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos cargar la lista");
         falla = false;
-        await Boton(cut, ".bandeja-lista .estado-vacio button", "Reintentar").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".bandeja-lista .estado-vacio button", "Recargar la lista").ClickAsync(new MouseEventArgs());
 
         AsuntosVisibles(cut).Should().Equal(["Documentación pendiente"]);
     }
@@ -4225,7 +4230,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         cut.Markup.Should()
             .Contain("Esperando respuesta del Interlocutor")
             .And.Contain("Todos los Clientes empresariales")
-            .And.Contain("Los mensajes nuevos aparecerán aquí.");
+            .And.Contain("Los mensajes nuevos entrarán en su buzón.");
 
         cut.Markup.Should()
             .NotContain("Esperando cliente")

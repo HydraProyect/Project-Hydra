@@ -193,7 +193,7 @@ public class CarteraRevocadaBajoElCandadoDeEmpresaPropiaTests
                 .Handle(new RestaurarEmpresaCommand(id), default),
             "Cliente" => await new RestaurarClienteCommandHandler(empresas, tenant, alcance, uow, limite, alcance)
                 .Handle(new RestaurarClienteCommand(id), default),
-            "Subcontrata" => await new RestaurarSubcontrataCommandHandler(empresas, tenant, alcance, uow, limite, alcance)
+            "Subcontrata" => await new RestaurarSubcontrataCommandHandler(empresas, tenant, alcance, uow, limite, new CaeManager.Application.Tests.Empresas.RelacionesEmpresarialesFijas(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto(), alcance)
                 .Handle(new RestaurarSubcontrataCommand(id), default),
             _ => throw new ArgumentOutOfRangeException(nameof(comando)),
         };

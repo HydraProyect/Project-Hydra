@@ -26,7 +26,7 @@ public class EditarSubcontrataCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EditarSubcontrataCommandHandler(
             repositorio, relacionEmpresarialRepositorio: null!, empresasContext: null!, guardDeCierre: null!,
-            new AlcanceDatosServiceFalso(), unitOfWork);
+            new AlcanceDatosServiceFalso(), unitOfWork, tenantActual: null!, outboundCerrado: null!);
 
         var resultado = await handler.Handle(
             new EditarSubcontrataCommand(Guid.NewGuid(), "Andamios del Sur S.L.", null, [], []), CancellationToken.None);
@@ -51,7 +51,7 @@ public class EditarSubcontrataCommandHandlerTests
         var handler = new EditarSubcontrataCommandHandler(
             repositorio, relacionEmpresarialRepositorio: null!, empresasContext: null!, guardDeCierre: null!,
             new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: []),
-            unitOfWork);
+            unitOfWork, tenantActual: null!, outboundCerrado: null!);
 
         var resultado = await handler.Handle(
             new EditarSubcontrataCommand(subcontrata.Id, "Otra razón social", null, [], [], subcontrata.Version),
