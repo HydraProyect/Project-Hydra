@@ -127,6 +127,26 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
+    public async Task AccionPorAprobar_no_cuenta_un_detalle_de_Gestion_real_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_lo_confirmara()
+    {
+        // Mismo motivo de ruido que para la Visita: el mensaje entero es ruido, y la fila lo cuenta como tal en MensajesRuido.
+        var banda = new Banda();
+        var ruido = banda.Hilo("Resumen automático con un detalle de Gestión");
+        var confirmado = banda.Hilo("Resumen que el Gestor confirmó que importa");
+        banda.DetalleDeGestion(ruido);
+        banda.DetalleDeGestion(confirmado);
+        banda.MotivoRuido(ruido, MotivoRuidoMensaje.ResumenSinCambios);
+        banda.MotivoRuido(confirmado, MotivoRuidoMensaje.ResumenSinCambios).ConfirmarManualmente();
+
+        var resultado = await banda.Lista();
+
+        var filaRuido = resultado.Single(c => c.Id == ruido.ConversacionId);
+        filaRuido.AccionPorAprobar.Should().BeFalse();
+        filaRuido.MensajesRuido.Should().Be(1);
+        resultado.Single(c => c.Id == confirmado.ConversacionId).AccionPorAprobar.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task AccionPorAprobar_es_false_con_el_marco_solo_Inbound_aunque_haya_propuestas_pendientes()
     {
         // D6=a: el detalle no proyecta las sugerencias de Outbound al Tenant solo Inbound; la lista no debe revelar que existen.

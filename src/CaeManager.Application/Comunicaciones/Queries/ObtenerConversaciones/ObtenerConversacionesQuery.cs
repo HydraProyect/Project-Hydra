@@ -93,8 +93,11 @@ public record ConversacionListaDto(
     //  - TotalAdjuntos: archivos adjuntos de todos los mensajes del hilo, de cualquier estado de reparto (el clip dice que
     //    el hilo trae archivos, no cuántos faltan por repartir).
     //  - AccionPorAprobar: hay una propuesta de Vega sin resolver sobre el hilo (sugerencia de Visita pendiente o detalle de
-    //    sugerencia de Gestión pendiente), la misma definición de «pendiente» que el detalle. Siempre false para el Tenant
-    //    solo Inbound (D6=a), que no recibe sugerencias de Outbound.
+    //    sugerencia de Gestión pendiente) que no sea ruido sin confirmar a mano; el detalle, en cambio, sigue mostrando esas
+    //    propuestas como pendientes (agrupadas aparte como ruido). Siempre false para el Tenant solo Inbound (D6=a), que no
+    //    recibe sugerencias de Outbound. No mira el estado de la conversación (decisión abierta, ver la PR).
+    //  - TotalAdjuntos cuenta también las imágenes en línea (la firma): AdjuntoMensaje no distingue «en línea» y la ingesta
+    //    de Graph no pide isInline. Hueco conocido, ver la PR.
     //  - BuzonNombre / BuzonEsPersonal: nombre de la conexión por la que entró el hilo y si es el buzón personal de un
     //    Gestor CAE (la lista solo trae el del usuario actual: los de otros quedan fuera por R-3a). Null si el hilo no está
     //    atado a ninguna conexión (creado a mano o sembrado).
@@ -476,10 +479,13 @@ public class ObtenerConversacionesQueryHandler(
 
     /// <summary>
     /// Conversaciones con una propuesta de Vega sin resolver: una sugerencia de Visita pendiente o un detalle de sugerencia de
-    /// Gestión pendiente, con la misma definición que el detalle (<c>!Resuelta</c>). Una propuesta que el sistema ya clasificó
-    /// como ruido y nadie confirmó a mano (repetición de algo ya reclamado en un detalle de Gestión; mensaje con motivo de
-    /// ruido en una de Visita) no es una acción por aprobar: es la misma regla de <see cref="ContarMensajesRuidoPorConversacionAsync"/>,
-    /// para que una fila no salga a la vez con ruido y con acción por aprobar por lo mismo. No depende del estado de la
+    /// Gestión pendiente (<c>!Resuelta</c>, como el detalle), salvo lo que el sistema ya clasificó como ruido y nadie
+    /// confirmó a mano: un mensaje con motivo de ruido (<c>ClasificacionRuidoMensaje</c>) no aporta ninguna de las dos
+    /// propuestas, y un detalle de Gestión que repite algo ya reclamado (<c>ClasificacionRuidoDetalleGestion</c>) tampoco.
+    /// Es la regla de <see cref="ContarMensajesRuidoPorConversacionAsync"/> para que una fila no salga a la vez con ruido y con
+    /// acción por aprobar POR LO MISMO. Distinto del detalle, que sigue proyectando esas propuestas como pendientes y las
+    /// agrupa aparte como ruido. Salvedad conocida: un mensaje cuyos detalles de Gestión son todos repetición cuenta como
+    /// ruido en la fila aunque lleve además una sugerencia de Visita pendiente sin clasificar, que sí cuenta aquí. No depende del estado de la
     /// conversación (decisión abierta, ver la PR). Con el marco de Comunicaciones del Tenant solo Inbound (D6=a) no se
     /// cuentan, como tampoco se proyectan en el detalle ni cuentan como ruido: el indicador revelaría que existen. Es el único
     /// sitio donde se decide qué es «acción por aprobar» para la fila. Una sola sentencia (UNION), por el presupuesto de SQL.
@@ -503,6 +509,8 @@ public class ObtenerConversacionesQueryHandler(
                     c.DetalleSugerenciaGestionCorreoId == detalle.Id && !c.ConfirmadaManualmente)
             join sugerencia in comunicacionesContext.SugerenciasGestionCorreo on detalle.SugerenciaGestionCorreoId equals sugerencia.Id
             where mensajeIds.Contains(sugerencia.MensajeId)
+                && !comunicacionesContext.ClasificacionesRuidoMensaje.Any(c =>
+                    c.MensajeId == sugerencia.MensajeId && c.Motivo != MotivoRuidoMensaje.Ninguno && !c.ConfirmadaManualmente)
             select sugerencia.MensajeId;
 
         var mensajesConAccion = await mensajesConVisita.Union(mensajesConGestion).ToListAsync(cancellationToken);
