@@ -105,18 +105,11 @@
     // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
     private (string Nombre, string Iniciales)? Asignada =>
         string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
-        : ObtenerInicialesDePersona(Conversacion.EjecutivoAsignadoNombre) is { Length: > 0 } iniciales ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
+        // Convención de la app (MiTrabajo, Usuarios, EmpresaDetalle, Subcontratas): las iniciales de las dos primeras palabras que empiezan por letra,
+        // con el helper compartido, que devuelve «?» si no hay ninguna (entonces la fila no enseña persona). El lienzo pinta tres letras («MGR»): desviación
+        // declarada en la PR, una misma Gestora CAE no puede llevar monogramas distintos en pantallas distintas.
+        : AvatarTenant.Iniciales(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
         : null;
-
-    /// <summary>Primera letra del primer y del último nombre (una sola si hay uno): «Marta Gil Ríos» da «MR».</summary>
-    // shortcut: el lienzo une la inicial de todas las palabras («MGR»); aquí dos como máximo, para que un nombre largo no desborde el grupo derecho, hasta que Chris fije la regla
-    private static string ObtenerInicialesDePersona(string nombre)
-    {
-        var palabras = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(p => char.IsLetter(p[0])).ToArray();
-        if (palabras.Length == 0) return string.Empty;
-        var primera = char.ToUpperInvariant(palabras[0][0]);
-        return palabras.Length == 1 ? primera.ToString() : string.Concat(primera, char.ToUpperInvariant(palabras[^1][0]));
-    }
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)

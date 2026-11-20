@@ -505,6 +505,59 @@ public class ContrasteDeComponentesPorTemaTests
             $"un toast tiene que destacar de la superficie sobre la que flota en {tema}");
     }
 
+    private const string HojaFilaConversacion = "Features/Comunicaciones/Components/FilaConversacion.razor.css";
+
+    /// <summary>
+    /// La insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>) pinta el tinte de sistema (IA, DDL-009) opaco sobre
+    /// <c>--color-surface</c> con un degradado de dos capas. El barrido la omitía por el degradado y el test de la hoja de la fila solo mira que el
+    /// <c>background</c> nombre los dos tokens: nada medía la letra. Mide la regla REAL de la hoja, no una copia: el fondo es el tinte compuesto
+    /// sobre la superficie del tema y la letra, el <c>color</c> declarado.
+    /// </summary>
+    [Theory]
+    [InlineData("oscuro")]
+    [InlineData("claro")]
+    public void La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco(string tema)
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+        var (fondo, texto) = ColoresDeLaRegla(Leer(HojaFilaConversacion), [".fila-por-aprobar"]);
+        fondo.Should().NotBeNull("la insignia declara su background");
+        texto.Should().NotBeNull("la insignia declara su color");
+
+        var superficie = tokens.IntentarResolver("var(--color-surface)", tema);
+        superficie.Should().NotBeNull();
+        var tinteSobreSuperficie = tokens.ResolverSobre("var(--color-system-tint)", tema, superficie!);
+        tinteSobreSuperficie.Should().NotBeNull("el tinte de sistema es un color-mix translúcido que se compone sobre la superficie");
+
+        // El fondo de la regla tiene que ser exactamente ese tinte opaco sobre la superficie, no otra cosa que el instrumento medría distinto.
+        ResolverFondoMedible(tokens, fondo!, tema).Should().Be(tinteSobreSuperficie,
+            "el background de la insignia es el tinte de sistema pintado sobre --color-surface (degradado de dos capas iguales + superficie)");
+
+        var hexTexto = tokens.IntentarResolver(texto!, tema);
+        hexTexto.Should().NotBeNull($"formato de color no soportado: '{texto}'");
+
+        Contraste(tinteSobreSuperficie!, hexTexto!).Should().BeGreaterThanOrEqualTo(UmbralAa,
+            $"la letra de la insignia ({texto}) sobre el tinte opaco de sistema se lee a 4,5:1 en {tema} (11 px, no es texto grande)");
+    }
+
+    [Fact]
+    public void El_instrumento_compone_un_degradado_de_tinte_sobre_su_superficie_y_no_inventa_otros()
+    {
+        var tokens = Tokens.Desde("""
+            :root {
+              --tinte: color-mix(in srgb, #000000 50%, transparent);
+              --base: #ffffff;
+            }
+            :root[data-theme='oscuro'] { --base: #ffffff; }
+            :root[data-theme='claro'] { --base: #ffffff; }
+            """);
+
+        ResolverFondoMedible(tokens, "linear-gradient(var(--tinte), var(--tinte)), var(--base)", "claro")
+            .Should().Be("#808080", "el tinte al 50 % de negro sobre blanco");
+        ResolverFondoMedible(tokens, "var(--base)", "claro").Should().Be("#ffffff", "un color simple sigue resolviéndose como siempre");
+        ResolverFondoMedible(tokens, "linear-gradient(var(--tinte), var(--base)), var(--base)", "claro")
+            .Should().BeNull("un degradado de capas distintas no es un tinte sobre superficie: no se mide en silencio");
+    }
+
     [Fact]
     public void La_deuda_de_la_lista_sigue_siendo_deuda()
     {
@@ -619,12 +672,13 @@ public class ContrasteDeComponentesPorTemaTests
     /// un estado vacío (propiedad local de Razor, <c>--estado-vacio-acento</c>) y dos con el tinte de sistema, que no es
     /// #rrggbb (<c>--color-system-tint</c>): el icono de procedencia y, desde el 2026-10-17 (§A), el avatar «Sistema». De
     /// este último el par se calculó a mano (ver <c>ContrasteDeAvataresPorTemaTests</c>): ◆ es una marca, no texto.
-    /// La 11.ª (2026-11-20) es la insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>): la
-    /// pastilla de sistema del lienzo, con el mismo tinte no resoluble. El tinte se pinta opaco sobre <c>--color-surface</c>
-    /// (degradado sobre la superficie), así que el par no depende de la fila (activa, hover). Calculado a mano:
-    /// <c>--color-system-text</c> sobre el tinte da 4,79:1 en claro y 7,31:1 en oscuro.
+    /// La insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>, 2026-11-20) llegó a ser la 11.ª:
+    /// pastilla de sistema con el tinte pintado opaco sobre <c>--color-surface</c> (degradado de dos capas iguales + superficie), de modo
+    /// que el par no depende de la fila (activa, hover). Ya no se omite: <see cref="ResolverFondoMedible"/> entiende ese degradado y el
+    /// barrido la mide (4,79:1 en claro y 7,31:1 en oscuro); además la mide su propio test
+    /// (<see cref="La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco"/>). Por eso el tope vuelve a 10.
     /// </summary>
-    private const int OmitidasHoy = 11;
+    private const int OmitidasHoy = 10;
 
     [Fact]
     public void El_barrido_no_omite_en_silencio_mas_reglas_de_las_que_omite_hoy()
@@ -827,12 +881,26 @@ public class ContrasteDeComponentesPorTemaTests
 
             if (fondo is null || texto is null) continue;
             if (SinColorConcreto.Contains(fondo) || SinColorConcreto.Contains(texto)) continue;
-            var hexFondo = tokens.IntentarResolver(fondo, tema);
+            var hexFondo = ResolverFondoMedible(tokens, fondo, tema);
             var hexTexto = tokens.IntentarResolver(texto, tema);
 
             yield return ($"{fichero}|{clave}",
                 hexFondo is null || hexTexto is null ? null : Contraste(hexFondo, hexTexto));
         }
+    }
+
+    /// <summary>
+    /// Color final de un <c>background</c> que el barrido sabe medir: lo que entiende <c>Tokens.IntentarResolver</c> y, además, el
+    /// degradado de dos capas iguales sobre una superficie, <c>linear-gradient(var(--tinte), var(--tinte)), var(--superficie)</c>, que es como se
+    /// pinta un tinte translúcido OPACO sobre su superficie (el tinte compuesto sobre la superficie). <c>null</c> si no es de esos formatos.
+    /// </summary>
+    private static string? ResolverFondoMedible(Tokens tokens, string fondo, string tema)
+    {
+        var degradado = Regex.Match(fondo.Trim(), @"^linear-gradient\(\s*(var\(\s*--[\w-]+\s*\))\s*,\s*\1\s*\)\s*,\s*(.+)$");
+        if (!degradado.Success) return tokens.IntentarResolver(fondo, tema);
+
+        var superficie = tokens.IntentarResolver(degradado.Groups[2].Value, tema);
+        return superficie is null ? null : tokens.ResolverSobre(degradado.Groups[1].Value, tema, superficie);
     }
 
     private static IEnumerable<string> HojasDelArbol()

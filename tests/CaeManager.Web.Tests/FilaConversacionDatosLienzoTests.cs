@@ -105,8 +105,9 @@ public class FilaConversacionDatosLienzoTests : BunitContext
     }
 
     [Theory]
-    [InlineData("Marta Gil Ríos", "MR")]
+    [InlineData("Marta Gil Ríos", "MG")]
     [InlineData("marta gil", "MG")]
+    [InlineData("123 Marta Gil", "MG")]
     [InlineData("Marta", "M")]
     [InlineData("  Marta   Gil  ", "MG")]
     public void La_persona_asignada_se_enseña_con_sus_iniciales_y_su_nombre_en_el_titulo(string nombre, string iniciales)

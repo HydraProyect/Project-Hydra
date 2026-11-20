@@ -52,7 +52,8 @@ li.fila-conversacion .fila-linea-meta {
 
 /* Insignia «Acción por aprobar»: la pastilla de sistema del lienzo (`.badge-sistema` de su bundle del design system; el Badge de la app aún no tiene tono Sistema,
    incremento propio): tinte y texto del indicador de sistema, borde al 35 %, métrica del Badge pequeño.
-   shortcut: el tinte es translúcido, y sobre la fila activa u hover el texto bajaría de 4,5:1 (≈4,4:1). Se pinta sobre la superficie, opaco, y da 4,79:1 en cualquier fila; cuando el Badge tenga el tono Sistema se usa ese. */
+   shortcut: el tinte es translúcido, y sobre la fila activa u hover el texto bajaría de 4,5:1 (≈4,4:1). Se pinta sobre la superficie, opaco, y da 4,79:1 en cualquier fila; cuando el Badge tenga el tono Sistema se usa ese.
+   El contraste (≥ 4,5:1 en claro y oscuro) lo mide `ContrasteDeComponentesPorTemaTests.La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco`. */
 .fila-por-aprobar {
     display: inline-flex;
     align-items: center;
@@ -75,7 +76,7 @@ li.fila-conversacion .fila-linea-meta {
 
 /* Grupo derecho de la tercera línea: buzón corto, persona asignada y Nº de ticket, pegados a la derecha. `Bandeja.razor.css` fija `flex-shrink: 0` a toda pieza de
    la línea y esa regla (0,4,0) gana a esta: el grupo no encoge, así que lo que evita que un buzón largo desborde la fila es `max-width: 100%` aquí y `min-width: 0`
-   con elipsis en `.fila-buzon`. No quites ninguno (ComunicacionesHojaDeEstilosTests). Plazo, insignia, prioridad y estado caen en filas nuevas por `flex-wrap`.
+   con elipsis en `.fila-buzon`. No quites ninguno (los fija `FilaConversacionDatosLienzoTests.La_hoja_de_estilos_acota_el_grupo_derecho_…`). Plazo, insignia, prioridad y estado caen en filas nuevas por `flex-wrap`.
    shortcut: el lienzo oculta el buzón bajo 399 px de contenedor, el Nº bajo 380 y el texto de la insignia bajo 300; aquí no se oculta nada, la línea envuelve, cuando la lista fije su ancho (PR-C2). */
 li.fila-conversacion .fila-linea-derecha {
     min-width: 0;
