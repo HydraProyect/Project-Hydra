@@ -51,12 +51,16 @@ public class SubcontrataLimiteTenantTecTests
     {
         var (subcontrata, repo, unidad) = SubcontrataEditable();
 
-        var resultado = await Editar(subcontrata, repo, unidad, TenantActivo, OutboundCerradoTenantTecFijo.Cerrado(),
+        // Solo el Tenant activo está cerrado: un handler que preguntara por otro Tenant vería la línea abierta.
+        var limite = new OutboundCerradoTenantTecFijo(t => t == TenantActivo);
+
+        var resultado = await Editar(subcontrata, repo, unidad, TenantActivo, limite,
             new RelacionesEmpresarialesFijas(), Guid.NewGuid());
 
         resultado.Error!.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo,
             "el mismo error que EditarEmpresaCommandHandler");
         unidad.VecesGuardado.Should().Be(0);
+        limite.Preguntados.Should().Equal([TenantActivo], "el Tenant beneficiario de la edición es el Tenant activo");
     }
 
     [Fact]
@@ -76,10 +80,14 @@ public class SubcontrataLimiteTenantTecTests
         var (subcontrata, repo, unidad) = SubcontrataEditable();
 
         // El Cliente empresarial no existe en el contexto falso: el fallo que llega es el de después de la guarda.
-        var resultado = await Editar(subcontrata, repo, unidad, TenantActivo, OutboundCerradoTenantTecFijo.Abierto(),
+        // Solo el Tenant activo está abierto: un handler que preguntara por otro Tenant vería la línea cerrada.
+        var limite = new OutboundCerradoTenantTecFijo(t => t != TenantActivo);
+
+        var resultado = await Editar(subcontrata, repo, unidad, TenantActivo, limite,
             new RelacionesEmpresarialesFijas(), Guid.NewGuid());
 
         resultado.Error!.Codigo.Should().Be("Subcontrata.ClienteNoEncontrado");
+        limite.Preguntados.Should().Equal([TenantActivo], "pregunta por el Tenant activo y por ningún otro");
     }
 
     [Fact]

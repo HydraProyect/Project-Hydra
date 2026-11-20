@@ -40,7 +40,8 @@ namespace CaeManager.Application.Common;
 /// sus Commands y Queries. Ninguna clave de <see cref="CerradasSinLinea"/> puede caer dentro de ellas. Lo que D5 abre no
 /// incluye la Relación Empresarial de una Subcontrata con un Cliente empresarial: EP-4 deja al Tenant TEC «sin Clientes
 /// empresariales propios fuera de un ContratoAcceso» y la Subcontrata no puede servir de línea Outbound sin pagar. Esa
-/// Relación Empresarial sigue cerrada por D3 (DN-4) y sus restauraciones por DN-7, con la misma regla y el mismo error que
+/// Relación Empresarial sigue cerrada por D3 (EP-4, la interpretación escrita en su diseño de Negocio) y sus restauraciones por
+/// DN-7, con la misma regla y el mismo error que
 /// en Empresas: por datos en <c>CrearSubcontrataCommand</c> (<see cref="ILimiteTenantTecSegunDatos"/>, como
 /// <c>CrearEmpresaCommand</c>) y en el handler en <c>EditarSubcontrataCommandHandler</c> y
 /// <c>RestaurarSubcontrataCommandHandler</c> (como la edición y la restauración de una Empresa). No pueden ir en
