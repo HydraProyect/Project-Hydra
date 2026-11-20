@@ -11,7 +11,7 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Un <see cref="IConectorPlataformaCae"/> solo se alcanza por la puerta <see cref="OperacionesConectorPlataformaCae"/>.</b>
 ///
 /// <para>
-/// El conector habla con la API de un proveedor de plataforma CAE (hoy CTAIMACAE.net) con la credencial de la Conexión del
+/// El conector habla con la API de un proveedor de plataforma CAE (hoy CTAIMACAE.net y dokify) con la credencial de la Conexión del
 /// Tenant propietario. La puerta decide antes que no haya transacción abierta, que haya Tenant y no sea una Sesión
 /// Privilegiada, que la conexión sea del Tenant propietario, el rol efectivo con escritura, el kill switch de la plataforma,
 /// el Add-on del Tenant y la credencial; un tipo de Application, de Web o de Infrastructure (un servicio de fondo, por
@@ -51,6 +51,16 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
 
     private const string FicheroDelCliente = "src/CaeManager.Infrastructure/Integraciones/ConectoresPlataformaCae/Ctaima/CtaimaCaeClient.cs";
 
+    // dokify: mismo esquema que CTAIMACAE.net, con su cliente HTTP y su conector concreto internal.
+    private const string FicheroDeLaImplementacionDokify = "src/CaeManager.Infrastructure/Integraciones/ConectoresPlataformaCae/Dokify/ConectorDokify.cs";
+    private const string FicheroDelClienteDokify = "src/CaeManager.Infrastructure/Integraciones/ConectoresPlataformaCae/Dokify/DokifyClient.cs";
+
+    private static readonly Type ImplementacionDokify = typeof(InfrastructureServiceCollectionExtensions).Assembly
+        .GetType("CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.ConectorDokify", throwOnError: true)!;
+
+    private static readonly Type ClienteDokify = typeof(InfrastructureServiceCollectionExtensions).Assembly
+        .GetType("CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyClient", throwOnError: true)!;
+
     /// <summary>La sobrecarga del alta que recibe el <c>tenantId</c> de CTAIMACAE.net: la única que hoy llega a llamar.</summary>
     private static MethodInfo SobrecargaInternaDelAlta() => ImplementacionCtaima
         .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
@@ -88,7 +98,7 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
             .ToList();
 
         nombran.Should().BeEquivalentTo(
-            [typeof(OperacionesConectorPlataformaCae), ImplementacionCtaima, typeof(InfrastructureServiceCollectionExtensions)],
+            [typeof(OperacionesConectorPlataformaCae), ImplementacionCtaima, ImplementacionDokify, typeof(InfrastructureServiceCollectionExtensions)],
             "pedir el conector dentro de un método saltaría la puerta igual que inyectarlo");
     }
 
@@ -105,10 +115,11 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
             .Select(f => f.Key)
             .ToList();
 
-        ficheros.Should().BeEquivalentTo([FicheroDelPuerto, FicheroDeLaPuerta, FicheroDeLaImplementacion, FicheroDelRegistro],
+        ficheros.Should().BeEquivalentTo(
+            [FicheroDelPuerto, FicheroDeLaPuerta, FicheroDeLaImplementacion, FicheroDeLaImplementacionDokify, FicheroDelRegistro],
             "el barrido de fuentes ve además un uso en Program.cs o en una cadena que lo resuelva por reflexión");
         FuentesDeSrc.Analisis[FicheroDelRegistro].Palabras[nameof(IConectorPlataformaCae)]
-            .Should().Be(1, "la composición registra el conector una vez y no lo pide para nada más");
+            .Should().Be(2, "la composición registra el conector una vez por plataforma (CTAIMACAE.net y dokify) y no lo pide para nada más");
     }
 
     [Fact]
@@ -120,6 +131,7 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
         InyectaElConector(typeof(OperacionesConectorPlataformaCae)).Should().BeTrue(
             "el escaneo de firmas ve el conector dentro de un IEnumerable<>, no solo como parámetro directo");
         InyectaElConector(ImplementacionCtaima).Should().BeFalse("implementar el puerto no es inyectarlo");
+        InyectaElConector(ImplementacionDokify).Should().BeFalse("implementar el puerto no es inyectarlo");
         FuentesDeSrc.Analisis.Should().ContainKey(FicheroDeLaPuerta, "las claves del barrido son rutas relativas con barra");
         FuentesDeSrc.Analisis[FicheroDeLaPuerta].Palabras.Should().ContainKey(nameof(IConectorPlataformaCae));
     }
@@ -201,6 +213,61 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
         SobrecargaInternaDelAlta().IsAssembly.Should().BeTrue(
             "la sobrecarga con tenantId es internal; pública, la alcanzaría cualquier ensamblado");
         FuentesDeSrc.Analisis.Should().ContainKey(FicheroDelCliente, "las claves del barrido son rutas relativas con barra");
+    }
+
+    // ───────────── dokify: el mismo cerco para su cliente HTTP y su conector concreto ─────────────
+
+    [Fact]
+    public void Solo_el_conector_dokify_inyecta_su_cliente_http_y_nadie_inyecta_el_conector_concreto()
+    {
+        QuienesInyectan(TiposEscaneados(), ClienteDokify).Should().BeEquivalentTo([ImplementacionDokify],
+            "el cliente llama a dokify con el token que le pasen; un servicio de fondo que lo inyectara llamaría sin la " +
+            "puerta, sin registro de uso y sin interruptor");
+        QuienesInyectan(TiposEscaneados(), ImplementacionDokify).Should().BeEmpty(
+            "las lecturas internal del conector concreto solo las alcanzaría quien lo inyectase; hoy no tienen consumidor");
+    }
+
+    [Fact]
+    public void Ningun_cuerpo_de_metodo_pide_el_cliente_dokify_ni_el_conector_concreto_fuera_del_conector_y_el_registro()
+    {
+        QuienesNombranEnIl(TiposEscaneados(), ClienteDokify).Should().BeEquivalentTo(
+            [ImplementacionDokify, typeof(InfrastructureServiceCollectionExtensions)],
+            "pedir el cliente HTTP dentro de un método llamaría a dokify sin pasar por la puerta");
+        QuienesNombranEnIl(TiposEscaneados(), ImplementacionDokify).Should().BeEquivalentTo(
+            [typeof(InfrastructureServiceCollectionExtensions)],
+            "quien nombra el conector concreto alcanza sus lecturas internal, sin consumidor de producto");
+    }
+
+    [Fact]
+    public void Ningun_fichero_de_src_nombra_el_cliente_dokify_ni_el_conector_concreto_fuera_de_dokify_y_el_registro()
+    {
+        FicherosQueNombran("DokifyClient").Should().BeEquivalentTo(
+            [FicheroDelClienteDokify, FicheroDeLaImplementacionDokify, FicheroDelRegistro],
+            "solo el conector usa el cliente HTTP y solo el registro lo configura");
+        FicherosQueNombran("ConectorDokify").Should().BeEquivalentTo([FicheroDeLaImplementacionDokify, FicheroDelRegistro],
+            "el conector concreto solo se registra como IConectorPlataformaCae");
+
+        var registro = FuentesDeSrc.Analisis[FicheroDelRegistro];
+        registro.Palabras["DokifyClient"].Should().Be(3,
+            "AddHttpClient<DokifyClient>, su TamanoMaximoRespuesta y su CrearManejadorSinRedirecciones; nada más");
+        registro.Palabras["ConectorDokify"].Should().Be(1, "el registro como IConectorPlataformaCae; nada más");
+        (registro.Literales?.ContainsKey("DokifyClient") ?? false).Should().BeFalse(
+            "un AddHttpClient con el nombre en una cadena configuraría el mismo cliente con nombre");
+        (registro.Literales?.ContainsKey("ConectorDokify") ?? false).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Sin este control, las tres listas de arriba podrían pasar porque el instrumento no viera nada: en src el conector sí
+    /// inyecta el cliente y el IL de sus cuerpos sí lo nombra. Los intrusos sintéticos que prueban el instrumento son los de
+    /// CTAIMACAE.net: los instrumentos son los mismos.
+    /// </summary>
+    [Fact]
+    public void Control_los_instrumentos_ven_al_conector_dokify_usando_su_cliente()
+    {
+        QuienesInyectan(TiposEscaneados(), ClienteDokify).Should().Contain(ImplementacionDokify,
+            "en src, el conector inyecta el cliente por su constructor primario");
+        QuienesNombranEnIl(TiposEscaneados(), ClienteDokify).Should().Contain(ImplementacionDokify);
+        FuentesDeSrc.Analisis.Should().ContainKey(FicheroDelClienteDokify, "las claves del barrido son rutas relativas con barra");
     }
 
     private static IEnumerable<Type> TiposEscaneados() =>

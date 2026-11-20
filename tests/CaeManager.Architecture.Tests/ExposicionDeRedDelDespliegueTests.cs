@@ -62,18 +62,30 @@ public class ExposicionDeRedDelDespliegueTests
     /// redirecciones, sin el pipeline de reintentos y con el valor de todas las cabeceras tachado en el log.
     /// </summary>
     [Fact]
-    public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras()
+    public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras() =>
+        ComprobarRegistroDelCliente("CtaimaCaeClient", "Ctaima", ["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"]);
+
+    /// <summary>
+    /// El cliente de dokify lleva el token en <c>Authorization</c> y el CIF o NIF por el que pregunta en la ruta: además del
+    /// cerco del de CTAIMACAE.net, su registro apaga el log del HttpClient, que escribiría la ruta.
+    /// </summary>
+    [Fact]
+    public void El_cliente_http_de_dokify_no_sigue_redirecciones_no_reintenta_tacha_sus_cabeceras_y_no_registra_sus_peticiones() =>
+        ComprobarRegistroDelCliente("DokifyClient", "Dokify", ["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders", "RemoveAllLoggers"]);
+
+    private static void ComprobarRegistroDelCliente(string cliente, string carpeta, string[] encadenados)
     {
+        var tipo = $"CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.{carpeta}.{cliente}";
         var contenido = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
             "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"));
 
-        var inicio = contenido.IndexOf("AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient>", StringComparison.Ordinal);
-        inicio.Should().BeGreaterThan(0, "el cliente de CTAIMACAE.net se registra con AddHttpClient en este fichero");
+        var inicio = contenido.IndexOf($"AddHttpClient<{tipo}>", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0, $"{cliente} se registra con AddHttpClient en este fichero");
         var fin = contenido.IndexOf("AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae", inicio, StringComparison.Ordinal);
         fin.Should().BeGreaterThan(inicio, "el conector se registra justo después de su cliente");
         var registro = contenido[inicio..fin];
 
-        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)");
+        registro.Should().Contain($"ConfigurePrimaryHttpMessageHandler({tipo}.CrearManejadorSinRedirecciones)");
         // Tachado total con predicado: RedactLoggedHeaders(lista) sustituye el predicado por defecto de .NET 9+
         // (que tacha todo) y dejaría en claro Set-Cookie, Location u Ocp-Apim-Trace-Location.
         registro.Should().Contain(".RedactLoggedHeaders(_ => true)",
@@ -102,8 +114,8 @@ public class ExposicionDeRedDelDespliegueTests
             "un comentario o un escape unicode en el tramo burlaría la lista de abajo");
         System.Text.RegularExpressions.Regex.Matches(registro, @"(?m)(?:^\s*|\)\s*[!?]?)\s*\.\s*@?(\w+)\s*[<(]")
             .Select(m => m.Groups[1].Value)
-            .Should().Equal(["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"],
-                "el cliente de CTAIMACAE.net solo encadena su manejador sin redirecciones y el tachado total");
+            .Should().Equal(encadenados,
+                $"{cliente} solo encadena lo que declara este test: su manejador sin redirecciones y el tachado total (y, en dokify, el log apagado)");
         // Y el builder no se guarda en una variable para seguir encadenándole métodos fuera del tramo: la línea empieza
         // por «services.» y lo anterior acaba una sentencia o un bloque, así que tampoco cabe un «var b =» en la línea
         // de encima.
@@ -132,8 +144,9 @@ public class ExposicionDeRedDelDespliegueTests
                 .Concat(Directory.EnumerateFiles(raizSrc, "*.props", SearchOption.AllDirectories))
                 .Select(File.ReadAllText))
             .ToList();
-        fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\bCtaimaCaeClient\b|\([^)]*\bCtaimaCaeClient\b)").Count)
-            .Should().Be(1, "el cliente de CTAIMACAE.net se configura en un único registro de todo src");
+        var nombre = System.Text.RegularExpressions.Regex.Escape(cliente);
+        fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\b" + nombre + @"\b|\([^)]*\b" + nombre + @"\b)").Count)
+            .Should().Be(1, $"{cliente} se configura en un único registro de todo src");
         foreach (var global in new[]
                  {
                      "ConfigureHttpClientDefaults", "HttpClientFactoryOptions", "IHttpMessageHandlerBuilderFilter",
