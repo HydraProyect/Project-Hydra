@@ -1,9 +1,11 @@
+using System.Globalization;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -28,6 +30,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     private const string RolAdministrador = Roles.Administrador;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IActividadBuzones ActividadBuzones { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
@@ -46,6 +49,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     private IReadOnlyList<CuentaVisibleEnRol> _candidatos = [];
     private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> _elegibles = new Dictionary<Guid, IReadOnlySet<Guid>>();
     private IReadOnlyDictionary<Guid, string> _nombres = new Dictionary<Guid, string>();
+    private IReadOnlyDictionary<Guid, ActividadBuzonDto> _actividad = new Dictionary<Guid, ActividadBuzonDto>();
     private bool _cargando = true;
     private bool _cargaFallida;
     private Guid? _procesandoId;
@@ -99,11 +103,13 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
             // Solo los buzones compartidos tienen selector: uno personal responde siempre a su propietario. Para que lo
             // evalúe el servidor hace falta ser Administrador, y es quien ve el selector.
             var elegibles = await ObtenerElegiblesAsync(conexiones, candidatos, token);
+            var actividad = await ObtenerActividadAsync(conexiones, token);
             if (generacion != _generacionCarga || token.IsCancellationRequested) return;
             _conexiones = conexiones;
             _candidatos = candidatos;
             _elegibles = elegibles;
             _nombres = nombres;
+            _actividad = actividad;
             _cargaFallida = false;
         }
         catch (Exception) when (generacion == _generacionCarga && !token.IsCancellationRequested)
@@ -144,6 +150,51 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
             return new Dictionary<Guid, IReadOnlySet<Guid>>();
         }
     }
+
+    /// <summary>
+    /// «Último correo» y «Abiertas» de cada buzón, en una sola petición para todos. Es un dato de lectura del listado: si falla,
+    /// la tabla sigue y esas dos celdas enseñan «—» (no «0» ni «Sin correos aún», que afirmarían algo que no se ha medido).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> ObtenerActividadAsync(
+        IReadOnlyList<ConexionIntegracionListaDto> conexiones, CancellationToken token)
+    {
+        if (conexiones.Count == 0) return new Dictionary<Guid, ActividadBuzonDto>();
+        try
+        {
+            return await ActividadBuzones.ObtenerAsync(conexiones.Select(c => c.Id).ToList(), token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(ex, "Error al calcular la actividad (último correo y conversaciones abiertas) de los buzones.");
+            return new Dictionary<Guid, ActividadBuzonDto>();
+        }
+    }
+
+    /// <summary>
+    /// «Hoy, 08:31» / «Ayer, 17:40» (lienzo, con la hora en dos dígitos de D-19) y, para lo más antiguo, el formato único
+    /// «15/11/2026 08:31» (D-19). Hora y día peninsulares
+    /// (<see cref="DiaDeNegocio"/>), nunca la zona del servidor. Sin ningún correo recibido: «Sin correos aún»; sin dato
+    /// (la petición falló o el buzón no está en la respuesta): «—».
+    /// </summary>
+    private string DescribirUltimoCorreo(Guid conexionId)
+    {
+        if (!_actividad.TryGetValue(conexionId, out var actividad)) return "—";
+        if (actividad.UltimoCorreoUtc is not { } instanteUtc) return Textos["SinCorreosAun"];
+
+        var local = instanteUtc.EnHoraPeninsular();
+        var hora = local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        var hoy = DiaDeNegocio.Hoy();
+        var dia = DiaDeNegocio.De(instanteUtc);
+        // Lo anterior a ayer no está en el lienzo: lleva el formato único de fecha y hora en pantalla (D-19), no uno propio.
+        return dia == hoy ? Textos["UltimoCorreoHoy", hora]
+            : dia == hoy.AddDays(-1) ? Textos["UltimoCorreoAyer", hora]
+            : local.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private string DescribirAbiertas(Guid conexionId) =>
+        _actividad.TryGetValue(conexionId, out var actividad)
+            ? actividad.ConversacionesAbiertas.ToString(CultureInfo.CurrentCulture)
+            : "—";
 
     private async Task RecargarSinPropagarAsync()
     {

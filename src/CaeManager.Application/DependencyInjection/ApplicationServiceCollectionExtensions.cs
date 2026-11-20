@@ -49,6 +49,9 @@ public static class ApplicationServiceCollectionExtensions
         // Puerto del Núcleo por el que Facturación lee la liquidación del Operador CAE sin depender de Outbound (D-F2).
         services.AddScoped<CaeManager.Application.Common.IFuenteLiquidacionOperadorCae,
             CaeManager.Application.Dashboard.TarifasOperadorCae.FuenteLiquidacionOperadorCae>();
+        // Puerto del Núcleo por el que la tabla de Buzones lee de Comunicaciones su último correo y sus conversaciones abiertas sin depender de Outbound.
+        services.AddScoped<CaeManager.Application.Integraciones.IActividadBuzones,
+            CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones.ActividadBuzonesService>();
         // Lectura de la «Nota interna» de las fichas 360: una sola decisión para todas (ver PoliticaNotaInterna).
         services.AddScoped<CaeManager.Application.Common.IPoliticaNotaInterna, CaeManager.Application.Common.PoliticaNotaInterna>();
         // Singleton a propósito (Horizonte 2.4): la ventana de tasa de

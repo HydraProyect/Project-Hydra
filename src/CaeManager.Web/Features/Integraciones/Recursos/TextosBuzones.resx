@@ -48,6 +48,21 @@
   <data name="ColAcuse" xml:space="preserve">
     <value>Acuse automático</value>
   </data>
+  <data name="ColUltimoCorreo" xml:space="preserve">
+    <value>Último correo</value>
+  </data>
+  <data name="ColAbiertas" xml:space="preserve">
+    <value>Abiertas</value>
+  </data>
+  <data name="UltimoCorreoHoy" xml:space="preserve">
+    <value>Hoy, {0}</value>
+  </data>
+  <data name="UltimoCorreoAyer" xml:space="preserve">
+    <value>Ayer, {0}</value>
+  </data>
+  <data name="SinCorreosAun" xml:space="preserve">
+    <value>Sin correos aún</value>
+  </data>
   <data name="TipoCompartido" xml:space="preserve">
     <value>Compartido</value>
   </data>
@@ -97,7 +112,7 @@
     <value>Aún no hay buzones conectados.</value>
   </data>
   <data name="VacioTexto" xml:space="preserve">
-    <value>Conecta el primero desde Conexiones de integración.</value>
+    <value>Añade el primero con su dirección.</value>
   </data>
   <data name="AvisoCargaFallida" xml:space="preserve">
     <value>No pudimos cargar los buzones. Vuelve a intentarlo en unos minutos.</value>
