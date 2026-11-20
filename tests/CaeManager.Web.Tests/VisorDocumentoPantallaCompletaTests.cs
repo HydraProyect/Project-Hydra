@@ -332,9 +332,10 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
         var cierres = new List<bool>();
         var cut = Pintar([Adj("A.pdf")], cierres.Add);
 
-        // bUnit no despacha un clic a un elemento que solo lleva stopPropagation y ningún manejador; se comprueba que el panel lo declara.
-        cut.Find(".vz-pn").GetAttributeNames()
-            .Should().Contain(a => a.Contains("onclick") && a.Contains("stoppropagation"));
+        // bUnit no despacha un clic a un elemento que solo lleva stopPropagation y ningún manejador (la propagación la corta el navegador):
+        // se comprueba que el panel lo declara y que no ha habido ningún cierre sin pulsar el fondo.
+        cut.Find(".vz-pn").Attributes.Select(a => a.Name)
+            .Should().Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("click", StringComparison.OrdinalIgnoreCase));
         cierres.Should().BeEmpty();
 
         await cut.Find(".vz-ov").ClickAsync(new MouseEventArgs());
