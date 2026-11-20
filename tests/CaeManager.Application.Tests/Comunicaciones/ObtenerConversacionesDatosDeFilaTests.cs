@@ -47,7 +47,7 @@ public class ObtenerConversacionesDatosDeFilaTests
         var banda = new Banda();
         var hilo = banda.Hilo("Reparto en curso");
         banda.Adjunto(hilo, "pendiente.pdf");
-        banda.Adjunto(hilo, "rechazado.pdf").Rechazar("No es de este Cliente", Guid.NewGuid(), DateTime.UtcNow);
+        banda.Adjunto(hilo, "rechazado.pdf").Rechazar("No es de este Cliente empresarial", Guid.NewGuid(), DateTime.UtcNow);
 
         (await banda.Lista()).Single().TotalAdjuntos.Should().Be(2);
     }
@@ -85,12 +85,12 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
-    public async Task AccionPorAprobar_no_cuenta_una_propuesta_de_Gestion_que_es_ruido_salvo_que_el_Gestor_la_confirmara()
+    public async Task AccionPorAprobar_no_cuenta_una_propuesta_de_Gestion_que_es_ruido_salvo_que_el_Gestor_CAE_la_confirmara()
     {
         // Un detalle que repite algo ya reclamado cuenta como ruido en la misma fila; no puede ser a la vez «acción por aprobar».
         var banda = new Banda();
         var repeticion = banda.Hilo("Repetición de algo ya reclamado");
-        var confirmada = banda.Hilo("Repetición que el Gestor confirmó que importa");
+        var confirmada = banda.Hilo("Repetición que el Gestor CAE confirmó que importa");
         var mixta = banda.Hilo("Una repetición y una propuesta real");
         banda.Repeticion(banda.DetalleDeGestion(repeticion));
         banda.Repeticion(banda.DetalleDeGestion(confirmada)).ConfirmarManualmente();
@@ -106,11 +106,11 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
-    public async Task AccionPorAprobar_no_cuenta_una_sugerencia_de_Visita_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_lo_confirmara()
+    public async Task AccionPorAprobar_no_cuenta_una_sugerencia_de_Visita_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_CAE_lo_confirmara()
     {
         var banda = new Banda();
         var ruido = banda.Hilo("Resumen automático sin cambios");
-        var confirmado = banda.Hilo("Resumen que el Gestor confirmó que importa");
+        var confirmado = banda.Hilo("Resumen que el Gestor CAE confirmó que importa");
         var sinMotivo = banda.Hilo("Notificación automática sin motivo de ruido");
         banda.SugerenciaVisita(ruido);
         banda.SugerenciaVisita(confirmado);
@@ -127,12 +127,12 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
-    public async Task AccionPorAprobar_no_cuenta_un_detalle_de_Gestion_real_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_lo_confirmara()
+    public async Task AccionPorAprobar_no_cuenta_un_detalle_de_Gestion_real_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_CAE_lo_confirmara()
     {
         // Mismo motivo de ruido que para la Visita: el mensaje entero es ruido, y la fila lo cuenta como tal en MensajesRuido.
         var banda = new Banda();
         var ruido = banda.Hilo("Resumen automático con un detalle de Gestión");
-        var confirmado = banda.Hilo("Resumen que el Gestor confirmó que importa");
+        var confirmado = banda.Hilo("Resumen que el Gestor CAE confirmó que importa");
         var sinMotivo = banda.Hilo("Notificación automática sin motivo de ruido");
         banda.DetalleDeGestion(ruido);
         banda.DetalleDeGestion(confirmado);
@@ -260,6 +260,8 @@ public class ObtenerConversacionesDatosDeFilaTests
         banda.Adjunto(deOtraCartera, "ajeno.pdf");
         banda.Adjunto(deBuzonAjeno, "ajeno.pdf");
         banda.SugerenciaVisita(deOtraCartera);
+        banda.DetalleDeGestion(deOtraCartera);
+        banda.DetalleDeGestion(deBuzonAjeno);
 
         var despues = await banda.Pagina(directorio);
 
