@@ -63,14 +63,15 @@ public class PrivacidadDeSentryTests
     [Fact]
     public async Task Con_un_host_real_el_enlace_de_configuracion_no_vuelve_a_llenar_la_lista_de_propagacion()
     {
-        // La configuración trae Sentry:TracePropagationTargets:0 = ".*" (como la traería una variable de entorno o un
-        // appsettings): el enlace de la sección "Sentry" corre sobre SentryAspNetCoreOptions y no debe pisar a Configurar.
+        // La configuración trae Sentry:TracePropagationTargets:0 = "control.invalid" (como la traería una variable de entorno
+        // o un appsettings), un valor distinto del por defecto del SDK (".*"): el enlace de la sección "Sentry" corre sobre
+        // SentryAspNetCoreOptions y no debe pisar a Configurar.
         var enlazada = await ListaDePropagacionDelHostAsync(PrivacidadDeSentry.Configurar);
         var control = await ListaDePropagacionDelHostAsync(_ => { });
 
-        control.Should().Contain(".*", "control: sin Configurar, el enlace de configuración llena la lista y el test podría fallar");
+        control.Should().Equal(["control.invalid"], "control: sin Configurar, el enlace sustituye el valor por defecto; si no corriera, la lista seria la de por defecto");
         enlazada.Should().BeEmpty();
-        SentrySdk.IsEnabled.Should().BeFalse("el host de la prueba deja el SDK global cerrado para el resto de las pruebas de la colección");
+        // Que el SDK global quede cerrado para el resto de la colección lo garantiza el finally de ListaDePropagacionDelHostAsync.
     }
 
     [Fact]
@@ -80,6 +81,14 @@ public class PrivacidadDeSentryTests
         // hasta el final, cuadrático; con un tope de 100 ms agota su tiempo con margen de varios órdenes de magnitud.
         var mensaje = new string('a', 1_000_000);
         var original = new Breadcrumb(mensaje, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info);
+
+        // Control: el mismo camino, con la misma categoria y nivel, y un mensaje corto sin URL ni correo sale intacto;
+        // asi lo que vacia el mensaje enorme es el timeout y no un recorte incondicional.
+        var corto = new string('a', 1_000);
+        var cortoFiltrada = PrivacidadDeSentry.FiltrarMigaDePan(
+            new Breadcrumb(corto, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info), new SentryHint());
+        cortoFiltrada.Should().NotBeNull();
+        cortoFiltrada!.Message.Should().Be(corto, "control: un mensaje corto sin URL ni correo no se recorta");
 
         var filtrada = PrivacidadDeSentry.FiltrarMigaDePan(original, new SentryHint());
 
@@ -193,7 +202,7 @@ public class PrivacidadDeSentryTests
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Sentry:Dsn"] = "https://public@sentry.invalid/1",
-            ["Sentry:TracePropagationTargets:0"] = ".*",
+            ["Sentry:TracePropagationTargets:0"] = "control.invalid",
         });
         builder.WebHost.UseSentry(o => configurar(o));
 
