@@ -42,6 +42,8 @@
   <data name="RespuestaPublica" xml:space="preserve"><value>Respuesta pública</value></data>
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Todas</value></data>
+  <data name="Abiertas" xml:space="preserve"><value>Abiertas</value></data>
+  <data name="Archivadas" xml:space="preserve"><value>Archivadas</value></data>
   <data name="Mias" xml:space="preserve"><value>Mías</value></data>
   <data name="EsperandoCliente" xml:space="preserve"><value>Esperando respuesta del Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
