@@ -260,9 +260,6 @@
                 _estados.Remove(id);
         }
 
-        foreach (var a in _lista.Where(a => _estados.GetValueOrDefault(a.Id, a.Estado) == a.Estado))
-            _estados.Remove(a.Id);
-
         if (_lista.Count > 0)
         {
             // Con el visor ya abierto se sigue al adjunto por su Id: si quien lo abre quita o reordena otros, no se salta a otro documento sin avisar.
