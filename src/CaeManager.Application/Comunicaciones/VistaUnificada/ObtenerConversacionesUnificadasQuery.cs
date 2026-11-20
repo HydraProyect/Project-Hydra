@@ -214,17 +214,19 @@ public class ObtenerConversacionesUnificadasQueryHandler(
 
     /// <summary>
     /// La página de un Tenant, dentro de su <see cref="AmbitoTenantAutorizado"/>. Segunda línea (§ 4.3, M1): fuera del
-    /// Tenant de origen, solo se lee si la persona entra por una Asignación de Operación; si no, el Tenant queda como no
-    /// consultado (<c>null</c>), nunca como vacío. Sentencias fijas por Tenant, sin depender de cuántas filas trae: el
-    /// alcance, las conexiones excluidas, la página y los nombres de sus buzones.
+    /// Tenant de origen, solo se lee si la persona entra por una Asignación de Operación; en el de origen, solo con rol
+    /// efectivo. Si no, el Tenant queda como no consultado (<c>null</c>), nunca como vacío. Sentencias fijas por Tenant,
+    /// sin depender de cuántas filas trae: el alcance, las conexiones excluidas, la página y los nombres de sus buzones.
     /// </summary>
     private async Task<List<ConversacionUnificadaDto>?> LeerTenantAsync(
         AmbitoTenantAutorizado ambito, string tenantNombre, bool esOrigen, DateTime cota,
         CursorConversacionesUnificadas? cursor, int tamano, CancellationToken cancellationToken)
     {
         ambito.ExigirAbierto();
-        if (!esOrigen
-            && !(currentUserService is IEncargoDeAdministracionActual senal && await senal.OperaPorAsignacionDeOperacionAsync()))
+        var autorizaDentro = esOrigen
+            ? await currentUserService.ObtenerRolEfectivoAsync() is not null
+            : currentUserService is IEncargoDeAdministracionActual senal && await senal.OperaPorAsignacionDeOperacionAsync();
+        if (!autorizaDentro)
             return null;
 
         var consulta = await ConversacionesVisibles.FiltrarAsync(

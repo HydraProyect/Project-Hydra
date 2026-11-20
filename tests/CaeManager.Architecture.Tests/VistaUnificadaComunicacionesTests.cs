@@ -31,9 +31,7 @@ public class VistaUnificadaComunicacionesTests
         tipo.IsClass.Should().BeTrue();
         tipo.IsValueType.Should().BeFalse();
         tipo.GetMethod("<Clone>$", Todos).Should().BeNull("un record se copia con with y saltaría la fábrica");
-        tipo.GetCustomAttributes(inherit: true)
-            .Select(a => a.GetType().Name)
-            .Should().NotContain(n => n.Contains("Serializ") || n.Contains("DataContract") || n.Contains("Json"));
+        AtributosDeSerializacion(tipo).Should().BeEmpty("el ámbito y la identidad nunca se serializan ni se guardan");
 
         tipo.GetConstructors(Todos)
             .Should().OnlyContain(c => c.IsPrivate, "fuera del tipo no se puede construir un ámbito sin re-comprobar");
@@ -85,6 +83,34 @@ public class VistaUnificadaComunicacionesTests
             .Should().NotContain("Establecer").And.NotContain("EstaAutorizadoAsync").And.Contain("var b = 2;");
         SinComentarios("AmbitoTenantExplicito.Establecer(t);").Should().Contain("AmbitoTenantExplicito.Establecer");
     }
+
+    /// <summary>
+    /// Control del instrumento de atributos. <c>[Serializable]</c> es un pseudoatributo (un bit de los metadatos del
+    /// tipo, no una fila de atributos) y la propiedad que lo leía directamente está obsoleta (SYSLIB0050); la reflexión
+    /// lo devuelve igualmente entre los atributos del tipo, y esto prueba que el instrumento lo ve.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(MuestraSerializable), "SerializableAttribute")]
+    [InlineData(typeof(MuestraDataContract), "DataContractAttribute")]
+    public void El_instrumento_de_atributos_ve_los_de_serializacion(Type muestra, string esperado)
+    {
+        AtributosDeSerializacion(muestra).Should().Contain(esperado);
+        AtributosDeSerializacion(typeof(MuestraSinAtributos)).Should().BeEmpty();
+    }
+
+    private static List<string> AtributosDeSerializacion(Type tipo) =>
+        tipo.GetCustomAttributes(inherit: true)
+            .Select(a => a.GetType().Name)
+            .Where(n => n.Contains("Serializ") || n.Contains("DataContract") || n.Contains("Json"))
+            .ToList();
+
+    [Serializable]
+    private sealed class MuestraSerializable;
+
+    [System.Runtime.Serialization.DataContract]
+    private sealed class MuestraDataContract;
+
+    private sealed class MuestraSinAtributos;
 
     private static string SinComentarios(string codigo) =>
         Regex.Replace(codigo, @"/\*.*?\*/|//[^\n]*", string.Empty, RegexOptions.Singleline);

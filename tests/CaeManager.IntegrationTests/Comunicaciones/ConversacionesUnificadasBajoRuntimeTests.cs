@@ -242,6 +242,46 @@ public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
         segunda.Siguiente.Should().BeNull("solo hay dos conversaciones visibles");
     }
 
+    /// <summary>
+    /// A igualdad de fecha decide el <c>Id</c> (§ 4.3, M4): el cursor tiene que entrar por la rama
+    /// <c>c.Id.CompareTo(id) &lt; 0</c>, que Npgsql traduce a una comparación de <c>uuid</c>, y la fusión en memoria tiene
+    /// que ordenar igual que PostgreSQL. Con las tres conversaciones visibles en la misma fecha, página a página de una
+    /// fila, el recorrido sale entero, sin repetir, y en el orden de <see cref="OrdenConversacionesUnificadas"/>.
+    /// </summary>
+    [Fact]
+    public async Task A_igual_fecha_el_cursor_desempata_por_Id_como_uuid()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantDentro))
+        {
+            AgregarConversacion("Empate A", _clienteDentro, null);
+            AgregarConversacion("Empate B", _clienteDentro, null);
+            await _propietario.SaveChangesAsync();
+        }
+
+        var fecha = OrdenConversacionesUnificadas.TruncarAMicrosegundos(DateTime.UtcNow.AddMinutes(-1));
+        await _propietario.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Conversaciones\" SET \"FechaUltimoMensajeUtc\" = {fecha} WHERE \"TenantId\" = {_tenantDentro}");
+
+        var recorridas = new List<ConversacionUnificadaDto>();
+        CursorConversacionesUnificadas? cursor = null;
+        for (var vuelta = 0; vuelta < 10; vuelta++)
+        {
+            var pagina = await EnviarAsync(new ObtenerConversacionesUnificadasQuery(Cursor: cursor, TamanoPagina: 1));
+            pagina.NoConsultados.Should().BeEmpty();
+            recorridas.AddRange(pagina.Filas);
+            cursor = pagina.Siguiente;
+            if (cursor is null) break;
+        }
+
+        cursor.Should().BeNull("el recorrido termina");
+        recorridas.Should().HaveCount(3, "las tres conversaciones visibles del Tenant, sin la del buzón personal ajeno");
+        recorridas.Should().OnlyContain(f => f.FechaUltimoMensajeUtc == fecha, "control: el empate de fecha es real");
+        recorridas.Select(f => f.Id).Should().OnlyHaveUniqueItems();
+        recorridas.Select(f => f.Id).Should().Equal(
+            recorridas.Select(f => f.Id).OrderByDescending(id => id, Comparer<Guid>.Create(OrdenConversacionesUnificadas.CompararComoUuid)),
+            "PostgreSQL y la fusión en memoria ordenan el uuid igual");
+    }
+
     [Fact]
     public async Task Las_sentencias_por_pagina_no_crecen_con_las_conversaciones()
     {

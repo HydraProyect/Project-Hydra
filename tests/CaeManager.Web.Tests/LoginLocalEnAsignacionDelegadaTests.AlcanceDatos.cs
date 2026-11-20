@@ -90,6 +90,66 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         (await escenario.Servicio.ObtenerRolDeAsignacionHeredadaAsync()).Should().BeNull();
     }
 
+    /// <summary>
+    /// D-6 b (§ 4.3, M1): con la marca «sin vía heredada» que abre la vista unificada de Comunicaciones
+    /// (<see cref="AmbitoSinViaHeredada"/>), el mismo ámbito explícito sobre el mismo Tenant beneficiario ya no cae a la
+    /// delegación heredada: ni rol efectivo, ni rol heredado para el alcance, ni señal de Asignación de Operación. Al
+    /// cerrar la marca, todo vuelve a ser como antes: el fan-out de Mi trabajo no cambia.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_marca_sin_via_heredada_el_ambito_no_cae_a_la_delegacion_heredada()
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.CoordinadorCae, esSso: true);
+        await escenario.AplicarMiddlewareAsync();
+
+        using (AmbitoTenantExplicito.Establecer(escenario.TenantVisitado))
+        {
+            (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(Roles.CoordinadorCae,
+                "control: sin la marca, la delegación heredada da rol en el ámbito");
+            using (MarcarSinViaHeredada())
+            {
+                (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
+                (await escenario.Servicio.ObtenerRolDeAsignacionHeredadaAsync()).Should().BeNull();
+                (await escenario.Servicio.OperaPorAsignacionDeOperacionAsync()).Should().BeFalse();
+            }
+            AmbitoSinViaHeredada.Activo.Should().BeFalse();
+            (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(Roles.CoordinadorCae);
+        }
+    }
+
+    /// <summary>
+    /// D-6 b (§ 4.3, M1): el alcance memoizado con la vía heredada en un ámbito explícito (el fan-out de Mi trabajo) no
+    /// se reutiliza dentro de la marca «sin vía heredada» sobre el mismo Tenant (<c>AlcanceDatosService.ClaveTenant</c>):
+    /// dentro, el alcance se vuelve a calcular y sale cerrado.
+    /// </summary>
+    [Fact]
+    public async Task El_alcance_memoizado_con_la_heredada_no_vale_dentro_de_la_marca_sin_via_heredada()
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.CoordinadorCae, Roles.Consulta, esSso: true);
+        await escenario.AplicarMiddlewareAsync();
+        var tenantActual = new TenantActualAmbiental { TenantId = escenario.TenantVisitado };
+        await using var db = new ContextoDeCarteras(escenario, tenantActual, [], [], []);
+        var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+
+        using (AmbitoTenantExplicito.Establecer(escenario.TenantVisitado))
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeTrue(
+                "control: sin la marca, la asignación heredada de Consulta da acceso total y queda memoizado");
+            using (MarcarSinViaHeredada())
+            {
+                (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+                (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
+            }
+            (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("fuera de la marca, la entrada de antes sigue valiendo");
+        }
+    }
+
+    /// <summary><c>AmbitoSinViaHeredada.Marcar</c> es <c>internal</c> a Application; el test la abre por reflexión.</summary>
+    private static IDisposable MarcarSinViaHeredada() =>
+        (IDisposable)typeof(AmbitoSinViaHeredada)
+            .GetMethod("Marcar", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(null, null)!;
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
