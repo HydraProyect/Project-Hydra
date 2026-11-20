@@ -184,6 +184,11 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+/* Dentro del bloque no hay padding propio: el aviso se sangra como el resto de zonas; suelto (primera carga fallida) va a ras del hilo. */
+.adjb .adjb-aviso-bloque {
     margin: 0 var(--space-4) var(--space-3);
 }
 
