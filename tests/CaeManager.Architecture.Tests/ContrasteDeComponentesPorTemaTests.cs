@@ -574,6 +574,46 @@ public class ContrasteDeComponentesPorTemaTests
             .Should().Be("#404040", "sin la capa de imagen solo se ve el color de fondo, la superficie");
         ResolverFondoMedible(tokens, $"background-image: none; background: {Degradado};", Degradado, "claro")
             .Should().Be("#202020", "el shorthand posterior vuelve a pintar el degradado");
+
+        // Lo que el instrumento no sabe ordenar no se mide: se omite (null) en vez de medir un color que quizá no es el que se ve.
+        ResolverFondoMedible(tokens, $"background: {Degradado}; background: {Degradado};", Degradado, "claro")
+            .Should().BeNull("dos shorthands con degradado: no se sabe cuál pinta");
+        ResolverFondoMedible(tokens, $"background: {Degradado}; background-color: #ff0000;", Degradado, "claro")
+            .Should().BeNull("un background-color posterior cambia el color de debajo de la capa");
+        ResolverFondoMedible(tokens, $"background-color: #ff0000; background: {Degradado};", Degradado, "claro")
+            .Should().Be("#202020", "control negativo: un background-color ANTERIOR lo pisa el shorthand posterior");
+        ResolverFondoMedible(tokens, $"background: {Degradado} !important;", Degradado, "claro")
+            .Should().BeNull("con !important el orden de las declaraciones no decide");
+        ResolverFondoMedible(tokens, $"background: {Degradado}; color: #ffffff !important;", Degradado, "claro")
+            .Should().Be("#202020", "control negativo: un !important en otra propiedad no afecta al fondo");
+    }
+
+    [Fact]
+    public void Evaluar_completa_una_regla_con_estado_con_el_cuerpo_acumulado_de_sus_bases()
+    {
+        var tokens = Tokens.Desde("""
+            :root {
+              --tinte: color-mix(in srgb, #000000 50%, transparent);
+              --base: #404040;
+            }
+            :root[data-theme='oscuro'] { --x: #000000; }
+            :root[data-theme='claro'] { --x: #000000; }
+            """);
+
+        // Dos reglas base del mismo selector, la segunda con el degradado, una tercera sin fondo, y un :hover que quita la imagen. La regla :hover no
+        // declara fondo ni letra: los hereda de las bases, y el cuerpo que se mide tiene que ser el de TODAS las bases más el suyo.
+        var resultado = Evaluar("""
+            .x { background: #808080; color: #ffffff; }
+            .x { background: linear-gradient(var(--tinte), var(--tinte)), var(--base); }
+            .x { padding: 0; }
+            .x:hover { background-image: none; }
+            """, "x.css", tokens, "claro").ToList();
+
+        resultado.Should().HaveCount(2, "la primera base (fondo y letra propios) y el :hover (los hereda); las otras dos no declaran los dos");
+        resultado[0].Ratio.Should().BeApproximately(Contraste("#808080", "#ffffff"), 1e-9);
+        resultado[1].Ratio.Should().NotBeNull("el :hover ve el shorthand con degradado de las bases y el background-image: none propio");
+        resultado[1].Ratio!.Value.Should().BeApproximately(Contraste("#404040", "#ffffff"), 1e-9,
+            "sin la capa de imagen solo queda el color de fondo, la superficie (#404040), no el tinte compuesto (#202020)");
     }
 
     [Fact]
@@ -915,7 +955,11 @@ public class ContrasteDeComponentesPorTemaTests
     /// degradado con dos paradas iguales sobre el color de fondo, <c>background: linear-gradient(var(--tinte), var(--tinte)), var(--superficie)</c>, que
     /// es como se pinta un tinte translúcido OPACO sobre su superficie (el tinte compuesto sobre la superficie). Exige el shorthand
     /// <c>background</c> (con <c>background-color</c> el degradado es CSS inválido y no pinta nada) y respeta un <c>background-image: none</c> posterior
-    /// (quita la capa y queda solo el color de fondo, la superficie). <c>null</c> si no es de esos formatos.
+    /// (quita la capa y queda solo el color de fondo, la superficie). <c>null</c> (no medible, se omite) si no es de esos formatos o si el cuerpo
+    /// tiene algo que el instrumento no sabe ordenar: más de un shorthand <c>background</c> con degradado, un <c>background-color</c> posterior al
+    /// shorthand o un <c>!important</c> en una declaración de fondo.
+    /// Hueco conocido, no implementado: un <c>background-image: none</c> en OTRA regla base del mismo selector no se ve al medir una regla base
+    /// (solo la regla con estado acumula el cuerpo de sus bases).
     /// </summary>
     /// <param name="cuerpo">Declaraciones de la regla (con las de su base si es una regla con estado), de donde sale <paramref name="fondo"/>.</param>
     private static string? ResolverFondoMedible(Tokens tokens, string cuerpo, string fondo, string tema)
@@ -923,9 +967,17 @@ public class ContrasteDeComponentesPorTemaTests
         var degradado = Regex.Match(fondo.Trim(), @"^linear-gradient\(\s*(var\(\s*--[\w-]+\s*\))\s*,\s*\1\s*\)\s*,\s*(.+)$");
         if (!degradado.Success) return tokens.IntentarResolver(fondo, tema);
 
-        // La última declaración del shorthand es la que manda y tiene que ser la del degradado: si no, `fondo` no sale de ella.
-        var shorthand = Regex.Matches(cuerpo, @"(?<![-\w])background\s*:\s*([^;]+)").LastOrDefault();
-        if (shorthand is null || !shorthand.Groups[1].Value.TrimStart().StartsWith("linear-gradient(", StringComparison.Ordinal)) return null;
+        // Con un !important en una declaración de fondo el orden de las declaraciones deja de decidir cuál pinta: no se mide.
+        if (Regex.IsMatch(cuerpo, @"(?<![-\w])background[\w-]*\s*:[^;]*!important")) return null;
+
+        // Solo se mide con exactamente un shorthand con degradado y que sea el último: con otro degradado o con uno simple detrás, `fondo` no es lo que pinta.
+        var shorthands = Regex.Matches(cuerpo, @"(?<![-\w])background\s*:\s*([^;]+)");
+        var conDegradado = shorthands.Where(m => m.Groups[1].Value.TrimStart().StartsWith("linear-gradient(", StringComparison.Ordinal)).ToList();
+        if (conDegradado.Count != 1 || shorthands[^1].Index != conDegradado[0].Index) return null;
+        var shorthand = conDegradado[0];
+
+        // Un background-color posterior cambia el color sobre el que se pinta la capa: tampoco se mide.
+        if (Regex.Matches(cuerpo, @"(?<![-\w])background-color\s*:").Any(m => m.Index > shorthand.Index)) return null;
 
         var superficie = tokens.IntentarResolver(degradado.Groups[2].Value, tema);
         if (superficie is null) return null;

@@ -105,9 +105,10 @@
     // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
     private (string Nombre, string Iniciales)? Asignada =>
         string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
-        // Mismo helper que el avatar de la persona usuaria (AvatarUsuario): la inicial de cada palabra, cortando también en guion, punto y arroba, y
+        // Mismas iniciales que el respaldo de AvatarUsuario (InicialesDeUsuario.De): la inicial de cada palabra, cortando también en guion, punto y arroba, y
         // «?» si no hay ninguna letra (entonces la fila no enseña persona). No AvatarTenant.Iniciales, que es el de una Empresa o un Tenant y parte solo
-        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR, una misma Gestora CAE lleva el mismo monograma en todas las pantallas.
+        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR.
+        // shortcut: la fila pinta las iniciales de respaldo de AvatarUsuario, no el avatar elegido, porque ConversacionListaDto no trae la clave de avatar; mejorarlo en un incremento propio que añada esa clave al DTO de lista y use AvatarUsuario
         : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
         : null;
 
