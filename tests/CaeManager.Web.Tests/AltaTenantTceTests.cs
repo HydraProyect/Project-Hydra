@@ -226,7 +226,7 @@ public class AltaTenantTceTests : BunitContext
 
         var casilla = cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']");
         casilla.HasAttribute("checked").Should().BeFalse("la declaración nunca viene marcada");
-        cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("contrata solo Inbound")
+        cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("Declaro que este Tenant no usa Outbound (solo Inbound)")
             .And.Contain("Opcional").And.Contain("Sin marcar, conserva Outbound");
         Pulsar(cut, "Dar de alta");
 
@@ -417,6 +417,7 @@ public class AltaTenantTceTests : BunitContext
         grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
         grupo.GetAttribute("aria-invalid").Should().Be("true");
         grupo.GetAttribute("aria-required").Should().Be("true");
+        grupo.GetAttribute("role").Should().Be("radiogroup");
         grupo.GetAttribute("aria-describedby").Should().Be(error.Id);
         grupo.QuerySelector("legend .campo-obligatorio")!.TextContent.Should().Be("*");
         grupo.QuerySelector("legend")!.TextContent.Should().NotContain("obligatoria");
@@ -425,6 +426,35 @@ public class AltaTenantTceTests : BunitContext
         grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
         grupo.HasAttribute("aria-invalid").Should().BeFalse("al elegir se retira el error y el grupo deja de marcarse inválido");
         grupo.HasAttribute("aria-describedby").Should().BeFalse("al elegir el grupo deja de apuntar al error");
+    }
+
+    /// <summary>
+    /// El nombre accesible de cada radio de la declaración es solo su título: la ayuda va fuera del &lt;label&gt; y se
+    /// enlaza como descripción con aria-describedby. Los títulos y las ayudas se fijan en castellano («Conserva Outbound» y
+    /// «conserva Outbound», no «mantiene»).
+    /// </summary>
+    [Theory]
+    [InlineData("solo", "Solo Inbound: la organización no usa Outbound", "Con esta declaración y sin línea Outbound, se le cierra Outbound.")]
+    [InlineData("conserva", "Conserva Outbound", "No se declara «solo Inbound»: la organización conserva Outbound.")]
+    public void El_nombre_accesible_del_radio_de_la_declaracion_es_solo_su_titulo_y_la_ayuda_lo_describe(
+        string valor, string titulo, string ayuda)
+    {
+        var cut = RenderConSesion();
+        PulsarEnLinea(cut, "Editar");
+
+        var radio = cut.Find($"[data-campo='declara-solo-inbound-corr'] input[type='radio'][value='{valor}']");
+        radio.Id.Should().NotBeNullOrEmpty();
+        radio.Closest("label").Should().BeNull("el radio no va dentro de un <label> que arrastre la ayuda a su nombre");
+
+        var etiquetas = cut.FindAll($"[data-campo='declara-solo-inbound-corr'] label[for='{radio.Id}']");
+        etiquetas.Should().ContainSingle();
+        etiquetas[0].TextContent.Trim().Should().Be(titulo, "el nombre accesible del radio es solo su título");
+
+        var idAyuda = radio.GetAttribute("aria-describedby");
+        idAyuda.Should().NotBeNullOrEmpty();
+        var descripcion = cut.Find($"#{idAyuda}");
+        descripcion.TextContent.Trim().Should().Be(ayuda);
+        descripcion.Closest("label").Should().BeNull("la ayuda no forma parte del nombre accesible");
     }
 
     [Fact]

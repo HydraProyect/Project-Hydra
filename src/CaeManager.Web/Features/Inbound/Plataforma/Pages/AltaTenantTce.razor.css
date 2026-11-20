@@ -145,6 +145,11 @@
     margin-top: 3px;
 }
 
+/* El <label> solo envuelve el título; la ayuda va a su lado, fuera del nombre accesible del radio. */
+.alta-tce-opc label {
+    display: block;
+}
+
 .alta-tce-opc b {
     display: block;
     font: var(--font-body-md);

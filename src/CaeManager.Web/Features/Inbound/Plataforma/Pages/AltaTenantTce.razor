@@ -94,8 +94,9 @@
                 {
                     <fieldset class="alta-tce-radios">
                         <legend>@Textos["OperacionLeyenda"]</legend>
-                        <label class="alta-tce-opc off"><input type="radio" name="alta-tce-operacion" disabled /><span><b>@Textos["OperacionExternoTitulo"]</b><span>@Textos["OperacionExternoAyuda"]</span></span></label>
-                        <label class="alta-tce-opc off"><input type="radio" name="alta-tce-operacion" disabled /><span><b>@Textos["OperacionPropioTitulo"]</b><span>@Textos["OperacionPropioAyuda"]</span></span></label>
+                        @* Como en la corrección: la ayuda fuera del <label>, enlazada con aria-describedby. *@
+                        <div class="alta-tce-opc off"><input type="radio" id="alta-tce-operacion-externo" name="alta-tce-operacion" disabled aria-describedby="alta-tce-operacion-externo-ayuda" /><span><label for="alta-tce-operacion-externo"><b>@Textos["OperacionExternoTitulo"]</b></label><span id="alta-tce-operacion-externo-ayuda">@Textos["OperacionExternoAyuda"]</span></span></div>
+                        <div class="alta-tce-opc off"><input type="radio" id="alta-tce-operacion-propio" name="alta-tce-operacion" disabled aria-describedby="alta-tce-operacion-propio-ayuda" /><span><label for="alta-tce-operacion-propio"><b>@Textos["OperacionPropioTitulo"]</b></label><span id="alta-tce-operacion-propio-ayuda">@Textos["OperacionPropioAyuda"]</span></span></div>
                     </fieldset>
                     @* shortcut: sin backend, cablear cuando entre B-04b (Asignación de Operación Inbound y encargo de
                        administración pleno del Operador CAE externo, D-D). *@
@@ -208,16 +209,22 @@
                           aria-describedby="@(ErrorEsDeDeclaracion ? IdErrorDeclaracion : null)"
                           aria-invalid="@(ErrorEsDeDeclaracion ? "true" : null)">
                     <legend>@Textos["CorreccionDeclaracionLeyenda"]<span class="campo-obligatorio" aria-hidden="true">*</span></legend>
-                    <label class="alta-tce-opc">
-                        <input type="radio" name="alta-tce-corr-declaracion" value="solo" checked="@(_declaraSoloInboundCorr == true)" disabled="@Ocupado"
+                    @* La ayuda va fuera del <label> y se enlaza con aria-describedby: el nombre accesible del radio es solo
+                       su título, y la ayuda se anuncia como descripción. *@
+                    <div class="alta-tce-opc">
+                        <input type="radio" id="alta-tce-corr-declaracion-solo" name="alta-tce-corr-declaracion" value="solo"
+                               aria-describedby="alta-tce-corr-declaracion-solo-ayuda"
+                               checked="@(_declaraSoloInboundCorr == true)" disabled="@Ocupado"
                                @onchange="@(() => ElegirDeclaracionSoloInboundCorr(true))" />
-                        <span><b>@Textos["CorreccionDeclaracionSoloTitulo"]</b><span>@Textos["CorreccionDeclaracionSoloAyuda"]</span></span>
-                    </label>
-                    <label class="alta-tce-opc">
-                        <input type="radio" name="alta-tce-corr-declaracion" value="conserva" checked="@(_declaraSoloInboundCorr == false)" disabled="@Ocupado"
+                        <span><label for="alta-tce-corr-declaracion-solo"><b>@Textos["CorreccionDeclaracionSoloTitulo"]</b></label><span id="alta-tce-corr-declaracion-solo-ayuda">@Textos["CorreccionDeclaracionSoloAyuda"]</span></span>
+                    </div>
+                    <div class="alta-tce-opc">
+                        <input type="radio" id="alta-tce-corr-declaracion-conserva" name="alta-tce-corr-declaracion" value="conserva"
+                               aria-describedby="alta-tce-corr-declaracion-conserva-ayuda"
+                               checked="@(_declaraSoloInboundCorr == false)" disabled="@Ocupado"
                                @onchange="@(() => ElegirDeclaracionSoloInboundCorr(false))" />
-                        <span><b>@Textos["CorreccionDeclaracionConservaTitulo"]</b><span>@Textos["CorreccionDeclaracionConservaAyuda"]</span></span>
-                    </label>
+                        <span><label for="alta-tce-corr-declaracion-conserva"><b>@Textos["CorreccionDeclaracionConservaTitulo"]</b></label><span id="alta-tce-corr-declaracion-conserva-ayuda">@Textos["CorreccionDeclaracionConservaAyuda"]</span></span>
+                    </div>
                 </fieldset>
                 <div class="alta-tce-linea-acciones">
                     <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarEdicion" Deshabilitado="Ocupado">@Textos["Cancelar"]</Boton>

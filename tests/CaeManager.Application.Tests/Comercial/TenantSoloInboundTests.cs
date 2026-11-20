@@ -117,6 +117,19 @@ public class TenantSoloInboundTests
         (await EsSoloInboundAsync()).Should().BeFalse("«ninguna línea Outbound» es que no hay fila; ante la duda, se conserva");
     }
 
+    /// <summary>
+    /// Una línea Outbound programada (su inicio aún no ha llegado) también es una línea Outbound: el Tenant no es solo
+    /// Inbound. Mata el mutante que exigiría a la línea Outbound el inicio ya alcanzado, como a la Inbound.
+    /// </summary>
+    [Fact]
+    public async Task Una_linea_Outbound_programada_sigue_siendo_una_linea_Outbound()
+    {
+        Contratar(LineaProductoContratado.Inbound, declara: true);
+        Contratar(LineaProductoContratado.OutboundGestionPropia, desde: Ahora.AddDays(1), contratadaEn: Ahora.AddDays(2));
+
+        (await EsSoloInboundAsync()).Should().BeFalse("la línea Outbound cuenta aunque su inicio no haya llegado");
+    }
+
     [Fact]
     public async Task Una_linea_Outbound_eliminada_no_cuenta()
     {
