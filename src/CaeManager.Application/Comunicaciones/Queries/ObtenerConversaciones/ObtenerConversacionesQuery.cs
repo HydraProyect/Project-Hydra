@@ -81,8 +81,26 @@ public record ConversacionListaDto(
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
     DateTime? VencimientoSlaUtc = null,
     TimeSpan? SlaRestante = null,
-    long NumeroTicket = 0)
+    long NumeroTicket = 0,
+    int TotalAdjuntos = 0,
+    bool AccionPorAprobar = false,
+    string? BuzonNombre = null,
+    bool BuzonEsPersonal = false,
+    string? EjecutivoAsignadoNombre = null)
 {
+    // Los cinco últimos campos son datos de la fila del lienzo «Pulida: bandeja de la cartera» (L-12). Van al final y con
+    // valor por defecto: quien construye el DTO sin ellos sigue compilando.
+    //  - TotalAdjuntos: archivos adjuntos de todos los mensajes del hilo, de cualquier estado de reparto (el clip dice que
+    //    el hilo trae archivos, no cuántos faltan por repartir).
+    //  - AccionPorAprobar: hay una propuesta de Vega sin resolver sobre el hilo (sugerencia de Visita pendiente o detalle de
+    //    sugerencia de Gestión pendiente), la misma definición de «pendiente» que el detalle. Siempre false para el Tenant
+    //    solo Inbound (D6=a), que no recibe sugerencias de Outbound.
+    //  - BuzonNombre / BuzonEsPersonal: nombre de la conexión por la que entró el hilo y si es el buzón personal de un
+    //    Gestor CAE (la lista solo trae el del usuario actual: los de otros quedan fuera por R-3a). Null si el hilo no está
+    //    atado a ninguna conexión (creado a mano o sembrado).
+    //  - EjecutivoAsignadoNombre: nombre visible de la persona asignada, resuelto por el directorio con el mismo acotado
+    //    que el resto de lecturas (quien no es visible desde el Tenant activo no aparece: null).
+
     /// <summary>
     /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
     /// fija el Gestor CAE (decisión 2026-10-17, hueco 2 de Comunicaciones) o, como antes (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
@@ -99,7 +117,8 @@ public class ObtenerConversacionesQueryHandler(
     IIntegracionesQueryContext integracionesContext,
     ICentrosQueryContext centrosContext, IGestionesQueryContext gestionesContext, IVisitasQueryContext visitasContext,
     IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService, ITenantActual tenantActual,
-    PlazosConversacionService? plazosService = null)
+    PlazosConversacionService? plazosService = null,
+    IDirectorioUsuariosService? directorioUsuarios = null)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
@@ -279,6 +298,7 @@ public class ObtenerConversacionesQueryHandler(
                 c.Prioridad,
                 c.NumeroTicket,
                 c.EjecutivoAsignadoId,
+                c.ConexionIntegracionId,
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
                 c.TelefonoContacto
@@ -305,6 +325,18 @@ public class ObtenerConversacionesQueryHandler(
         var conversacionPorMensaje = mensajes.ToDictionary(m => m.Id, m => m.ConversacionId);
         var mensajesRuidoPorConversacion = await ContarMensajesRuidoPorConversacionAsync(conversacionPorMensaje, cancellationToken);
 
+        // Datos de la fila del lienzo (L-12). Todo se lee por los Ids de la página ya paginada, nunca por fila (sin N+1), y
+        // por los mismos contextos de lectura (mismo filtro de Tenant y misma RLS): no amplían el conjunto de filas, solo
+        // rellenan columnas de las que ya salieron de la visibilidad R-3a.
+        var adjuntosPorConversacion = await ContarAdjuntosPorConversacionAsync(conversacionPorMensaje, cancellationToken);
+        var conversacionesConAccionPorAprobar = await ConversacionesConAccionPorAprobarAsync(conversacionPorMensaje, cancellationToken);
+        var buzonesPorConexion = await ObtenerBuzonesAsync(
+            conversaciones.Where(c => c.ConexionIntegracionId != null).Select(c => c.ConexionIntegracionId!.Value).Distinct().ToList(),
+            cancellationToken);
+        var nombresAsignados = await ObtenerNombresAsignadosAsync(
+            conversaciones.Where(c => c.EjecutivoAsignadoId != null).Select(c => c.EjecutivoAsignadoId!.Value).Distinct().ToList(),
+            cancellationToken);
+
         var elementos = conversaciones.Select(c =>
         {
             var mensajesDeConversacion = mensajesPorConversacion.GetValueOrDefault(c.Id, []);
@@ -324,7 +356,12 @@ public class ObtenerConversacionesQueryHandler(
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
                 ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id), c.Prioridad,
                 plazos.TryGetValue(c.Id, out var plazo) ? plazo.Vence : null,
-                plazos.ContainsKey(c.Id) ? plazo.Restante : null, c.NumeroTicket);
+                plazos.ContainsKey(c.Id) ? plazo.Restante : null, c.NumeroTicket,
+                adjuntosPorConversacion.GetValueOrDefault(c.Id),
+                conversacionesConAccionPorAprobar.Contains(c.Id),
+                c.ConexionIntegracionId is { } conexionId && buzonesPorConexion.TryGetValue(conexionId, out var buzon) ? buzon.Nombre : null,
+                c.ConexionIntegracionId is { } conexionPersonalId && buzonesPorConexion.TryGetValue(conexionPersonalId, out var buzonPersonal) && buzonPersonal.EsPersonal,
+                c.EjecutivoAsignadoId is { } ejecutivoId && nombresAsignados.TryGetValue(ejecutivoId, out var nombreAsignado) ? nombreAsignado : null);
         }).ToList();
 
         return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
@@ -414,6 +451,80 @@ public class ObtenerConversacionesQueryHandler(
             .Where(mensajesRuidoIds.Contains)
             .GroupBy(mensajeId => conversacionPorMensaje[mensajeId])
             .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    /// <summary>Archivos adjuntos por conversación (todos los estados de reparto), en una sola consulta agrupada por mensaje.</summary>
+    private async Task<Dictionary<Guid, int>> ContarAdjuntosPorConversacionAsync(
+        IReadOnlyDictionary<Guid, Guid> conversacionPorMensaje, CancellationToken cancellationToken)
+    {
+        var mensajeIds = conversacionPorMensaje.Keys.ToList();
+        if (mensajeIds.Count == 0) return [];
+
+        var porMensaje = await comunicacionesContext.AdjuntosMensaje
+            .Where(a => mensajeIds.Contains(a.MensajeId))
+            .GroupBy(a => a.MensajeId)
+            .Select(g => new { MensajeId = g.Key, Total = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        return porMensaje
+            .GroupBy(a => conversacionPorMensaje[a.MensajeId])
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.Total));
+    }
+
+    /// <summary>
+    /// Conversaciones con una propuesta de Vega sin resolver: una sugerencia de Visita pendiente o un detalle de sugerencia de
+    /// Gestión pendiente, con la misma definición que el detalle (<c>!Resuelta</c>). Con el marco de Comunicaciones del Tenant
+    /// solo Inbound (D6=a) no se cuentan, como tampoco se proyectan en el detalle ni cuentan como ruido: el indicador revelaría
+    /// que existen. Es el único sitio donde se decide qué es «acción por aprobar» para la fila.
+    /// </summary>
+    private async Task<HashSet<Guid>> ConversacionesConAccionPorAprobarAsync(
+        IReadOnlyDictionary<Guid, Guid> conversacionPorMensaje, CancellationToken cancellationToken)
+    {
+        var mensajeIds = conversacionPorMensaje.Keys.ToList();
+        if (mensajeIds.Count == 0 || AmbitoComunicacionesSoloInbound.Activo) return [];
+
+        var mensajesConVisita = await comunicacionesContext.SugerenciasVisitaCorreo
+            .Where(s => mensajeIds.Contains(s.MensajeId) && !s.Resuelta)
+            .Select(s => s.MensajeId)
+            .ToListAsync(cancellationToken);
+
+        var mensajesConGestion = await (
+            from detalle in comunicacionesContext.DetallesSugerenciaGestionCorreo
+            where !detalle.Resuelta
+            join sugerencia in comunicacionesContext.SugerenciasGestionCorreo on detalle.SugerenciaGestionCorreoId equals sugerencia.Id
+            where mensajeIds.Contains(sugerencia.MensajeId)
+            select sugerencia.MensajeId)
+            .ToListAsync(cancellationToken);
+
+        return mensajesConVisita.Concat(mensajesConGestion).Select(id => conversacionPorMensaje[id]).ToHashSet();
+    }
+
+    /// <summary>
+    /// Nombre y condición de personal de las conexiones de la página. Por el contexto con filtros: una conexión eliminada o
+    /// de otro Tenant no aparece (y R-3a ya sacó de la lista los hilos de los buzones personales de otros Gestores CAE).
+    /// </summary>
+    private async Task<Dictionary<Guid, (string Nombre, bool EsPersonal)>> ObtenerBuzonesAsync(
+        IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken)
+    {
+        if (conexionIds.Count == 0) return [];
+
+        var buzones = await integracionesContext.ConexionesIntegracion
+            .Where(x => conexionIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Nombre, EsPersonal = x.GestorPropietarioId != null })
+            .ToListAsync(cancellationToken);
+
+        return buzones.ToDictionary(x => x.Id, x => (x.Nombre, x.EsPersonal));
+    }
+
+    /// <summary>
+    /// Nombre visible de las personas asignadas a las conversaciones de la página. El directorio solo resuelve a quien es
+    /// alcanzable desde el Tenant activo: el resto queda sin nombre, no con el de otro Tenant. Sin directorio, sin nombres.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresAsignadosAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (directorioUsuarios is null || usuarioIds.Count == 0) return new Dictionary<Guid, string>();
+        return await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
     }
 
     private static string TruncarParaPreview(string? cuerpoHtml)
