@@ -679,12 +679,14 @@ public class PanelRevisionAdjuntoTests : BunitContext
 
         await boton.ClickAsync(new MouseEventArgs());
 
-        cut.FindAll("aside").Should().BeEmpty();
+        // Oculto no es desmontado: el panel sigue montado (y con él los borradores) dentro del contenedor del visor, que queda hidden.
+        cut.Find("#vz-revision").HasAttribute("hidden").Should().BeTrue();
         var ver = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Ver la revisión");
         ver.GetAttribute("aria-expanded").Should().Be("false");
 
         await ver.ClickAsync(new MouseEventArgs());
 
+        cut.Find("#vz-revision").HasAttribute("hidden").Should().BeFalse();
         cut.Find("#vz-revision aside").Should().NotBeNull();
     }
 
