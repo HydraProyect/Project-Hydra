@@ -308,6 +308,7 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
     public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador>();
     IQueryable<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
+    public DbSet<CaeManager.Domain.Inbound.ControlAcceso.UsuarioControlAccesoCentro> UsuariosControlAccesoCentro => Set<CaeManager.Domain.Inbound.ControlAcceso.UsuarioControlAccesoCentro>();
     // Inbound M1, PR 3: registro de las lecturas entre Tenants. Solo lo inserta la base (app_inbound_*); EF solo lo lee.
     public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound>();
     public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();

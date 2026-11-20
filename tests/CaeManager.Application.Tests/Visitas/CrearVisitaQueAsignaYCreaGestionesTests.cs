@@ -255,7 +255,7 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         var resultado = await Handler().Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSolape);
-        resultado.Error.Mensaje.Should().NotContain("Bruno", "se emite antes de revalidar el alcance bajo el candado: no nombra a nadie");
+        resultado.Error.Mensaje.Should().NotContain("Bruno", "el rechazo por solape no nombra a nadie: quiénes son lo dice la vista previa");
         _visitas.Visitas.Should().BeEmpty();
         _gestiones.Gestiones.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);

@@ -50,6 +50,17 @@ public static class Ayudas
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid")).DateTime);
 
     /// <summary>
+    /// Espera a que la vista previa del alta de Visita ya esté calculada por el servidor (<c>data-estado</c> de su región viva,
+    /// distinto de «sin-datos» y de «calculando»). Con Blazor Server el navegador ve «Guardar» habilitado hasta que llega el
+    /// repintado del servidor, y Playwright solo comprueba «habilitado» contra ese DOM: un «Guardar» pulsado en ese intervalo
+    /// llega al servidor ya deshabilitado y se descarta (el cajón no se cierra). Esperar a este estado, que solo cambia cuando
+    /// el servidor lo ha calculado y repintado, es la señal real de que «Guardar» ya vale.
+    /// </summary>
+    public static Task EsperarVistaPreviaDeVisitaCalculadaAsync(ILocator cajonDeAlta) =>
+        Assertions.Expect(cajonDeAlta.Locator(".vista-previa-alta"))
+            .ToHaveAttributeAsync("data-estado", new Regex("^(lista|no-calculada|fallida|supera-tope)$"));
+
+    /// <summary>
     /// Rellena un CampoFecha (texto dd/mm/aaaa con máscara, #2185) con la fecha en ISO, como hacían los tests con el
     /// antiguo <c>input type="date"</c>, y comprueba que el campo muestra la fecha ya enmascarada. Con un campo de texto
     /// Playwright rellena en dos pasos (enfocar y luego insertar); si algo mueve el foco entre ambos (la trampa de foco de

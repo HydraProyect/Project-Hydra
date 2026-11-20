@@ -130,7 +130,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
     // Todos los roles que existen (Roles.Todos): un IComandoDeAutoservicio pasa con
     // cualquiera de ellos; null o un valor desconocido siguen sin escribir.
     private static readonly string[] RolesReconocidos =
-        [.. RolesConEscritura, "Consulta", "Cliente"];
+        [.. RolesConEscritura, "Consulta", "Cliente", "ControlAcceso"];
 
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)

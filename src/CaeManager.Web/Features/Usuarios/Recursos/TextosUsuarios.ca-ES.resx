@@ -153,6 +153,9 @@
   <data name="AsignarEmpresasErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les empreses de la seva cartera. Tanca i torna a obrir.</value>
   </data>
+  <data name="CentrosControlAccesoAccion" xml:space="preserve">
+    <value>Assignar Centres</value>
+  </data>
   <data name="CorregirCorreoAccion" xml:space="preserve">
     <value>Corregeix el correu</value>
   </data>

@@ -1,0 +1,73 @@
+@page "/inbound/control-acceso"
+@* AF-01 · Mis Centros: los Centros en los que la persona con el rol «Control de acceso» opera la portería. Solo nombres: sin contratos,
+   requisitos ni Trabajadores. La portería (AF-07) abrirá desde aquí cada Centro. Un Centro del mismo Tenant que no le asignaron no
+   aparece; sin asignaciones, la lista sale vacía. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.ControlAcceso)]
+@using CaeManager.Application.Inbound.ControlAcceso.Queries.ObtenerMisCentrosDeControlAcceso
+@using CaeManager.Web.Features.Inbound.ControlAcceso.Recursos
+@using MediatR
+@inject Microsoft.Extensions.Localization.IStringLocalizer<TextosControlAcceso> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["MisCentrosTitulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["MisCentrosTitulo"].Value} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design icn">
+    <CabeceraListado Grupo="@Textos["MisCentrosGrupo"].Value" Titulo="@Textos["MisCentrosTitulo"].Value" Contador="@(_centros is null ? null : _centros.Count)" />
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["MisCentrosErrorTitulo"].Value" Descripcion="@Textos["MisCentrosErrorDescripcion"].Value">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["MisCentrosReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_centros is null || _centros.Count == 0)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["MisCentrosVacioTitulo"].Value"
+                     Descripcion="@Textos["MisCentrosVacioDescripcion"].Value" />
+    }
+    else
+    {
+        <ul class="lista-simple" data-pieza="mis-centros">
+            @foreach (var centro in _centros)
+            {
+                <li data-centro="@centro.CentroId">@centro.Nombre</li>
+            }
+        </ul>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    [Inject] private IMediator Mediator { get; set; } = default!;
+
+    private IReadOnlyList<CentroDeControlAccesoDto>? _centros;
+    private bool _cargando = true;
+    private bool _errorCarga;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _errorCarga = false;
+        try
+        {
+            _centros = await Mediator.Send(new ObtenerMisCentrosDeControlAccesoQuery());
+        }
+        catch (Exception)
+        {
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

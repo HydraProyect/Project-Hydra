@@ -126,6 +126,57 @@
   <data name="AvisoCentroSinTrabajadoresAsignados" xml:space="preserve">
     <value>Este centro no tiene trabajadores asignados.</value>
   </data>
+  <data name="PlanAltaAsignacion" xml:space="preserve">
+    <value>Se asignará a este centro a {0}.</value>
+  </data>
+  <data name="PlanAltaGestionesUna" xml:space="preserve">
+    <value>Se abrirá 1 gestión:</value>
+  </data>
+  <data name="PlanAltaGestionesVarias" xml:space="preserve">
+    <value>Se abrirán {0} gestiones:</value>
+  </data>
+  <data name="PlanAltaGestionFalta" xml:space="preserve">
+    <value>{0} de {1}: falta</value>
+  </data>
+  <data name="PlanAltaGestionCaduca" xml:space="preserve">
+    <value>{0} de {1}: caduca antes del fin de la visita</value>
+  </data>
+  <data name="PlanAltaSinPermiso" xml:space="preserve">
+    <value>No tienes permiso para asignar trabajadores a este centro y falta asignar a alguien de la visita, así que no se puede crear. Pide a quien tenga autoridad que haga esa asignación o quita de la visita a quien no esté asignado a este centro.</value>
+  </data>
+  <data name="PlanAltaSolapada" xml:space="preserve">
+    <value>{0} no se puede asignar hoy a este centro: tiene una asignación cerrada cuyo periodo coincide con hoy.</value>
+  </data>
+  <data name="PlanAltaSolapadaConsecuencia" xml:space="preserve">
+    <value>La visita no se puede crear así. Quita de la visita a quien no se pueda asignar o revisa su asignación.</value>
+  </data>
+  <data name="PlanAltaCalculando" xml:space="preserve">
+    <value>Calculando a quién se asignará y qué gestiones se abrirán…</value>
+  </data>
+  <data name="PlanAltaSuperaTope" xml:space="preserve">
+    <value>Una visita admite como mucho {0} trabajadores. Quita a algunos de la visita para poder guardarla.</value>
+  </data>
+  <data name="PlanAltaNoCalculada" xml:space="preserve">
+    <value>La visita no se puede crear con esta selección: o no tienes acceso a este centro, o algún trabajador no puede entrar en una visita de este centro. Revisa el centro y los trabajadores elegidos.</value>
+  </data>
+  <data name="MotivoGuardarSuperaTope" xml:space="preserve">
+    <value>Quita trabajadores: una visita admite como mucho {0}.</value>
+  </data>
+  <data name="PlanAltaFallida" xml:space="preserve">
+    <value>No se pudo calcular la vista previa. Inténtalo de nuevo.</value>
+  </data>
+  <data name="PlanAltaReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="MotivoGuardarCalculando" xml:space="preserve">
+    <value>Espera a que termine de calcularse la vista previa.</value>
+  </data>
+  <data name="MotivoGuardarSinVistaPrevia" xml:space="preserve">
+    <value>No se puede guardar sin la vista previa de lo que se asignará.</value>
+  </data>
+  <data name="MotivoGuardarVistaPreviaBloquea" xml:space="preserve">
+    <value>Resuelve el aviso de la vista previa: con estos trabajadores la visita no se puede crear.</value>
+  </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centro…</value>
   </data>

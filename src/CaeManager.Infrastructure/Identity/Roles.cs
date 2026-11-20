@@ -23,8 +23,16 @@ public static class Roles
     public const string Consulta = "Consulta";
     public const string Cliente = "Cliente";
 
+    /// <summary>
+    /// Control de acceso (AF-01 del plan de control de acceso físico, D-12): la persona de portería del Tenant TCE. No escribe
+    /// (fuera de <see cref="ConEscrituraCsv"/>), no lee contratos, documentos ni validación (sin <c>LeerInbound</c>) y solo
+    /// opera los Centros que el Gestor CAE le asigna (<c>UsuarioControlAccesoCentro</c>). Pasa los comandos de autoservicio
+    /// como cualquier rol reconocido. No es un rol de alcance total ni de Operación: su alcance de datos de cartera es ninguno.
+    /// </summary>
+    public const string ControlAcceso = "ControlAcceso";
+
     public static readonly IReadOnlyList<string> Todos =
-        [Administrador, DireccionCae, CoordinadorCae, GestorCae, Consulta, Cliente];
+        [Administrador, DireccionCae, CoordinadorCae, GestorCae, Consulta, Cliente, ControlAcceso];
 
     /// <summary>
     /// Roles que pueden crear, editar y eliminar, separados por coma para un
@@ -54,7 +62,8 @@ public static class Roles
         [CoordinadorCae] = "Coordinador CAE",
         [GestorCae] = "Gestor CAE",
         [Consulta] = "Consulta",
-        [Cliente] = "Usuario de Cliente"
+        [Cliente] = "Usuario de Cliente",
+        [ControlAcceso] = "Control de acceso"
     };
 
     /// <summary>Etiqueta en español para mostrar en la UI — el código interno nunca se muestra tal cual.</summary>

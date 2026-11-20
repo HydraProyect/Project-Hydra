@@ -476,6 +476,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoRequisitoRepository, ProyectoRequisitoRepository>();
         services.AddScoped<CaeManager.Domain.Inbound.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
         services.AddScoped<CaeManager.Domain.Inbound.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
+        services.AddScoped<CaeManager.Domain.Inbound.ControlAcceso.IUsuarioControlAccesoCentroRepository, UsuarioControlAccesoCentroRepository>();
         services.AddScoped<IPlantillaRequisitosEventoRepository, PlantillaRequisitosEventoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();

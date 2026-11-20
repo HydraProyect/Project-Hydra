@@ -83,6 +83,11 @@ public class PaginasClasificadasParaElEncargoTests
             + "aviso de error de la página sin ningún dato (falla cerrado en la petición). Excluir también la página, para que "
             + "no aparezca, queda pendiente con la revisión de QuienLeeMisDocumentos; la subida (P2) va por "
             + "SubirDocumentoRequerimientoTecCommand, de la misma área y con la misma capacidad, y falla cerrado igual",
+        ["src/CaeManager.Web/Features/Inbound/ControlAcceso/Pages/AsignarCentrosControlAcceso.razor"] =
+            "asignación de Centros al rol «Control de acceso» (AF-01): no puede ir en PaginasExcluidasDelEncargo porque el Núcleo no conoce "
+            + "a Inbound (ADR-013 § 4.1, regla 3); lee la cuenta por ObtenerCuentaUsuarioQuery (área Usuarios) y escribe por "
+            + "AsignarCentrosControlAccesoCommand (área ContratosAcceso), ambas áreas permitidas al encargo no pleno; lo que acota la "
+            + "escritura es la capacidad GestionarInbound (papel Inbound y operación vigente) y el alcance de Centros de quien asigna",
         ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/QuienLeeMisDocumentos.razor"] =
             "pantalla del Tenant TEC sin backend (shortcut de B-09): quién lee sus documentos y su autorización única; "
             + "solo muestra «no disponible» y no lee datos; su clasificación se revisa al cablear B-09, junto con la de "

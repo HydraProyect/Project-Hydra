@@ -49,6 +49,30 @@ public class AutorizacionInboundTests
             datos.Add(CapacidadInbound.LeerInbound, null, papel, false);
         }
 
+        // Control de acceso (AF-01): la portería. La tienen el rol «ControlAcceso» y los roles con escritura, del lado del Tenant
+        // TCE; el rol de portería no lee, no gestiona, no valida ni gobierna.
+        foreach (var papel in new[] { PapelActivo.TenantDeOrigen, PapelActivo.Inbound })
+        {
+            foreach (var rol in escriben)
+                datos.Add(CapacidadInbound.ControlarAcceso, rol, papel, true);
+
+            datos.Add(CapacidadInbound.ControlarAcceso, "ControlAcceso", papel, true);
+            datos.Add(CapacidadInbound.LeerInbound, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.GestionarInbound, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.ValidarInbound, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.GobernarInbound, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.ParticipanteTec, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.ControlarAcceso, "Consulta", papel, false);
+            datos.Add(CapacidadInbound.ControlarAcceso, "Cliente", papel, false);
+            datos.Add(CapacidadInbound.ControlarAcceso, null, papel, false);
+        }
+
+        foreach (var papel in new[] { PapelActivo.Outbound, PapelActivo.SinPapel, PapelActivo.OperacionQueYaNoAutoriza })
+        {
+            datos.Add(CapacidadInbound.ControlarAcceso, "ControlAcceso", papel, false);
+            datos.Add(CapacidadInbound.ControlarAcceso, Admin, papel, false);
+        }
+
         // El lado del Tenant TCE no se opera con papel Outbound, sin papel ni con una operación que ya no autoriza.
         foreach (var papel in new[] { PapelActivo.Outbound, PapelActivo.SinPapel, PapelActivo.OperacionQueYaNoAutoriza })
         {

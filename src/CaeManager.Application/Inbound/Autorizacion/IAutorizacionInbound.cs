@@ -27,6 +27,14 @@ public enum CapacidadInbound
     /// Usuario, sin reparto de permisos (R-15).
     /// </summary>
     ParticipanteTec,
+
+    /// <summary>
+    /// Portería del Tenant TCE (AF-01 del plan de control de acceso físico): comprobar credenciales y registrar entradas y
+    /// salidas. Del lado del Tenant TCE; la tienen el rol «Control de acceso» y los roles con escritura, y NO implica
+    /// <see cref="LeerInbound"/>: el rol de portería no ve contratos, documentos ni validación. Los Centros en los que opera
+    /// los acota <c>UsuarioControlAccesoCentro</c>, no esta capacidad.
+    /// </summary>
+    ControlarAcceso,
 }
 
 /// <summary>
@@ -57,7 +65,8 @@ public static class AutorizacionInboundErrores
 /// El Administrador del Tenant TCE conserva Gestionar y Validar en su propio Tenant, además de gobernar. Los perfiles de
 /// organización de un Operador CAE externo con papel Inbound entran sin Asignación de Cartera, como en Outbound (la
 /// vía de Operación Inbound ya exige para ellos una operación del Tenant entero); el Gestor CAE, con su cartera Inbound,
-/// que acota <see cref="IAlcanceDatosService"/>. Consulta solo lee.</item>
+/// que acota <see cref="IAlcanceDatosService"/>. Consulta solo lee. <see cref="CapacidadInbound.ControlarAcceso"/> la tienen además el rol de Control de
+/// acceso (portería) y los roles con escritura, y solo ella: el rol de Control de acceso no lee ni valida.</item>
 /// <item><b>Gobierno</b>: solo el Administrador, en su propio Tenant.</item>
 /// <item><b>Lado del Tenant TEC</b> (ParticipanteTec): el rol efectivo Administrador, en su propio Tenant o con papel
 /// Outbound (el Operador CAE externo que lo opera, DN-2). Nunca con papel Inbound: un Tenant TCE no actúa como Tenant
@@ -71,6 +80,7 @@ public sealed class AutorizacionInbound(ICurrentUserService currentUserService) 
     // Application no puede referenciar Infrastructure.Identity.Roles: mismo motivo que en AutorizacionEscrituraBehavior.
     private const string Administrador = "Administrador";
     private const string Consulta = "Consulta";
+    private const string ControlAcceso = "ControlAcceso";
 
     public async Task<bool> TieneAsync(CapacidadInbound capacidad, CancellationToken cancellationToken)
     {
@@ -89,6 +99,7 @@ public sealed class AutorizacionInbound(ICurrentUserService currentUserService) 
         {
             CapacidadInbound.LeerInbound => ladoTce && (escribe || rol == Consulta),
             CapacidadInbound.GestionarInbound or CapacidadInbound.ValidarInbound => ladoTce && escribe,
+            CapacidadInbound.ControlarAcceso => ladoTce && (escribe || rol == ControlAcceso),
             CapacidadInbound.GobernarInbound => papel == PapelActivo.TenantDeOrigen && rol == Administrador,
             CapacidadInbound.ParticipanteTec =>
                 papel is PapelActivo.TenantDeOrigen or PapelActivo.Outbound && rol == Administrador,

@@ -18,6 +18,7 @@ public static class IdentityRoleSeedData
     private static readonly Guid ConsultaId = new("30000000-0000-0000-0000-000000000004");
     private static readonly Guid DireccionCaeId = new("30000000-0000-0000-0000-000000000005");
     private static readonly Guid ClienteId = new("30000000-0000-0000-0000-000000000006");
+    private static readonly Guid ControlAccesoId = new("30000000-0000-0000-0000-000000000007");
 
     public static IEnumerable<IdentityRole<Guid>> Filas() =>
     [
@@ -26,7 +27,8 @@ public static class IdentityRoleSeedData
         Crear(GestorCaeId, Roles.GestorCae),
         Crear(ConsultaId, Roles.Consulta),
         Crear(DireccionCaeId, Roles.DireccionCae),
-        Crear(ClienteId, Roles.Cliente)
+        Crear(ClienteId, Roles.Cliente),
+        Crear(ControlAccesoId, Roles.ControlAcceso)
     ];
 
     private static IdentityRole<Guid> Crear(Guid id, string nombre) => new(nombre)

@@ -245,6 +245,12 @@ public static class CatalogoMenuLateral
         new("inbound", "MenuGrupoInbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto),
             Linea: LineaMenu.Inbound, ClaveTitulo: "MenuGrupoInbound"),
 
+        // Control de acceso (AF-01 del plan de control de acceso físico): el menú reducido de la persona de portería del Tenant TCE.
+        // Solo el rol «Control de acceso» (no está en el menú completo) y con la línea Inbound vigente; un único enlace, a «Mis Centros».
+        new("inbound-control-acceso", "Control de acceso", AbiertoPorDefecto: true,
+            c => c.LineaInboundVigente && c.TieneAlgunRol(Roles.ControlAcceso), Linea: LineaMenu.Inbound,
+            ClaveTitulo: "MenuGrupoControlAcceso"),
+
         // Configuración de Inbound (pantallas 18 y 20 del plan): los ajustes del Tenant TCE. Mismo gate que «Inbound» (línea vigente), pero
         // sin el rol Consulta: ninguna de sus páginas lo autoriza. «Reglas de aviso» hereda esta condición (un test la compara con el [Authorize] de su página); Gobierno añade la suya.
         new("inbound-config", "Configuración", AbiertoPorDefecto: true,
@@ -360,6 +366,9 @@ public static class CatalogoMenuLateral
             ClaveRotulo: "MenuInboundValidacion"),
         new("inbound-informacion-centro", "inbound", "inbound/informacion-centro", "tipos-documento", "MenuInboundInformacionCentro",
             ClaveRotulo: "MenuInboundInformacionCentro"),
+        // Mis Centros (AF-01): los Centros en los que la persona de portería opera. La portería (AF-07) cuelga de aquí.
+        new("inbound-control-acceso-centros", "inbound-control-acceso", "inbound/control-acceso", "check", "MenuInboundControlAccesoCentros",
+            ClaveRotulo: "MenuInboundControlAccesoCentros"),
         new("inbound-plantillas", "inbound-config", "inbound/plantillas", "editar", "MenuInboundPlantillas",
             ClaveRotulo: "MenuInboundPlantillas"),
         // Reglas de aviso (pantalla 18, CA-19): la gestiona el Gestor CAE y quien lo coordina.
