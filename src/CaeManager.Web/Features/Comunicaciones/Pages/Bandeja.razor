@@ -180,7 +180,7 @@
                         </button>
                         @if (_vistasAbiertas)
                         {
-                            <div class="bandeja-vista-superposicion" @onclick="CerrarVistas"></div>
+                            <div class="bandeja-vista-superposicion" @onclick="CerrarVistasAsync"></div>
                             <div class="bandeja-vista-panel" role="dialog" aria-label="@TextosLista["VistaElegir"]" @onkeydown="TeclaVistasAsync" @onclick:stopPropagation="true">
                                 <span class="bandeja-vista-titulo">@TextosLista["VistasPrincipales"]</span>
                                 @foreach (var vista in VistasPrincipales)

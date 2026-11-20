@@ -83,7 +83,7 @@ public partial class ComunicacionesGen2Tests
         panel.GetAttribute("role").Should().Be("dialog");
         panel.GetAttribute("aria-label").Should().Be("Elegir vista");
         panel.QuerySelector(".bandeja-vista-titulo")!.TextContent.Trim().Should().Be("Vistas principales");
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta");
+        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
         var mas = cut.Find(".bandeja-vista-mas");
         mas.TextContent.Trim().Should().Be("Más vistas");
         mas.GetAttribute("aria-expanded").Should().Be("false");
@@ -99,11 +99,11 @@ public partial class ComunicacionesGen2Tests
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         cut.Find(".bandeja-vista-mas").GetAttribute("aria-expanded").Should().Be("true");
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta", "Sin asignar", "Fuera de plazo");
+        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor", "Sin asignar", "Fuera de plazo");
 
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta");
+        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public partial class ComunicacionesGen2Tests
         FilaDeVista(cut, "Todas").ClassList.Should().Contain("bandeja-vista-fila-activa");
         FilaDeVista(cut, "Mías").GetAttribute("aria-current").Should().Be("false");
         FilaDeVista(cut, "Mías").ClassList.Should().NotContain("bandeja-vista-fila-activa");
-        FilaDeVista(cut, "Esperando respuesta").GetAttribute("aria-current").Should().Be("false");
+        FilaDeVista(cut, "Esperando respuesta del Interlocutor").GetAttribute("aria-current").Should().Be("false");
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public partial class ComunicacionesGen2Tests
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         CifraDeVista(cut, "Todas").Should().Be("3");
-        CifraDeVista(cut, "Esperando respuesta").Should().Be("1");
+        CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().Be("1");
         CifraDeVista(cut, "Sin asignar").Should().Be("1");
         CifraDeVista(cut, "Fuera de plazo").Should().Be("1");
         FilaDeVista(cut, "Fuera de plazo").QuerySelector(".bandeja-vista-alerta").Should().NotBeNull();
@@ -189,7 +189,7 @@ public partial class ComunicacionesGen2Tests
 
     [Theory]
     [InlineData("Mías", false, true, false, false, false)]
-    [InlineData("Esperando respuesta", false, false, true, false, false)]
+    [InlineData("Esperando respuesta del Interlocutor", false, false, true, false, false)]
     [InlineData("Sin asignar", true, false, false, true, false)]
     [InlineData("Fuera de plazo", true, false, false, false, true)]
     public async Task Elegir_una_vista_manda_su_filtro_al_servidor_y_la_marca_como_vigente(
@@ -217,10 +217,10 @@ public partial class ComunicacionesGen2Tests
     {
         var (cut, _) = RenderizarConCanalesYVistas();
 
-        await ElegirVistaAsync(cut, "Esperando respuesta");
+        await ElegirVistaAsync(cut, "Esperando respuesta del Interlocutor");
 
         cut.FindAll(".bandeja-lista .bandeja-fila-asunto").Select(a => a.TextContent.Trim()).Should().Equal("Aviso por WhatsApp");
-        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Esperando respuesta · 1");
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Esperando respuesta del Interlocutor · 1");
         cut.Find(".bandeja-lis-cab small").TextContent.Trim().Should().Be("1 conversación");
     }
 
@@ -381,6 +381,72 @@ public partial class ComunicacionesGen2Tests
         ChipsDeCanal(cut).Select(c => c.GetAttribute("aria-pressed")).Should().Equal("true", "false", "false");
         cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
         cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Mientras_carga_otra_lista_los_chips_no_anuncian_las_cifras_de_la_anterior_y_las_nuevas_llegan_despues()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Certificado de correo", ClienteRefrielectric),
+            Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp }]);
+        var correo = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { Canal: CanalConversacion.Correo, TamanoPagina: > 1 } ? correo.Task : null;
+        var (cut, _) = Renderizar(escenario);
+        ChipsDeCanal(cut).Select(c => c.QuerySelector(".bandeja-canal-cifras")?.TextContent.Trim()).Should().Equal("2", "1", "1");
+
+        var eleccion = ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-canales .bandeja-canal-cifras").Should().BeEmpty(
+            "con otra lista en camino las cifras de la anterior no se anuncian"));
+        await cut.InvokeAsync(() => correo.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(Canal: CanalConversacion.Correo, TamanoPagina: 20))));
+        await eleccion;
+
+        cut.WaitForAssertion(() => ChipsDeCanal(cut).Select(c => c.QuerySelector(".bandeja-canal-cifras")?.TextContent.Trim())
+            .Should().Equal("2", "1", "1"));
+    }
+
+    [Fact]
+    public void Si_el_recuento_de_canal_falla_la_lista_se_ve_y_los_chips_quedan_sin_cifra()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.Add(Conversacion("Certificado de correo", ClienteRefrielectric));
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1 }
+            ? Task.FromException<object?>(new InvalidOperationException("recuento"))
+            : null;
+
+        var (cut, _) = Renderizar(escenario);
+
+        cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle();
+        cut.FindAll(".bandeja-canales .bandeja-canal-cifras").Should().BeEmpty();
+        ChipsDeCanal(cut)[0].GetAttribute("aria-label").Should().Be("Todos los canales");
+    }
+
+    [Fact]
+    public async Task Si_el_recuento_de_vistas_falla_el_panel_se_abre_sin_cifras()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.Add(Conversacion("Certificado de correo", ClienteRefrielectric));
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1 }
+            ? Task.FromException<object?>(new InvalidOperationException("recuento"))
+            : null;
+        var (cut, _) = Renderizar(escenario);
+
+        await AbrirPanelDeVistasAsync(cut);
+
+        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador, .bandeja-vista-panel .bandeja-vista-alerta").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_clic_fuera_devuelve_el_foco_al_disparador_de_Vista()
+    {
+        var (cut, _) = RenderizarConCanalesYVistas();
+        await AbrirPanelDeVistasAsync(cut);
+
+        await cut.Find(".bandeja-vista-superposicion").ClickAsync(new MouseEventArgs());
+
+        JSInterop.VerifyFocusAsyncInvoke(1);
     }
 
     [Fact]

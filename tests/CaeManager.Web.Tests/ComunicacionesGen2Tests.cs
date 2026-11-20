@@ -4212,10 +4212,12 @@ public partial class ComunicacionesGen2Tests : BunitContext
     /// Interlocutor (decisión de Chris del 2026-11-11, hallazgo MEDIO 3 de la r1 de la #2167): vale para Inbound y Outbound.
     /// </summary>
     [Fact]
-    public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
+    public async Task Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
     {
         var (cut, _) = Renderizar(new Escenario());
+        await AbrirPanelDeVistasAsync(cut);
 
+        cut.Find(".bandeja-vista-panel").TextContent.Should().Contain("Esperando respuesta del Interlocutor");
         cut.Markup.Should()
             .Contain("Esperando respuesta del Interlocutor")
             .And.Contain("Todos los Clientes empresariales")

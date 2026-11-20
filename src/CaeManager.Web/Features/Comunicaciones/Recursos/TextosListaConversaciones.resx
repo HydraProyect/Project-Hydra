@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Todas</value></data>
   <data name="Mias" xml:space="preserve"><value>Mías</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando respuesta</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando respuesta del Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar en el asunto, el Centro y el texto de los mensajes</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>

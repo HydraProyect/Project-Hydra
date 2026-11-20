@@ -768,6 +768,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var carga = ++_cargaListaVigente;
         _cargandoLista = true;
         _errorCargaLista = false;
+        _recuentosCanal = new int?[3];
         StateHasChanged();
 
         try
@@ -848,8 +849,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta de
     /// una fila cada uno.
     /// </summary>
-    // shortcut: los recuentos son consultas de una fila sobre ObtenerConversacionesQuery (dos más por carga de lista); un recuento por
-    // canal en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
+    // shortcut: los recuentos son consultas de una fila sobre ObtenerConversacionesQuery, una tras otra porque el DbContext no admite
+    // consultas concurrentes (dos más por carga de lista y cinco más cada vez que se abre el selector de vistas); un recuento por
+    // canal y por vista en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
     private async Task CargarRecuentosCanalAsync(int carga)
     {
         try
@@ -877,12 +879,20 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "No se pudieron contar las conversaciones por canal.");
+            if (carga == _cargaListaVigente)
+            {
+                _recuentosCanal = new int?[3];
+                StateHasChanged();
+            }
         }
     }
 
     /// <summary>Cifra de cada vista del selector, con los demás filtros y sin el canal; la vista y el canal activos ya los tiene la lista.</summary>
     private async Task CargarRecuentosVistaAsync()
     {
+        // Las cifras de una apertura anterior (otros filtros, otra búsqueda) no se anuncian mientras llegan las nuevas.
+        _recuentosVista = [];
+        var carga = _cargaListaVigente;
         try
         {
             var nuevos = new Dictionary<VistaLista, int>();
@@ -895,6 +905,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 }
 
                 var resultado = await Mediator.Send(ConsultaLista(vista, null, 1, 1), _ciclo.Token);
+                if (carga != _cargaListaVigente) return;
                 nuevos[vista] = resultado.TotalElementos;
             }
 
@@ -915,7 +926,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_vistasAbiertas) await CargarRecuentosVistaAsync();
     }
 
-    private void CerrarVistas() => _vistasAbiertas = false;
+    private async Task CerrarVistasAsync()
+    {
+        _vistasAbiertas = false;
+        await _disparadorVistas.FocusAsync();
+    }
 
     private void AlternarMasVistas() => _masVistasAbiertas = !_masVistasAbiertas;
 
