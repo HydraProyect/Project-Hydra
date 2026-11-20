@@ -129,4 +129,10 @@
   <data name="Hoja_SinVista_Texto" xml:space="preserve">
     <value>Descarga el documento para verlo.</value>
   </data>
+  <data name="Revision_Ver" xml:space="preserve">
+    <value>Ver la revisión</value>
+  </data>
+  <data name="Revision_Ocultar" xml:space="preserve">
+    <value>Ocultar la revisión</value>
+  </data>
 </root>

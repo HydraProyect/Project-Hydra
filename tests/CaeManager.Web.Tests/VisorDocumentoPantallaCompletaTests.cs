@@ -587,16 +587,23 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     }
 
     [Fact]
-    public void Si_la_lista_cambia_con_el_visor_abierto_se_actualizan_las_marcas_sin_perder_el_adjunto()
+    public async Task Si_la_lista_cambia_con_el_visor_abierto_se_actualizan_las_marcas_sin_perder_el_adjunto_ni_el_giro_ni_la_hoja()
     {
         var a = Adj("A.pdf");
-        var b = Adj("B.pdf");
+        var b = Adj("B.pdf", paginas: 3);
         var cut = Pintar([a, b], indice: 1);
+        await TeclaAsync(cut.Find("[role=dialog]"), "]");
+        cut.Find("button[aria-label='Girar documento']").Click();
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+        cut.Find(".vz-hoja").ClassList.Should().Contain("vz-giro-90");
 
         cut.Render(p => p.Add(x => x.Adjuntos, [a, b with { Estado = EstadoAdjuntoVisor.Asignado }]));
 
         Posicion(cut).Should().Be("Documento 2 de 2");
         cut.FindAll(".vz-marca")[1].ClassList.Should().Contain("vz-marca-asignado");
+        // El mismo adjunto sigue a la vista: ni la hoja ni el giro vuelven a cero porque la lista cambie por debajo.
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+        cut.Find(".vz-hoja").ClassList.Should().Contain("vz-giro-90");
     }
 
     [Theory]
