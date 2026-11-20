@@ -112,14 +112,22 @@ public static partial class PrivacidadDeSentry
         if (string.IsNullOrEmpty(mensaje))
             return mensaje;
 
+        return RedactarConFalloCerrado(mensaje, texto =>
+            Correo().Replace(Url().Replace(texto, coincidencia => OrigenDe(coincidencia.Value)), CorreoTachado));
+    }
+
+    /// <summary>
+    /// Aplica <paramref name="redactar"/> y, si una de sus expresiones agota su tiempo, devuelve el mensaje vacío: un
+    /// mensaje que no se pudo revisar a tiempo no sale (fallo cerrado).
+    /// </summary>
+    public static string RedactarConFalloCerrado(string mensaje, Func<string, string> redactar)
+    {
         try
         {
-            var sinUrls = Url().Replace(mensaje, coincidencia => OrigenDe(coincidencia.Value));
-            return Correo().Replace(sinUrls, CorreoTachado);
+            return redactar(mensaje);
         }
         catch (RegexMatchTimeoutException)
         {
-            // Fallo cerrado: un mensaje que no se pudo revisar a tiempo no sale.
             return string.Empty;
         }
     }

@@ -150,6 +150,11 @@ public class ExposicionDeRedDelDespliegueTests
         program.Should().NotContain("TracePropagationTargets", "la lista de propagación solo la fija PrivacidadDeSentry");
         privacidad.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan(miga, pista)",
             "el filtro de migas de PrivacidadDeSentry conserva el de las peticiones marcadas");
+        var mensajeSinDatos = privacidad.IndexOf("private static string? MensajeSinDatos(", StringComparison.Ordinal);
+        mensajeSinDatos.Should().BeGreaterThan(0);
+        var finMensajeSinDatos = privacidad.IndexOf("\n    }", mensajeSinDatos, StringComparison.Ordinal);
+        privacidad[mensajeSinDatos..finMensajeSinDatos].Should().Contain("return RedactarConFalloCerrado(mensaje,",
+            "las expresiones del mensaje corren dentro del fallo cerrado, que PrivacidadDeSentryTests prueba aparte");
     }
 
     private static void ComprobarRegistroDelCliente(string cliente, string carpeta, string[] encadenados)

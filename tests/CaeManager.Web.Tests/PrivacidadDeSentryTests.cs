@@ -74,27 +74,36 @@ public class PrivacidadDeSentryTests
         // Que el SDK global quede cerrado para el resto de la colección lo garantiza el finally de ListaDePropagacionDelHostAsync.
     }
 
+    // El tiempo agotado se provoca lanzando la excepción y no con una entrada enorme: el generador de expresiones busca
+    // el «@» o el «://» con IndexOf antes de recorrer el bucle, así que el coste es lineal y no hay entrada que agote
+    // los 100 ms sin depender de la máquina. Que MensajeSinDatos pase por este método lo fija el test de Architecture.
     [Fact]
-    public void Si_la_expresion_regular_agota_su_tiempo_la_miga_sale_con_el_mensaje_vacio()
+    public void Si_la_redaccion_agota_su_tiempo_el_mensaje_sale_vacio()
     {
-        // Sin correos ni URLs, pero con una sola «palabra» enorme: la expresión del correo prueba cada posición y recorre
-        // hasta el final, cuadrático; con un tope de 100 ms agota su tiempo con margen de varios órdenes de magnitud.
-        var mensaje = new string('a', 1_000_000);
-        var original = new Breadcrumb(mensaje, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info);
+        var resultado = PrivacidadDeSentry.RedactarConFalloCerrado(
+            "Buzón " + Correo, _ => throw new System.Text.RegularExpressions.RegexMatchTimeoutException());
 
-        // Control: el mismo camino, con la misma categoría y nivel, y un mensaje corto sin URL ni correo sale intacto;
-        // así lo que vacía el mensaje enorme es el timeout y no un recorte incondicional.
+        resultado.Should().BeEmpty("fallo cerrado: un mensaje que no se pudo revisar a tiempo no sale");
+    }
+
+    [Fact]
+    public void Si_la_redaccion_termina_el_mensaje_sale_redactado()
+    {
+        PrivacidadDeSentry.RedactarConFalloCerrado("Buzón " + Correo, m => m.Replace(Correo, "[correo]"))
+            .Should().Be("Buzón [correo]", "control: sin tiempo agotado sale lo que devuelve la redacción");
+    }
+
+    [Fact]
+    public void Un_mensaje_largo_sin_urls_ni_correos_sale_intacto_por_el_filtro_real()
+    {
+        // Control: el filtro real con sus dos expresiones no recorta un mensaje sin URL ni correo.
         var corto = new string('a', 1_000);
-        var cortoFiltrada = PrivacidadDeSentry.FiltrarMigaDePan(
-            new Breadcrumb(corto, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info), new SentryHint());
-        cortoFiltrada.Should().NotBeNull();
-        cortoFiltrada!.Message.Should().Be(corto, "control: un mensaje corto sin URL ni correo no se recorta");
+        var original = new Breadcrumb(corto, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info);
 
         var filtrada = PrivacidadDeSentry.FiltrarMigaDePan(original, new SentryHint());
 
-        filtrada.Should().NotBeNull("la miga se conserva; lo que no sale es un mensaje que no se pudo revisar");
-        // Longitud y no el texto: si falla, el mensaje de FluentAssertions no vuelca un megabyte.
-        (filtrada!.Message ?? "x").Length.Should().Be(0, "fallo cerrado: el timeout de la expresión no deja salir el mensaje original");
+        filtrada.Should().NotBeNull();
+        filtrada!.Message.Should().Be(corto, "control: un mensaje sin URL ni correo no se recorta");
         filtrada.Category.Should().Be(original.Category);
         filtrada.Level.Should().Be(original.Level);
     }
