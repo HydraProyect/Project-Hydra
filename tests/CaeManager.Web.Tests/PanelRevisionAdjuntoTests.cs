@@ -672,7 +672,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var a = Adjunto();
         var cut = PintarVisor([a], RevisionDe(a));
 
-        cut.Find("aside#vz-revision").Should().NotBeNull();
+        cut.Find("#vz-revision aside").Should().NotBeNull();
         var boton = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Ocultar la revisión");
         boton.GetAttribute("aria-expanded").Should().Be("true");
         boton.GetAttribute("aria-controls").Should().Be("vz-revision");
@@ -685,7 +685,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
 
         await ver.ClickAsync(new MouseEventArgs());
 
-        cut.Find("aside#vz-revision").Should().NotBeNull();
+        cut.Find("#vz-revision aside").Should().NotBeNull();
     }
 
     [Fact]

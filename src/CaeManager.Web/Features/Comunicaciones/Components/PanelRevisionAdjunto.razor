@@ -35,7 +35,7 @@
     var editable = pendiente && _puedeEscribir;
     var candidatos = Candidatos(b);
 }
-<aside class="vz-aside" id="vz-revision" aria-label="@Textos["Rev_Aria"]" tabindex="-1" @ref="_aside" @onkeydown="e => Contexto.Tecla.InvokeAsync(e)" @onkeydown:stopPropagation="true">
+<aside class="vz-aside" aria-label="@Textos["Rev_Aria"]" tabindex="-1" @ref="_aside" @onkeydown="e => Contexto.Tecla.InvokeAsync(e)" @onkeydown:stopPropagation="true">
     <div class="vz-sec">
         <span class="vz-etq">@Textos["Rev_Pregunta"]</span>
         <span class="vz-badges">
@@ -50,7 +50,7 @@
     <div class="vz-sec">
         <span class="vz-sec-cab">
             <span class="vz-etq" id="vz-asignar-a">@Textos["Rev_AsignarA"]</span>
-            <span class="vz-nota">@(candidatos.Count > 1 ? Textos["Rev_Ayuda_Varios", candidatos.Count] : candidatos.Count == 1 ? Textos["Rev_Ayuda_Unico"] : Textos["Rev_Ayuda_Ninguno"])</span>
+            <span class="vz-nota">@AyudaCandidatos(candidatos.Count)</span>
         </span>
         @if (!pendiente)
         {
@@ -83,7 +83,7 @@
                 var resultados = Buscar(b);
                 <div class="vz-busca" id="vz-busca" @onkeydown="e => TeclaCampoAsync(e, b)" @onkeydown:stopPropagation="true">
                     <CampoTexto Type="search" Etiqueta="@Textos["Rev_Buscar_Aria"]" Placeholder="@Textos["Rev_Buscar_Placeholder"]" Valor="@b.Consulta" ValorChanged="v => b.Consulta = v" />
-                    <span class="vz-ayuda" role="status">@(b.Consulta.Trim().Length < 2 ? Textos["Rev_Buscar_Minimo"] : resultados.Count == 0 ? Textos["Rev_Buscar_Ninguno"] : resultados.Count == 1 ? Textos["Rev_Buscar_Resultados_1"] : Textos["Rev_Buscar_Resultados_N", resultados.Count])</span>
+                    <span class="vz-ayuda" role="status">@AyudaBusqueda(b.Consulta, resultados.Count)</span>
                     @foreach (var r in resultados)
                     {
                         var elegida = r;
@@ -177,6 +177,26 @@
 @code {
     private const int MinimoBusqueda = 2;
     private const int MaximoResultados = 5;
+
+    // Métodos y no expresiones del marcado: el medidor de textos sin localizar toma el ">" de un "Count > 1" por cierre de etiqueta y contaría código como texto.
+    private string AyudaCandidatos(int candidatos) => candidatos switch
+    {
+        0 => Textos["Rev_Ayuda_Ninguno"],
+        1 => Textos["Rev_Ayuda_Unico"],
+        _ => Textos["Rev_Ayuda_Varios", candidatos],
+    };
+
+    private string AyudaBusqueda(string consulta, int resultados)
+    {
+        if (consulta.Trim().Length < 2)
+            return Textos["Rev_Buscar_Minimo"];
+        return resultados switch
+        {
+            0 => Textos["Rev_Buscar_Ninguno"],
+            1 => Textos["Rev_Buscar_Resultados_1"],
+            _ => Textos["Rev_Buscar_Resultados_N", resultados],
+        };
+    }
 
     private sealed class BorradorRevision
     {
