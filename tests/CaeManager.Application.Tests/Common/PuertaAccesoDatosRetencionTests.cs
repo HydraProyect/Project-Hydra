@@ -162,7 +162,7 @@ public class PuertaAccesoDatosRetencionTests
 
         // La operación está, de forma demostrable, saliendo con su liberación parada: es el instante que el Delay aproximaba.
         // El Delay que queda solo puede dar un falso verde (si el aviso llega tarde), nunca un falso rojo: el plazo de arriba es largo.
-        await liberarEmpezo.Task;
+        await liberarEmpezo.Task.WaitAsync(TimeSpan.FromSeconds(30));
         await Task.Delay(50);
         cierre.IsCompleted.Should().BeFalse("el scope no se puede disponer con la conexión aún retenida");
 
