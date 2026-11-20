@@ -109,7 +109,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new TenantRepository(contexto), new DelegacionTenantRepository(contexto),
             new AsignacionOperadorDelegadoRepository(contexto), new ParametroSistemaRepository(contexto),
             new CaeManager.Infrastructure.Plataforma.AutorizacionAdminPlataformaPorConcesion(contexto), usuario,
-            new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuario), contexto, new TransaccionDeComando(contexto));
+            new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuario), contexto, new TransaccionDeComando(contexto), OutboundTenantTecAbierto.Instancia);
 
         var resultado = await handler.Handle(
             new CaeManager.Application.Tenants.Commands.CrearClienteDelegante.CrearClienteDeleganteCommand("Tenant propietario nuevo"),
@@ -487,7 +487,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new AsignacionOperadorDelegadoRepository(contexto), new ParametroSistemaRepository(contexto),
             new CaeManager.Infrastructure.Plataforma.AutorizacionAdminPlataformaPorConcesion(contexto), usuario,
             new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuario),
-            guardados, new TransaccionDeComando(contexto));
+            guardados, new TransaccionDeComando(contexto), OutboundTenantTecAbierto.Instancia);
         var nombre = $"Alta fallida {Guid.NewGuid():N}";
 
         Func<Task> ejecutar = async () => await handler.Handle(new(nombre), CancellationToken.None);
@@ -609,7 +609,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuarioActual),
             new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<UserManager<ApplicationUser>>()),
             usuarioActual,
-            contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte(), servicios.GetRequiredService<ITenantActual>());
+            contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte(), servicios.GetRequiredService<ITenantActual>(),
+            OutboundTenantTecAbierto.Instancia);
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
             return await handler.Handle(new CrearDelegacionTenantCommand(operador, propietario), CancellationToken.None);

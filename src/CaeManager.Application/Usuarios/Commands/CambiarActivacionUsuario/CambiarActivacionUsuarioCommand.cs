@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Clientes;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -125,6 +126,7 @@ public class CambiarActivacionUsuarioCommandHandler(
     IDirectorioUsuariosService directorioUsuarios,
     IAdministradoresDelTenant administradores,
     IAvisoDeCarteraSinGestorCae avisoSinGestorCae,
+    IOutboundCerradoTenantTec outboundCerrado,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CambiarActivacionUsuarioCommand, Result>
 {
@@ -385,6 +387,11 @@ public class CambiarActivacionUsuarioCommandHandler(
                 return retirada;
         }
 
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie): el traspaso también se
+        // cierra si lo está el Operador CAE, que es el Tenant de origen de quien desactiva y el Tenant activo aquí, fuera
+        // del ámbito de cada Tenant beneficiario. Solo se lee si hay a quién traspasar.
+        var operadorCaeCerrado = destinoId is not null && await outboundCerrado.EstaCerradoAsync(operadorTenantId, ct);
+
         var aRelevar = new List<OperacionConPrincipal>();
         foreach (var tenant in enCartera)
         {
@@ -392,6 +399,18 @@ public class CambiarActivacionUsuarioCommandHandler(
             if (destinoId is not { } destinoUsuarioId
                 || !asignables.TryGetValue(tenant.PropietarioTenantId, out var asignable)
                 || !reasignables[tenant.PropietarioTenantId].Contains(asignable.AsignacionOperacionId))
+            {
+                aRelevar.AddRange(principalesDelTenant);
+                continue;
+            }
+
+            // D3 (DN-7): la desactivación es una baja y sigue adelante, pero el traspaso es una Asignación de Cartera nueva
+            // para el destino en el Tenant beneficiario. Si Outbound está cerrado para él, la cartera se retira sin
+            // traspasarla, como la de una operación que ya no autoriza. Se lee con el Tenant beneficiario como Tenant activo.
+            bool beneficiarioCerrado;
+            using (AmbitoTenantExplicito.Establecer(tenant.PropietarioTenantId))
+                beneficiarioCerrado = await outboundCerrado.EstaCerradoAsync(tenant.PropietarioTenantId, ct);
+            if (operadorCaeCerrado || beneficiarioCerrado)
             {
                 aRelevar.AddRange(principalesDelTenant);
                 continue;

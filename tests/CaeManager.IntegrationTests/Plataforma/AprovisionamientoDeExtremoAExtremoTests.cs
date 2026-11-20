@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Documentos;
@@ -56,7 +57,12 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _admin = Guid.NewGuid();
-    private readonly Guid _tenantObjetivo = Guid.NewGuid();
+    // D3: la importación es un Command cerrado al Tenant TEC sin línea Outbound (RegistroLimiteTenantTec), y
+    // LimiteTenantTecBehavior trata como cerrado un Tenant que no está en Tenants. El Tenant objetivo se siembra, sin el
+    // marcador de participante TEC, para que la guarda real lo deje pasar y el test siga probando la importación.
+    private readonly CaeManager.Domain.Tenants.Tenant _tenantObjetivoSembrado = new("Tenant objetivo de prueba");
+    private Guid _tenantObjetivo => _tenantObjetivoSembrado.Id;
+    // Sin sembrar a propósito: el control negativo lo deniega AutorizacionEscrituraBehavior, que corre antes que la guarda de D3.
     private readonly Guid _otroTenant = Guid.NewGuid();
 
     private Guid _sesionId;
@@ -67,6 +73,7 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantObjetivo);
 
         var ahora = DateTime.UtcNow;
+        contexto.Tenants.Add(_tenantObjetivoSembrado);
         var concesion = ConcesionPrivilegio.SobreTenants(
             _admin, CapacidadPrivilegio.Aprovisionamiento, [_tenantObjetivo],
             vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: ahora.AddHours(4));
@@ -193,6 +200,8 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         servicios.AddSingleton<IDocumentosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // Lo que lee la guarda de D3 (LimiteTenantTecBehavior): la línea Outbound bajo la RLS del Tenant activo.
+        servicios.AddSingleton<ILineaOutboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ITiposDocumentoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ITrabajadoresQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 

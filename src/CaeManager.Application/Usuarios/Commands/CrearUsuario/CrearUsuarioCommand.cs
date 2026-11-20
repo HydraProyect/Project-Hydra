@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Comercial.LineaOutbound;
+using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -74,6 +75,7 @@ public class CrearUsuarioCommandHandler(
     ICatalogoIncorporacionCartera catalogoCartera,
     ITransaccionDeComando transaccion,
     IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IOutboundCerradoTenantTec outboundCerrado,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CrearUsuarioCommand, Result<UsuarioCreado>>
 {
@@ -163,6 +165,12 @@ public class CrearUsuarioCommandHandler(
                     falloRol = rol.Error;
                 }
 
+                // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie): las carteras del
+                // alta se cierran también si lo está el Operador CAE, que es el Tenant activo (ResolverCarteraAsync lo
+                // exige); se lee aquí, fuera del ámbito de cada Tenant beneficiario. No se crea ni la cuenta.
+                if (operacionesCartera.Count > 0 && await outboundCerrado.EstaCerradoAsync(tenantId, ct))
+                    return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
                 foreach (var operacion in operacionesCartera)
                 {
                     var incorporada = await IncorporarAsync(operacion, tenantId, usuarioId, ct);
@@ -247,6 +255,11 @@ public class CrearUsuarioCommandHandler(
     {
         using (AmbitoTenantExplicito.Establecer(operacion.PropietarioTenantId))
         {
+            // D3 (DN-4, DN-7): cada Asignación de Cartera del alta es un alta en su Tenant beneficiario, que aquí ya es el
+            // Tenant activo; si Outbound está cerrado para él, no se crea ni la cuenta ni su cartera.
+            if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, ct))
+                return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
             var incorporacion = await catalogoCartera.IncorporarAsync(
                 operacion.PropietarioTenantId, operadorTenantId, operacion.AsignacionOperacionId, usuarioId, ct);
 

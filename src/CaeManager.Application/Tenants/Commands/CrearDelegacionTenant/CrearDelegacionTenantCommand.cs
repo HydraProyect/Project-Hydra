@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
@@ -58,7 +59,8 @@ public class CrearDelegacionTenantCommandHandler(
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork, ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica, ITenantActual tenantActual)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica, ITenantActual tenantActual,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
     public static readonly Error PrincipalNoAsignado = Error.Crear(
@@ -111,6 +113,14 @@ public class CrearDelegacionTenantCommandHandler(
                 .AnyAsync(OperadorCaeExternoElegible.Predicado, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.ConsultoraNoEncontrada", "No encontramos ese Operador CAE externo."));
+
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie). El behavior ya decidió por
+        // el Tenant beneficiario, que es el Tenant activo; aquí se decide por el Tenant de origen del Operador CAE que recibe
+        // la operación. Va después de confirmar que es un Operador CAE externo, con el mismo error que el resto de D3.
+        // shortcut: ese Tenant no es el activo, así que un Tenant TEC marcado con línea Vigente se cierra en falso
+        // (LimiteTenantTecDelOperadorCae).
+        if (await outboundCerrado.EstaCerradoAsync(request.TenantConsultoraId, cancellationToken))
+            return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
         // El Cliente Delegante tampoco puede ser el Tenant de plataforma: TALVEG nunca
         // es Tenant propietario que delega operación a un Operador CAE externo (ADR-011

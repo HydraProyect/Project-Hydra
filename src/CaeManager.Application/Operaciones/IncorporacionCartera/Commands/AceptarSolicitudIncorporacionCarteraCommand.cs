@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Encargo;
@@ -32,7 +33,8 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
     IUnitOfWork unitOfWork,
     ILogger<AceptarSolicitudIncorporacionCarteraCommandHandler> logger,
     ITransaccionDeComando transaccion,
-    CaeManager.Application.Clientes.IBloqueoCarteraUsuario bloqueoCartera)
+    CaeManager.Application.Clientes.IBloqueoCarteraUsuario bloqueoCartera,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<AceptarSolicitudIncorporacionCarteraCommand, Result>
 {
     public async Task<Result> Handle(AceptarSolicitudIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -105,6 +107,14 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
                 // que o se crean cartera, fila heredada y aceptación, o nada.
                 using (AmbitoTenantExplicito.Establecer(solicitud.PropietarioTenantId))
                 {
+                    // D3 (DN-4, DN-7): la Asignación de Cartera es un alta en el Tenant beneficiario de la solicitud, que
+                    // aquí ya es el Tenant activo; si Outbound está cerrado para él, no se acepta (la solicitud sigue
+                    // pendiente: la transacción se deshace). EP-4: también si está cerrado para el Tenant de origen del
+                    // Operador CAE de la solicitud, que aquí no es el activo: su línea se lee como SinLinea y un Operador CAE
+                    // marcado se cierra en falso (shortcut: LimiteTenantTecDelOperadorCae; sin efecto hoy por F-1).
+                    if (await outboundCerrado.EstaCerradoConOperadorCaeAsync(solicitud.PropietarioTenantId, solicitud.OperadorTenantId, ct))
+                        return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
                     var incorporacion = await catalogo.IncorporarAsync(solicitud, ct);
 
                     if (incorporacion.MotivoAnulacion is { } motivo)

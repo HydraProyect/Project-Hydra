@@ -33,6 +33,9 @@ public class EncargoAdministracionCommandsTests
     private readonly RepositorioFalso _repositorio = new();
     private readonly AsignacionOperacion _operacion;
 
+    /// <summary>La guarda de D3 (EP-4); abierta salvo en los tests del Operador CAE cerrado.</summary>
+    private OutboundCerradoTenantTecFijo _outbound = OutboundCerradoTenantTecFijo.Abierto();
+
     public EncargoAdministracionCommandsTests()
     {
         _operacion = AsignacionOperacion.Externa(
@@ -78,7 +81,7 @@ public class EncargoAdministracionCommandsTests
     private Task<CaeManager.Domain.Common.Result<Guid>> RegistrarAsync(
         Actor actor, Guid? operacionId = null, string clausula = Clausula, DateTime? vigenciaHasta = null, Guid? tenantActivo = null) =>
         new RegistrarEncargoAdministracionCommandHandler(
-                new TenantFijo(tenantActivo ?? Propietario), Autoridad(actor), _repositorio, new RelojFijo(Ahora))
+                new TenantFijo(tenantActivo ?? Propietario), Autoridad(actor), _repositorio, new RelojFijo(Ahora), _outbound)
             .Handle(new RegistrarEncargoAdministracionCommand(operacionId ?? _operacion.Id, clausula, vigenciaHasta), default);
 
     private Task<CaeManager.Domain.Common.Result> RetirarAsync(Actor actor, Guid encargoId, Guid? tenantActivo = null) =>
@@ -96,6 +99,32 @@ public class EncargoAdministracionCommandsTests
     }
 
     // --- Registrar -----------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Con_el_Operador_CAE_cerrado_por_D3_no_se_registra_el_encargo()
+    {
+        // EP-4 («ni Operador CAE»): el Operador CAE de la operación es un Tenant TEC marcado y sin línea Outbound vigente;
+        // el Tenant beneficiario está abierto. El encargo ampliaría lo que hace ese Operador CAE: no se registra.
+        _outbound = new OutboundCerradoTenantTecFijo(t => t == Operador);
+
+        var resultado = await RegistrarAsync(AdministradorPropio());
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        _repositorio.Encargos.Should().BeEmpty();
+        _outbound.Preguntados.Should().Equal(Operador);
+    }
+
+    [Fact]
+    public async Task Con_el_Operador_CAE_con_linea_Outbound_vigente_se_registra_el_encargo()
+    {
+        // El mismo Operador CAE, marcado pero con línea P Vigente: la guarda responde abierto.
+        var resultado = await RegistrarAsync(AdministradorPropio());
+
+        resultado.EsExitoso.Should().BeTrue();
+        _repositorio.Encargos.Should().ContainSingle();
+        _outbound.Preguntados.Should().Equal(Operador);
+    }
 
     [Fact]
     public async Task Un_Administrador_propio_del_Tenant_propietario_registra_el_encargo()
@@ -210,7 +239,7 @@ public class EncargoAdministracionCommandsTests
     public async Task Sin_Tenant_activo_no_hay_sobre_que_registrar()
     {
         var handler = new RegistrarEncargoAdministracionCommandHandler(
-            new TenantFijo(null), Autoridad(AdministradorPropio()), _repositorio, new RelojFijo(Ahora));
+            new TenantFijo(null), Autoridad(AdministradorPropio()), _repositorio, new RelojFijo(Ahora), _outbound);
 
         var resultado = await handler.Handle(new RegistrarEncargoAdministracionCommand(_operacion.Id, Clausula, null), default);
 

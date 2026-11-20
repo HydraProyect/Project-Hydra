@@ -22,7 +22,15 @@ public record CrearEmpresaCommand(
     IReadOnlyList<Guid> ClienteIds,
     string? Cnae = null,
     string? ConvenioAplicable = null,
-    bool EsActividadAnexoI = false) : ICommand<Guid>, IComandoDeAprovisionamiento;
+    bool EsActividadAnexoI = false) : ICommand<Guid>, IComandoDeAprovisionamiento, ILimiteTenantTecSegunDatos
+{
+    /// <summary>
+    /// D3 (DN-4): relacionar la Empresa nueva con Clientes empresariales es dar de alta Relaciones Empresariales de
+    /// Outbound y se cierra al Tenant TEC participante sin línea Outbound; la Empresa propia sin Clientes empresariales
+    /// sigue abierta.
+    /// </summary>
+    public bool AbreLoCerradoAlTenantTec => ClienteIds is { Count: > 0 };
+}
 
 public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaCommand>
 {

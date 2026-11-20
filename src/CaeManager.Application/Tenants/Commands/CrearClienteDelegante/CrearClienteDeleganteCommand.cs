@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Operaciones;
@@ -60,7 +61,8 @@ public class CrearClienteDeleganteCommandHandler(
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
-    IUnitOfWork unitOfWork, ITransaccionDeComando transaccion)
+    IUnitOfWork unitOfWork, ITransaccionDeComando transaccion,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<CrearClienteDeleganteCommand, Result<Guid>>
 {
     /// <summary>
@@ -108,6 +110,13 @@ public class CrearClienteDeleganteCommandHandler(
         if (tenantOrigenId is null)
             return Result.Fallo<Guid>(Error.Crear(
                 "ClienteDelegante.SinTenantDeOrigen", "No pudimos determinar desde qué organización operas."));
+
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie). El Tenant cliente nace sin
+        // el marcador; el Operador CAE es el Tenant de origen de quien ejecuta, y si Outbound está cerrado para él no recibe
+        // la delegación ni la operación. Mismo error que el resto de D3. shortcut: si el Tenant activo no es el de origen,
+        // un Tenant TEC marcado con línea Vigente se cierra en falso (LimiteTenantTecDelOperadorCae).
+        if (await outboundCerrado.EstaCerradoAsync(tenantOrigenId.Value, cancellationToken))
+            return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
         if (await tenantRepositorio.ExisteConNombreAsync(request.NombreTenantCliente, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.NombreDuplicado", "Ya existe una organización con este nombre."));

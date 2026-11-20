@@ -400,7 +400,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>(),
                 new CaeManager.Infrastructure.Persistence.AdministradoresDelTenant(
                     sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<DirectorioUsuariosTenant>()),
-                new AvisoSinGestorCaeAnotado())
+                new AvisoSinGestorCaeAnotado(), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -721,7 +721,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                     cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio,
-                    new OtroAdministradorSiempre(), new AvisoSinGestorCaeAnotado()).Handle(c, cancellationToken),
+                    new OtroAdministradorSiempre(), new AvisoSinGestorCaeAnotado(), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
                     cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre(), new SinBloqueoCartera()).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),

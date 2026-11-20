@@ -448,7 +448,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto), contexto,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual),
             Autorizacion(servicios), usuarioActual, contexto, new TransaccionDeComando(contexto),
-            new AsignacionAutomaticaInerte(), tenant);
+            new AsignacionAutomaticaInerte(), tenant, OutboundTenantTecAbierto.Instancia);
 
         using (AmbitoTenantExplicito.Establecer(usuario.TenantId))
             return await handler.Handle(new CrearDelegacionTenantCommand(_operador, _propietario), CancellationToken.None);

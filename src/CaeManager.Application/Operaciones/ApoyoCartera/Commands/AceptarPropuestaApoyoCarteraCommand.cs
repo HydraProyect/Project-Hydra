@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
@@ -58,7 +59,8 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
     INotificacionUsuarioRepository notificaciones,
     ITenantsQueryContext tenants,
     IUnitOfWork unitOfWork,
-    ILogger<AceptarPropuestaApoyoCarteraCommandHandler> logger)
+    ILogger<AceptarPropuestaApoyoCarteraCommandHandler> logger,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<AceptarPropuestaApoyoCarteraCommand, Result>
 {
     public async Task<Result> Handle(AceptarPropuestaApoyoCarteraCommand request, CancellationToken cancellationToken)
@@ -112,6 +114,14 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
                     // por el Tenant de origen, que dentro de este ámbito sigue siendo el suyo.
                     using (AmbitoTenantExplicito.Establecer(propuesta.PropietarioTenantId))
                     {
+                        // D3 (DN-4, DN-7): el apoyo es un alta en el Tenant beneficiario de la propuesta, que aquí ya es el
+                        // Tenant activo; si Outbound está cerrado para él, no se acepta (la propuesta sigue pendiente). EP-4:
+                        // también si está cerrado para el Tenant de origen del Operador CAE de la propuesta, que aquí no es
+                        // el activo: su línea se lee como SinLinea y un Operador CAE marcado se cierra en falso (shortcut:
+                        // LimiteTenantTecDelOperadorCae; sin efecto hoy por F-1).
+                        if (await outboundCerrado.EstaCerradoConOperadorCaeAsync(propuesta.PropietarioTenantId, propuesta.OperadorTenantId, ct))
+                            return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
                         var apoyo = await catalogo.IncorporarApoyoAsync(propuesta, ct);
                         if (apoyo.MotivoAnulacion is { } motivo)
                             return await AnularAsync(propuesta, motivo, ahora, ct);

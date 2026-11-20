@@ -110,14 +110,14 @@ public class FinDeApoyoCarteraTests
             new(usuarioId, origen ?? Operador, rolDeSesion, rolDeSesion);
 
         public Task<Result<Guid>> Proponer(Guid actor, Guid destinatario, DateOnly? ultimoDia = null) =>
-            new ProponerApoyoCarteraCommandHandler(Como(actor), Roles, Catalogo, Repositorio)
+            new ProponerApoyoCarteraCommandHandler(Como(actor), Roles, Catalogo, Repositorio, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new ProponerApoyoCarteraCommand(Operacion.Id, destinatario, ultimoDia), default);
 
         public Task<Result> Aceptar(Guid actor, Guid propuestaId) =>
             new AceptarPropuestaApoyoCarteraCommandHandler(
                     Como(actor), Roles, Catalogo, Repositorio, Transaccion, Bloqueo,
                     Cuentas, Notificaciones, Tenants, UnitOfWork,
-                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
+                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), default);
 
         /// <summary>GestorA propone a GestorB y este acepta: el apoyo vivo de partida. Limpia lo anotado.</summary>

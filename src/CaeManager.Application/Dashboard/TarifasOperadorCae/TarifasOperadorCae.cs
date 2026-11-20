@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -136,7 +137,8 @@ public class FijarTarifaOperadorCaeCommandValidator : AbstractValidator<FijarTar
 
 public class FijarTarifaOperadorCaeCommandHandler(
     ICurrentUserService usuario, ITarifasOperadorCaeContext contexto, IOperacionesQueryContext operaciones,
-    IUnitOfWork unidad, TimeProvider reloj) : IRequestHandler<FijarTarifaOperadorCaeCommand, Result>
+    IUnitOfWork unidad, TimeProvider reloj, IOutboundCerradoTenantTec outboundCerrado)
+    : IRequestHandler<FijarTarifaOperadorCaeCommand, Result>
 {
     public async Task<Result> Handle(FijarTarifaOperadorCaeCommand request, CancellationToken cancellationToken)
     {
@@ -147,6 +149,12 @@ public class FijarTarifaOperadorCaeCommandHandler(
 
         var ahora = reloj.GetUtcNow().UtcDateTime;
         using var ambito = AmbitoTenantExplicito.Establecer(operador);
+
+        // D3 (F-6): sin línea Outbound, el Tenant TEC participante no es Operador CAE. Decide por el Tenant de origen del
+        // Operador CAE, que es el Tenant activo de este ámbito, no por el Tenant activo de la sesión.
+        if (await outboundCerrado.EstaCerradoAsync(operador, cancellationToken))
+            return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
         if (!await AutorizacionTarifasOperadorCae.GestionaAsync(operaciones, operador, request.PropietarioTenantId, ahora, cancellationToken))
             return Result.Fallo(AutorizacionTarifasOperadorCae.EmpresaNoGestionada);
 

@@ -319,7 +319,8 @@ public class DuplicadosRazonSocialEmpresaTests
                 .Handle(new EditarClienteCommand(empresa.Id, razonSocial, "B12345674", false, null, empresa.Version), default),
             "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia())
                 .Handle(new CrearEmpresaCommand(razonSocial, "B12345674", []), default),
-            "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
+            "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow,
+                    new Configuracion.TenantActualFijo(Guid.NewGuid()), Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new EditarEmpresaCommand(empresa.Id, razonSocial, "B12345674", [], Version: empresa.Version), default),
             "CrearSubcontrata" => await new CrearSubcontrataCommandHandler(repo, relaciones, contexto, alcance, uow)
                 .Handle(new CrearSubcontrataCommand(razonSocial, "B12345674", [], []), default),

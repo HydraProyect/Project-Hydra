@@ -660,6 +660,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // feature son el destino final del diseño, no una transición.
         ("Empresas.CrearEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Empresas.EditarEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
+        // D3 (2026-11-19, DN-7): restaurar una Empresa con Clientes empresariales vigentes se cierra al Tenant TEC sin línea
+        // Outbound; solo lee si tiene alguno.
+        ("Empresas.RestaurarEmpresaCommandHandler", "IRelacionEmpresarialRepository"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "ICentrosQueryContext"),
         ("Empresas.ObtenerCentrosConActividadDeEmpresaQueryHandler", "IClientesQueryContext"),

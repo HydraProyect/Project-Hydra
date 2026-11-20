@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -49,7 +50,8 @@ public class RegistrarEncargoAdministracionCommandHandler(
     ITenantActual tenantActual,
     AutoridadSobreElEncargo autoridad,
     IEncargoAdministracionRepository encargos,
-    TimeProvider reloj)
+    TimeProvider reloj,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<RegistrarEncargoAdministracionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(
@@ -78,6 +80,14 @@ public class RegistrarEncargoAdministracionCommandHandler(
         // Nunca nadie del Operador CAE que lo recibe, aunque la autoridad de arriba ya lo excluya.
         if (await autoridad.EsDelOperadorCaeAsync(operacion.OperadorTenantId))
             return Result.Fallo<Guid>(AutoridadSobreElEncargo.NoAutorizado);
+
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie). El behavior ya decidió por
+        // el Tenant beneficiario; el encargo amplía lo que hace el Operador CAE de la operación, así que se decide también
+        // por su Tenant de origen. Mismo error que el resto de D3. Con Sesión Privilegiada esto corre ya elevado: el marcador
+        // se lee igual (cae_app_aprovisionamiento tiene SELECT sobre Tenants) y, si está marcado, la línea responde «sin
+        // línea» porque ese Tenant nunca es el activo aquí: falla cerrado. shortcut: LimiteTenantTecDelOperadorCae.
+        if (await outboundCerrado.EstaCerradoAsync(operacion.OperadorTenantId, cancellationToken))
+            return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
         var ahora = reloj.GetUtcNow().UtcDateTime;
         if (!operacion.Ambito.EsUniversal || !operacion.EstaVigenteEn(ahora))

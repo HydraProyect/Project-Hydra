@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
@@ -92,7 +93,8 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
     IUnitOfWork unitOfWork,
     IEncargoAdministracionRepository encargos,
     ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<CrearTenantPropietarioDeOperadorCaeExternoCommand, Result<Guid>>
 {
     public static readonly Error PrincipalNoAsignado = Error.Crear(
@@ -126,6 +128,13 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
         if (operador is null || operador.EsPlataforma || !operador.PuedeActuarComoOperadorCaeExterno)
             return Result.Fallo<Guid>(Error.Crear(
                 "TenantPropietarioDeOperador.OperadorNoValido", "No encontramos ese Operador CAE externo."));
+
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie). El Tenant propietario nace
+        // sin el marcador; el que puede estar cerrado es el Tenant de origen del Operador CAE que recibe la operación (y, si
+        // lo hay, el Encargo de administración). Mismo error que el resto de D3. shortcut: el Tenant activo es el del Actor
+        // de Plataforma TALVEG, así que un Tenant TEC marcado con línea Vigente se cierra en falso (LimiteTenantTecDelOperadorCae).
+        if (await outboundCerrado.EstaCerradoAsync(request.TenantOperadorId, cancellationToken))
+            return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
         var nombreNormalizado = request.NombreTenantPropietario.Trim();
         if (await tenantRepositorio.ExisteConNombreAsync(nombreNormalizado, cancellationToken))

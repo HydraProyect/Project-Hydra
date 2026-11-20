@@ -1,0 +1,361 @@
+# D3: clasificación de cada Command de Application frente al límite del Tenant TEC participante sin línea Outbound
+# vigente (DN-4, DN-7). Nombre corto, tabulador, clase y, en abierto, pendiente y donde haga falta, tabulador y motivo.
+# La compara LimiteTenantTecClasificacionTests: cerrado-behavior (RegistroLimiteTenantTec.CerradasSinLinea),
+# cerrado-datos (ILimiteTenantTecSegunDatos), cerrado-handler (su handler recibe IOutboundCerradoTenantTec) y pendiente
+# (RegistroLimiteTenantTec.PendientesDeDecision) tienen que ser lo que el código aplica; abierto lleva motivo; no-aplica
+# es lo que no es un alta de Outbound de D3 (el resto de Outbound queda al punto de integración de PeticionDeOutbound).
+# Un Command nuevo da rojo hasta que se clasifique aquí. Orden ordinal.
+AbrirAccesoSoporteCommand	no-aplica	acto del Actor de Plataforma TALVEG (Sesión Privilegiada), no un alta de Outbound
+AbrirSesionPrivilegiadaCommand	no-aplica
+AceptarDeteccionesIaEnBloqueCommand	no-aplica
+AceptarDocumentosContractualesCommand	no-aplica
+AceptarPropuestaApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la propuesta cargada y por el Tenant de origen de su Operador CAE (EP-4)
+AceptarSolicitudIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la solicitud cargada y por el Tenant de origen de su Operador CAE (EP-4)
+AceptarTerminosCommand	no-aplica
+ActivarSubencargadoCommand	no-aplica
+ActivarTratamientoIaPorEncargoCommand	no-aplica
+ActualizarConfiguracionOperativaCommand	no-aplica
+ActualizarContratoAccesoCommand	no-aplica
+ActualizarDeteccionTrabajadoresGlobalCommand	no-aplica
+ActualizarDocumentoDesdeAdjuntoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ActualizarEstadoAutomatizacionCommand	no-aplica
+ActualizarEstadoComercialTenantCommand	no-aplica
+ActualizarLecturaIaClienteCommand	no-aplica
+ActualizarLecturaIaGlobalCommand	no-aplica
+ActualizarLineaWhatsAppCommand	no-aplica
+ActualizarParametroSistemaCommand	no-aplica
+ActualizarPasoTareaAsistenteCommand	no-aplica
+ActualizarPerfilDocumentoOficialGlobalCommand	no-aplica
+ActualizarPresupuestoIaCommand	no-aplica
+ActualizarProyectoCommand	no-aplica
+ActualizarSeguridadAccesoCommand	no-aplica
+ActualizarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
+ActualizarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+ActualizarVerificacionIaGlobalCommand	no-aplica
+AgregarTurnoTareaAsistenteCommand	no-aplica
+AgregarVersionPlantillaCommand	no-aplica
+AnadirRequisitoAPlantillaCommand	no-aplica
+AnadirRequisitoEventoCommand	no-aplica
+AnadirTrabajadorAVisitaCommand	no-aplica
+AplicarDeteccionIaDocumentoCommand	no-aplica
+AplicarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+AprobarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+AsignarAdjuntosLoteCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+AsignarAliasTrabajadorCommand	no-aplica
+AsignarCarteraGestorCaeCommand	cerrado-handler	cada Tenant de TenantsAAsignar, por su Tenant beneficiario, y por el Tenant de origen del Operador CAE de la cartera (EP-4)
+AsignarCentrosControlAccesoCommand	no-aplica	Inbound (IComandoInbound, AF-01): fija los Centros de la portería de una cuenta con el rol Control de acceso del Tenant TCE (UsuarioControlAccesoCentro); no crea operación Outbound ni Asignación de Cartera u Operación
+AsignarClienteConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+AsignarEjecutivoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+AsignarRolACuentaCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+AsignarTecnicoProyectoCommand	no-aplica
+AsignarTrabajadoresAutorizacionCommand	no-aplica
+AsumirPrincipalDeOperacionCommand	abierto	relevo de principal: permitido cuando sustituye a un principal que se fue por una baja (opción (A), DECISION_LOG 2026-11-19 punto 2); hueco declarado: asumir una operación que nunca tuvo principal en un Tenant beneficiario cerrado emite una Asignación de Cartera nueva sin baja previa, pendiente de decisión R1 (recomendado cerrarlo en una PR posterior)
+AutoConcederPrivilegioCommand	no-aplica
+AvisarCambioSubencargadoCommand	no-aplica
+BorrarCredencialAccesoEmpresaContrasenaCommand	no-aplica
+BuscarDatosPurgablesCommand	no-aplica
+CambiarActivacionUsuarioCommand	cerrado-handler	el traspaso al desactivar retira sin traspasar la cartera de un Tenant beneficiario cerrado o de un Operador CAE cerrado (EP-4); su relevo de principal sigue abierto
+CambiarActivoProveedorPlataformaCommand	no-aplica
+CambiarAddOnSubidaAutomaticaCommand	no-aplica
+CambiarConectorApiProveedorPlataformaCommand	no-aplica
+CambiarEstadoAcreditacionEnCentroCommand	no-aplica
+CambiarEstadoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+CambiarNivelServicioSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+CambiarPrioridadConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+CambiarSegundoFactorDelTenantPorPlataformaCommand	no-aplica
+CancelarContratoAccesoCommand	no-aplica
+CancelarPurgaCommand	no-aplica
+CancelarVisitaCommand	no-aplica
+CancelarVisitasCommand	no-aplica
+CerrarAccesoSoporteCommand	no-aplica
+CerrarContratoAccesoCommand	no-aplica
+CerrarProyectoCommand	no-aplica
+CerrarSesionPrivilegiadaCommand	no-aplica
+CompletarGestionCommand	no-aplica
+CompletarPlanTareaAsistenteCommand	no-aplica
+ConcederAdministradorPorPlataformaCommand	no-aplica
+ConcederAutorizacionLecturaCommand	no-aplica
+ConcederCapacidadTenantCommand	no-aplica
+ConcederPrivilegioCommand	no-aplica
+ConectarBuzonMicrosoft365Command	no-aplica
+ConfirmarClasificacionRuidoMensajeCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ConfirmarDocumentoPropuestoPorIaCommand	no-aplica
+ConfirmarIntencionConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ConfirmarPlanTareaAsistenteCommand	no-aplica
+ConfirmarPlantillaDocumentoVersionCommand	no-aplica
+ConfirmarSubidaDesdeExtensionCommand	no-aplica
+ConfirmarVigenciaAcreditacionCommand	no-aplica
+ConfirmarYEnviarPrimerAvisoCommand	no-aplica
+ContratarLineaInboundCommand	no-aplica
+CorregirCorreoCuentaPendienteCommand	no-aplica
+CorregirDocumentoIdentidadTrabajadorCommand	no-aplica
+CorregirLineaInboundCommand	no-aplica
+CorregirRevisionIaDocumentoCommand	no-aplica
+CrearAsignacionCommand	no-aplica
+CrearAsignacionOperadorDelegadoCommand	cerrado-behavior	por el Tenant beneficiario y por el Tenant de origen del Operador CAE de la delegación (EP-4)
+CrearAsignacionesCommand	no-aplica
+CrearCanalGestionCommand	cerrado-behavior
+CrearCentroCommand	cerrado-behavior
+CrearClienteCommand	cerrado-behavior
+CrearClienteDeleganteCommand	cerrado-handler	por el Tenant de origen del Operador CAE que da el alta (EP-4); el Tenant nuevo nace sin el marcador
+CrearContratoAccesoCommand	no-aplica
+CrearDelegacionTenantCommand	cerrado-behavior	por el Tenant beneficiario en el behavior y por el Tenant de origen del Operador CAE (TenantConsultoraId) en el handler (EP-4)
+CrearDocumentoCommand	no-aplica
+CrearDocumentosDesdeDivisionCommand	no-aplica
+CrearEmpresaCommand	cerrado-datos	solo si la relaciona con Clientes empresariales (ILimiteTenantTecSegunDatos)
+CrearGestionesParaTrabajadorCommand	no-aplica
+CrearIncidenciaCommand	no-aplica
+CrearLineaWhatsAppCommand	no-aplica
+CrearMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+CrearNotaInternaConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+CrearOperadorCaeExternoCommand	no-aplica	alta por el Actor de Plataforma TALVEG de un Tenant nuevo, que nace sin el marcador
+CrearPlantillaDocumentoCommand	no-aplica
+CrearPlantillaRequisitosCommand	no-aplica
+CrearProyectoCommand	no-aplica
+CrearRequisitoPropioCommand	no-aplica
+CrearSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+CrearTareaAsistenteCommand	no-aplica
+CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
+CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
+CrearTipoDocumentoCommand	no-aplica
+CrearTrabajadorCommand	no-aplica
+CrearUsuarioCommand	cerrado-handler	cada Asignación de Cartera del alta, por su Tenant beneficiario y por el Tenant de origen del Operador CAE (EP-4); la asignación automática de principal sigue abierta
+CrearVehiculoCommand	no-aplica
+CrearVisitaCommand	no-aplica
+DarDeBajaAsignacionCommand	no-aplica
+DarDeBajaAsignacionesCommand	no-aplica
+DarDeBajaLineaInboundCommand	no-aplica
+DecidirIncidenteSeguridadCommand	no-aplica
+DenegarSolicitudDerechoCommand	no-aplica
+DesactivarDelegacionTenantCommand	abierto	baja (DN-7: las bajas se permiten)
+DesasignarTecnicoProyectoCommand	no-aplica
+DesasignarmeDeApoyoCommand	abierto	baja (DN-7: las bajas se permiten)
+DescargarExportacionCompletaCommand	no-aplica
+DescartarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+DescartarSugerenciaGestionCorreoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+DescartarSugerenciaVisitaCorreoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+DescartarTareaAsistenteCommand	no-aplica
+DesconectarBuzonCommand	no-aplica
+DeshacerCambioEstadoAcreditacionCommand	no-aplica
+DeshacerDerivacionAlertaCriticaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+DeshacerSubidaDesdeExtensionCommand	no-aplica
+DesignarGestorCaePrincipalCommand	abierto	marca la principal entre carteras vivas, sin alta; mismo trato que el relevo (DN-7): relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+DiagnosticarDatosPurgablesCommand	no-aplica
+DividirAdjuntoPdfCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+EditarCanalGestionCommand	cerrado-behavior
+EditarCentroCommand	abierto	hueco declarado; editar un Centro no lo da de alta y DN-4 no decide la edición
+EditarClienteCommand	cerrado-behavior
+EditarContactoVisitaCommand	no-aplica
+EditarEmpresaCommand	cerrado-handler	solo si añade Clientes empresariales
+EditarFichaCentroCommand	abierto	hueco declarado; editar la ficha de un Centro no lo da de alta
+EditarFichaEmpresaCommand	no-aplica
+EditarFichaTrabajadorCommand	no-aplica
+EditarFichaVehiculoCommand	no-aplica
+EditarIncidenciaCommand	no-aplica
+EditarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+EditarRequisitoPlantillaCommand	no-aplica
+EditarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EditarTipoDocumentoCommand	no-aplica
+EditarTrabajadorCommand	no-aplica
+EditarUsuarioCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+EditarVehiculoCommand	no-aplica
+EditarVisitaCommand	no-aplica
+EjecutarImportacionCombinadaCommand	cerrado-behavior
+EjecutarImportacionCommand	cerrado-behavior
+EjecutarImportacionMaestraCommand	cerrado-behavior
+EjecutarPlanTareaAsistenteCommand	no-aplica
+EjecutarPurgaCommand	no-aplica
+ElegirAvatarPropioCommand	no-aplica
+EliminarCanalGestionCommand	abierto	baja (DN-7: las bajas se permiten)
+EliminarCentroCommand	abierto	baja (DN-7: las bajas se permiten)
+EliminarCentrosCommand	abierto	baja (DN-7: las bajas se permiten)
+EliminarClienteCommand	abierto	baja (DN-7: las bajas se permiten)
+EliminarClientesCommand	abierto	baja (DN-7: las bajas se permiten)
+EliminarContactoAgendaCommand	no-aplica
+EliminarContratoAccesoCommand	no-aplica
+EliminarDelegacionEmpresaUOficioCommand	no-aplica
+EliminarDocumentacionRequeridaCentroCommand	no-aplica
+EliminarDocumentoCommand	no-aplica
+EliminarDocumentosCommand	no-aplica
+EliminarEmpresaCommand	no-aplica
+EliminarEmpresasCommand	no-aplica
+EliminarFiltroGuardadoCommand	no-aplica
+EliminarGestionCommand	no-aplica
+EliminarIncidenciaCommand	no-aplica
+EliminarIncidenciasCommand	no-aplica
+EliminarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+EliminarProyectoCommand	no-aplica
+EliminarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EliminarSubcontratasCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EliminarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
+EliminarTrabajadorCommand	no-aplica
+EliminarTrabajadoresCommand	no-aplica
+EliminarUsuarioPendienteCommand	no-aplica
+EliminarVehiculoCommand	no-aplica
+EliminarVehiculosCommand	no-aplica
+EliminarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EmitirCredencialCommand	no-aplica
+EnviarMensajeNuevoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+EnviarNotificacionCompletaCommand	no-aplica
+EnviarPaqueteAcreditacionVisitaCommand	no-aplica
+EnviarReclamacionCommand	no-aplica
+EnviarReclamacionEmpresaCommand	no-aplica
+EnviarReclamacionEmpresaEmpleadoraCommand	no-aplica
+EstablecerDocumentacionRequeridaCentroCommand	no-aplica
+EstablecerGestionCaeCentroCommand	no-aplica
+EstablecerRelacionDeEntradaCentroCommand	no-aplica
+EstablecerToleranciaClienteEmpresarialCommand	no-aplica
+FijarAcuseAutomaticoBuzonCommand	no-aplica
+FijarCondicionesContratoAccesoCommand	no-aplica
+FijarDelegacionEmpresaYOficioTrabajadorCommand	no-aplica
+FijarDestinoAdjuntoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+FijarNotaContactoAgendaCommand	no-aplica
+FijarPlazoRetencionDocumentosCommand	no-aplica
+FijarPlazoRetencionTipoDocumentoCommand	no-aplica
+FijarResponsableBuzonCommand	no-aplica
+FijarTarifaOperadorCaeCommand	cerrado-handler	por el Tenant de origen del Operador CAE (F-6)
+FirmarDocumentoEnCampoCommand	no-aplica
+GenerarActivacionUsuarioCommand	no-aplica
+GenerarClaveApiCommand	no-aplica
+GenerarCodigosRecuperacionCommand	no-aplica
+GenerarDocumentoIndividualCommand	no-aplica
+GenerarRespuestaSugeridaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+GuardarAccesoPlataformaCaeCommand	cerrado-behavior
+GuardarConexionPlataformaCaeCommand	no-aplica
+GuardarContactoAgendaCommand	no-aplica
+GuardarCredencialAccesoEmpresaCommand	no-aplica
+GuardarCredencialAccesoSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+GuardarDelegacionEmpresaCommand	no-aplica
+GuardarElementosPlantillaCommand	no-aplica
+GuardarFiltroCommand	no-aplica
+GuardarFirmaGuardadaUsuarioCommand	no-aplica
+GuardarLogoTenantCommand	no-aplica
+GuardarNotaInternaCentroCommand	no-aplica
+GuardarNotaInternaEmpresaCommand	no-aplica
+GuardarNotaInternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+GuardarNotaInternaTrabajadorCommand	no-aplica
+GuardarNotaInternaVehiculoCommand	no-aplica
+GuardarOficioEmpresaCommand	no-aplica
+GuardarOrdenCajasFichaCommand	no-aplica
+GuardarOrdenMenuLateralCommand	no-aplica
+GuardarPlanTareaAsistenteCommand	no-aplica
+GuardarPlantillaRequisitosEventoCommand	no-aplica
+GuardarPlataformaCaeClienteCommand	cerrado-behavior
+GuardarPreferenciaDashboardCommand	no-aplica
+GuardarSelloEmpresaCommand	no-aplica
+GuardarVistaRecordadaCommand	no-aplica
+IniciarLoteGeneracionDocumentosCommand	no-aplica
+IniciarTramitacionSolicitudDerechoCommand	no-aplica
+MarcarAcreditacionAceptadaCommand	no-aplica
+MarcarAcreditacionNoRequeridaCommand	no-aplica
+MarcarAcreditacionPendienteDeSubirCommand	no-aplica
+MarcarAcreditacionRechazadaCommand	no-aplica
+MarcarAcreditacionSubidaCommand	no-aplica
+MarcarAvisoRevisionNormativaRevisadoCommand	no-aplica
+MarcarCanalGestionPrincipalCommand	cerrado-behavior
+MarcarCobroLiquidacionOperadorCaeCommand	no-aplica
+MarcarDocumentacionGestionadaCommand	no-aplica
+MarcarNotificacionLeidaCommand	no-aplica
+MarcarNotificadoClienteCommand	no-aplica
+MarcarResueltaIncidenciaCommand	no-aplica
+MarcarTenantAvisadoCommand	no-aplica
+MarcarTenantComoParticipanteTecCommand	no-aplica	único escritor del marcador, servicio de plataforma
+MigrarConversacionACorreoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ObjetarSubencargadoCommand	no-aplica
+OlvidarVistaRecordadaCommand	no-aplica
+PedirPrioridadValidacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+PrepararVistaPreviaReclamacionCommand	no-aplica
+PrevisualizarImportacionMaestraCommand	cerrado-behavior
+ProcesarItemLoteGeneracionCommand	no-aplica
+ProgramarPurgaCommand	no-aplica
+ProponerApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la Asignación de Operación y por el Tenant de origen de su Operador CAE (EP-4)
+ProponerContactoSeguridadCommand	no-aplica
+ProponerPlanDeTareaAsistenteCommand	no-aplica
+ProponerSubencargadoCommand	no-aplica
+ProrrogarSolicitudDerechoCommand	no-aplica
+QuitarMarcaDocumentacionGestionadaCommand	no-aplica
+QuitarRequisitoEventoCommand	no-aplica
+QuitarTrabajadorDeVisitaCommand	no-aplica
+ReabrirExpedienteVisitaCommand	no-aplica
+ReabrirMesCuadroDireccionCommand	no-aplica
+ReabrirProyectoCommand	no-aplica
+ReactivarAsignacionCommand	no-aplica
+ReactivarConexionCommand	no-aplica
+ReactivarDelegacionTenantCommand	cerrado-behavior	por el Tenant beneficiario y por el Tenant de origen del Operador CAE de la delegación (EP-4)
+ReactivarTenantCommand	no-aplica
+ReactivarVisitaCommand	no-aplica
+ReasignarEjecutivoClienteCommand	cerrado-behavior
+RechazarContactoSeguridadCommand	no-aplica
+RechazarEvidenciaInboundCommand	no-aplica
+RechazarPropuestaApoyoCarteraCommand	abierto	no da de alta nada de Outbound (rechaza, retira o revoca), DN-7
+RechazarSolicitudIncorporacionCarteraCommand	abierto	no da de alta nada de Outbound (rechaza, retira o revoca), DN-7
+ReconocerAvisoHuecoCommand	no-aplica
+ReenviarAcuseAceptacionContractualCommand	no-aplica
+RegenerarCredencialCommand	no-aplica
+RegistrarEncargoAdministracionCommand	cerrado-behavior	por el Tenant beneficiario en el behavior y por el Tenant de origen del Operador CAE de la operación en el handler (EP-4)
+RegistrarEvidenciaInboundCommand	no-aplica
+RegistrarHistorialImportacionCommand	cerrado-behavior
+RegistrarHistorialInformeCommand	no-aplica
+RegistrarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
+RegistrarRespuestaCertificacionTgssCommand	no-aplica
+RegistrarSolicitudDerechoInteresadoCommand	no-aplica
+RegistrarSuscripcionTenantCommand	no-aplica
+RegistrarTramoGestionCommand	no-aplica
+RegistrarUsoRecienteCommand	no-aplica
+RegistrarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RenovarContratoAccesoCommand	no-aplica
+RenovarDocumentoCommand	no-aplica
+RepararMarcaHuecoCommand	no-aplica
+ResolverAdjuntoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ResolverAlertaCriticaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ResolverDeteccionAusenteCommand	no-aplica
+ResolverDeteccionNuevoCommand	no-aplica
+ResolverRespuestaSugeridaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ResolverRevisionIaDocumentoCommand	no-aplica
+ResolverSolicitudDerechoCommand	no-aplica
+ResponderConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+ResponderConversacionWhatsAppCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+RestablecerOrdenCajasFichaCommand	no-aplica
+RestablecerSegundoFactorCommand	no-aplica
+RestaurarAnotacionAcreditacionCommand	no-aplica
+RestaurarCentroCommand	cerrado-behavior
+RestaurarClienteCommand	cerrado-behavior
+RestaurarDocumentoCommand	no-aplica
+RestaurarEmpresaCommand	cerrado-handler	solo si tiene Relaciones Empresariales vigentes con Clientes empresariales (DN-7)
+RestaurarGestionCommand	no-aplica
+RestaurarProyectoCommand	no-aplica
+RestaurarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+RestaurarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RestaurarTrabajadorCommand	no-aplica
+RestaurarVehiculoCommand	no-aplica
+RestaurarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RetirarApoyoConcedidoCommand	abierto	baja (DN-7: las bajas se permiten)
+RetirarConexionPlataformaCaeCommand	no-aplica
+RetirarEncargoAdministracionCommand	abierto	baja (DN-7: las bajas se permiten)
+RetirarLogoTenantCommand	no-aplica
+RetirarPlantillaRequisitosCommand	no-aplica
+RetirarPropuestaApoyoCarteraCommand	abierto	no da de alta nada de Outbound (rechaza, retira o revoca), DN-7
+RetirarRequisitoPlantillaCommand	no-aplica
+RetirarSubencargadoCommand	no-aplica
+RetirarTrabajadorAutorizacionCommand	no-aplica
+RevocarApoyoCarteraCommand	abierto	baja (DN-7: las bajas se permiten)
+RevocarAsignacionOperadorDelegadoCommand	abierto	baja (DN-7: las bajas se permiten)
+RevocarAutorizacionLecturaCommand	no-aplica
+RevocarCapacidadTenantCommand	no-aplica
+RevocarClaveApiCommand	no-aplica
+RevocarClaveApiDeMiOrganizacionCommand	no-aplica
+RevocarConcesionPrivilegioCommand	no-aplica
+RevocarCredencialCommand	no-aplica
+RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva; relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
+RevocarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
+RevocarOperadorCaeExternoPorSoporteCommand	no-aplica
+SolicitarCertificacionTgssCommand	no-aplica
+SolicitarExportacionCompletaCommand	no-aplica
+SolicitarIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la operación y por el Tenant de origen de su Operador CAE (EP-4)
+SubirDocumentoRequerimientoTecCommand	no-aplica
+SuspenderTenantCommand	no-aplica
+ValidarContactoSeguridadCommand	no-aplica
+ValidarEvidenciaInboundCommand	no-aplica
+VerificarIdentidadSolicitudDerechoCommand	no-aplica
+VincularConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
+VincularTenantContratistaCommand	no-aplica

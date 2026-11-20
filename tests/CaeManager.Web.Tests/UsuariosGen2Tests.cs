@@ -471,6 +471,13 @@ public partial class UsuariosGen2Tests : BunitContext
         }
     }
 
+    /// <summary>Outbound abierto: estos tests no prueban la guarda de D3, que se prueba en los de Application.</summary>
+    private sealed class OutboundTenantTecAbiertoWeb : CaeManager.Application.Comercial.LineaOutbound.IOutboundCerradoTenantTec
+    {
+        public Task<bool> EstaCerradoAsync(Guid tenantBeneficiarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
     /// <summary>
     /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
     /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
@@ -782,11 +789,11 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.Despachar = async (peticion, ct) => peticion switch
         {
             CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(
-                cuentas, usuarioActual, tenantActual, _catalogo, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, _catalogo, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OutboundTenantTecAbiertoWeb()).Handle(c, ct),
             ObtenerEmpresasAsignablesEnAltaQuery q => await new ObtenerEmpresasAsignablesEnAltaQueryHandler(
                 usuarioActual, tenantActual, _catalogo).Handle(q, ct),
             AsignarCarteraGestorCaeCommand c => await new AsignarCarteraGestorCaeCommandHandler(
-                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
+                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera(), new OutboundTenantTecAbiertoWeb()).Handle(c, ct),
             ObtenerEquipoDeCoordinadorQuery q => await new ObtenerEquipoDeCoordinadorQueryHandler(
                 usuarioActual, directorioCartera, directorioCartera).Handle(q, ct),
             ObtenerCarteraDeGestorCaeQuery q => await new ObtenerCarteraDeGestorCaeQueryHandler(
@@ -794,7 +801,7 @@ public partial class UsuariosGen2Tests : BunitContext
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                 cuentas, usuarioActual, tenantActual, new TransaccionQueDeshaceSiFalla(_identidad), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
-                new OtroAdministradorSiempre(), _aviso).Handle(c, ct),
+                new OtroAdministradorSiempre(), _aviso, new OutboundTenantTecAbiertoWeb()).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(

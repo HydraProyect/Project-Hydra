@@ -618,7 +618,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         await using var contexto = ContextoRuntime(_gestor, _operador.Id, "GestorCae");
         var usuario = UsuarioDe(contexto);
         var resultado = await new SolicitarIncorporacionCarteraCommandHandler(
-                usuario, Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto))
+                usuario, Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
             .Handle(new SolicitarIncorporacionCarteraCommand(_empresa.Id, "Llevo sus centros"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
@@ -668,7 +668,8 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
             Directorio(), new NotificacionUsuarioRepository(contexto), contexto, contexto,
             NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance,
             new CaeManager.Infrastructure.Persistence.TransaccionDeComando(contexto),
-            new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(contexto));
+            new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(contexto),
+            CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
 
     private RevocarIncorporacionCarteraCommandHandler Revocar(CaeManagerDbContext contexto) =>
         new(UsuarioDe(contexto), Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),

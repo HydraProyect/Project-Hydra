@@ -202,7 +202,7 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             delegaciones, tenantsContext: null!, writer,
-            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
+            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante), OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -229,7 +229,7 @@ public class AutorizacionDeDelegacionTests
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
-            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora));
+            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora), OutboundCerradoTenantTecFijo.Abierto());
 
         await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -248,7 +248,7 @@ public class AutorizacionDeDelegacionTests
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null),
-            new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
+            new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante), OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -324,7 +324,7 @@ public class AutorizacionDeDelegacionTests
         var guardadoDelAlta = new UnitOfWorkFalso();
         var alta = await new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
                 delegacionesNuevas, tenantsContext: null!, writerDelAlta, soloMiembroDelOperadorCae,
-                quienAdministraPorEncargo, guardadoDelAlta, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
+                quienAdministraPorEncargo, guardadoDelAlta, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante), OutboundCerradoTenantTecFijo.Abierto())
             .Handle(new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
                 Guid.NewGuid(), ClienteDelegante), CancellationToken.None);
 

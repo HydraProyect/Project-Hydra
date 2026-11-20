@@ -535,7 +535,13 @@ public class TerminologiaCanonicaTests
         // término. Baja con la migración de DelegacionTenant, que es un incremento propio.
         // 400 → 401 (2026-11-17, siembra Inbound de staging): +1, la llamada a DelegacionesSoporteSeeder.SeedAsync de
         // InboundDemoAdministrativa.cs, el mismo uso que PilotoOutboundAdministrativa.cs; ningún nombre nuevo con el término.
-        ["Delegacion"] = 401,
+        // 401 → 404 (2026-11-19, D3): +3 usos de nombres que ya existían, ningún nombre nuevo con el término. El límite del
+        // Tenant TEC lee la Asignación de Operación con IDelegacionTenantRepository (LimiteTenantTecBehavior) y los dos
+        // Commands que la nombran exponen su DelegacionTenantId como IComandoSobreDelegacionTenant.DelegacionTenantId (el nombre
+        // de la interfaz repite el de la entidad legacy DelegacionTenant, deuda terminológica, para no esconder qué lee).
+        // 404 → 410 (2026-11-19, D3, revisión puente ronda 1, hallazgo 6): la interfaz se llama IComandoSobreDelegacionTenant y
+        // su propiedad DelegacionTenantId, el nombre de la entidad legacy que lee, para no presentarla como Asignación de Operación.
+        ["Delegacion"] = 410,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

@@ -673,7 +673,7 @@ public class LimiteEmpresaPropiaTests
         var alcance = new AlcanceDatosServiceFalso();
         return comando switch
         {
-            "Empresa" => await new RestaurarEmpresaCommandHandler(empresas, tenant, alcance, uow, limite)
+            "Empresa" => await new RestaurarEmpresaCommandHandler(empresas, tenant, alcance, uow, limite, new CaeManager.Application.Tests.Empresas.RelacionesEmpresarialesFijas(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new RestaurarEmpresaCommand(id), default),
             "Cliente" => await new RestaurarClienteCommandHandler(empresas, tenant, alcance, uow, limite)
                 .Handle(new RestaurarClienteCommand(id), default),

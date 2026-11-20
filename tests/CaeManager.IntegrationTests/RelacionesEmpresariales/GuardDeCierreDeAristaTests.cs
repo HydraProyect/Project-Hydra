@@ -162,7 +162,8 @@ public class GuardDeCierreDeAristaTests : IAsyncLifetime
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             var resultado = await handler.Handle(
                 new EditarEmpresaCommand(_contratistaId, "Contratista del Guard S.L.", "B87654323", []),

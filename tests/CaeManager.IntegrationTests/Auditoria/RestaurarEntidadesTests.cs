@@ -144,7 +144,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar(), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(contextoRestaurar), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -169,7 +169,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, new LimiteEmpresaPropiaSinAplicar(), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(contextoRestaurar), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -194,7 +194,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante, new LimiteEmpresaPropiaSinAplicar());
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante, new LimiteEmpresaPropiaSinAplicar(), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(contextoAtacante), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
