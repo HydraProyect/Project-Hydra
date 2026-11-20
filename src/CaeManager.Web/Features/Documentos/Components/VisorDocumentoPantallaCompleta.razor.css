@@ -261,6 +261,11 @@
     display: flex;
 }
 
+/* Contenedor del panel de la derecha (lo pone el visor, no el panel): no participa en la maquetación, el panel sigue siendo hijo directo del cuerpo flex. */
+.vz-revision {
+    display: contents;
+}
+
 .vz-nav {
     flex: none;
     width: 112px;
