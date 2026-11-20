@@ -390,7 +390,8 @@ public class AltaTenantTceTests : BunitContext
 
     /// <summary>
     /// El error de «sin elegir» se asocia al grupo de radios (aria-invalid y aria-describedby, que apuntan al párrafo del
-    /// error) y solo a él: un error de otro campo de la línea no marca el grupo como inválido.
+    /// error) y solo a él: un error de otro campo de la línea no marca el grupo como inválido ni lo describe. El grupo se
+    /// anuncia como radiogroup obligatorio.
     /// </summary>
     [Fact]
     public void El_error_de_declaracion_marca_el_grupo_de_radios_como_invalido_y_lo_describe()
@@ -403,8 +404,9 @@ public class AltaTenantTceTests : BunitContext
 
         PulsarEnLinea(cut, "Guardar");
         cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Indica el Customer de Stripe");
-        cut.Find("[data-campo='declara-solo-inbound-corr']").HasAttribute("aria-invalid")
-            .Should().BeFalse("el error es de otros campos, no de la declaración");
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("el error es de otros campos, no de la declaración");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse("el error de otro campo no describe el grupo de radios");
 
         RellenarLineaCorreccion(cut);
         GuardarCorreccion(cut);
@@ -414,13 +416,15 @@ public class AltaTenantTceTests : BunitContext
         error.Id.Should().NotBeNullOrEmpty();
         grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
         grupo.GetAttribute("aria-invalid").Should().Be("true");
+        grupo.GetAttribute("aria-required").Should().Be("true");
         grupo.GetAttribute("aria-describedby").Should().Be(error.Id);
         grupo.QuerySelector("legend .campo-obligatorio")!.TextContent.Should().Be("*");
         grupo.QuerySelector("legend")!.TextContent.Should().NotContain("obligatoria");
 
         ElegirDeclaracionCorreccion(cut, "solo");
-        cut.Find("[data-campo='declara-solo-inbound-corr']").HasAttribute("aria-invalid")
-            .Should().BeFalse("al elegir se retira el error y el grupo deja de marcarse inválido");
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("al elegir se retira el error y el grupo deja de marcarse inválido");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse("al elegir el grupo deja de apuntar al error");
     }
 
     [Fact]
