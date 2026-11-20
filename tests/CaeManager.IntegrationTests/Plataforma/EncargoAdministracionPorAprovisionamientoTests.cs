@@ -366,6 +366,10 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         servicios.AddSingleton<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEncargosAdministracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // Lo que lee la guarda de D3 (LimiteTenantTecBehavior y el handler del encargo): la línea Outbound bajo la RLS
+        // del Tenant activo.
+        servicios.AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext>(
+            sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEncargoAdministracionRepository, EncargoAdministracionRepository>();
 
         servicios.AddSingleton<IActorAuditoria>(new ActorFijo(_soporte));
