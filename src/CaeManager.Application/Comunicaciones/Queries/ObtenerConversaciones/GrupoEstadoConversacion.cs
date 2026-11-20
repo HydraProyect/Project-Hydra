@@ -23,8 +23,8 @@ public enum GrupoEstadoConversacion
 
 /// <summary>
 /// Fuente única de qué estados componen cada <see cref="GrupoEstadoConversacion"/> de la bandeja: el filtro de la lista y el
-/// indicador «acción por aprobar» (DN-L) leen de aquí, para que «abierta» signifique lo mismo en los dos sitios. No es la fuente de
-/// otros recuentos que mantienen su propia definición (la columna «Abiertas» de Buzones cuenta solo el estado Abierta).
+/// indicador «acción por aprobar» (DN-L) leen de aquí, para que «abierta» signifique lo mismo en los dos sitios. La columna
+/// «Abiertas» de Buzones (<c>ObtenerActividadBuzonesQuery</c>) lee también de aquí.
 /// </summary>
 public static class GruposEstadoConversacion
 {
