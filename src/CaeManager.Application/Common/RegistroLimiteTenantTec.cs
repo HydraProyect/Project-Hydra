@@ -38,12 +38,14 @@ namespace CaeManager.Application.Common;
 /// </para>
 ///
 /// <para>
-/// <b>Punto de integración con <c>inbound/solo-inbound-sin-outbound</c></b>. DN-4 cierra «todo Outbound». La clasificación
-/// de las áreas de Outbound (<c>PeticionDeOutbound</c>) llega con esa rama, que no está en main; hasta entonces este registro
-/// solo cierra la lista explícita de arriba, y las demás áreas de Outbound (Visitas, Gestiones, Incidencias, acreditación,
-/// Asistente IA salvo los Commands anidados que ya cierra, etc.) y las lecturas de DN-8 quedan sin cerrar en Application. Al
-/// fusionarla, <see cref="CierraSinLinea"/> añade las peticiones de <c>PeticionDeOutbound.Es</c> menos
-/// <see cref="PendientesDeDecision"/> y las bajas, y <c>ICriterioDeOutbound</c> añade esta misma condición al alcance.
+/// <b>Punto de integración con «solo Inbound» (#2379)</b>. DN-4 cierra «todo Outbound». La clasificación de las áreas de
+/// Outbound (<c>PeticionDeOutbound</c>) y <c>ICriterioDeOutbound</c> ya están en main desde #2379, pero esta guarda todavía
+/// no los consume: este registro solo cierra la lista explícita de arriba, y las demás áreas de Outbound (Visitas,
+/// Gestiones, Incidencias, acreditación, Asistente IA salvo los Commands anidados que ya cierra, etc.) y las lecturas de
+/// DN-8 quedan sin cerrar en Application para el Tenant TEC marcado sin línea Outbound. <c>ICriterioDeOutbound</c> solo
+/// cierra al Tenant solo Inbound, que es otra condición. El incremento que lo integre hace que <see cref="CierraSinLinea"/>
+/// añada las peticiones de <c>PeticionDeOutbound.Es</c> menos <see cref="PendientesDeDecision"/> y las bajas, y que
+/// <c>ICriterioDeOutbound</c> añada esta misma condición al alcance.
 /// </para>
 /// </summary>
 public static class RegistroLimiteTenantTec
