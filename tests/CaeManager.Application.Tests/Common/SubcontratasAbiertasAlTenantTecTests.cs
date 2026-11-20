@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
+using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Configuracion;
 using CaeManager.Domain.Common;
@@ -24,9 +25,19 @@ namespace CaeManager.Application.Tests.Common;
 /// no depende de D5.</item>
 /// <item>Controles negativos sensibles a la causa: con la misma composición, el alta de un Centro sí se niega al Tenant TEC
 /// (D3 sigue igual) y el mismo Command de Subcontratas pasa si el Tenant no es solo Inbound.</item>
+/// <item>Lo que D5 no abre: crear una Subcontrata relacionada con Clientes empresariales (D3/DN-4 y EP-4) se niega al
+/// Tenant TEC por datos, como <c>CrearEmpresaCommand</c>; sin Clientes empresariales, o con línea Outbound, pasa. Editar y
+/// restaurar una Subcontrata con Clientes empresariales se cierran en su handler y se prueban en
+/// <c>SubcontrataLimiteTenantTecTests</c>.</item>
 /// </list>
-/// Cada Command se construye sin su constructor y con su propio tipo genérico: las dos guardas clasifican por
-/// <c>typeof(TRequest)</c>, no por el tipo de la instancia.
+/// Cada Command de las teorías se construye sin su constructor (así que sin Clientes empresariales) y con su propio tipo
+/// genérico: las dos guardas clasifican por <c>typeof(TRequest)</c>, no por el tipo de la instancia.
+///
+/// <para>
+/// Efecto en tiempo de ejecución: antes de D5 las Subcontratas eran «pendientes» en <see cref="RegistroLimiteTenantTec"/>,
+/// que tampoco las cerraba, así que la reclasificación a «abiertas» no cambia por sí sola lo que estas teorías observan.
+/// Lo único nuevo en ejecución son los tres cierres de la Relación Empresarial con Clientes empresariales.
+/// </para>
 /// </summary>
 public class SubcontratasAbiertasAlTenantTecTests
 {
@@ -102,8 +113,65 @@ public class SubcontratasAbiertasAlTenantTecTests
             "Subcontratas.Commands.CrearSubcontrata.CrearSubcontrataCommand", PapelActivo.TenantDeOrigen, soloInbound: false,
             limite);
 
-        ejecucion.LecturasDelLimite.Should().Be(0, "lo abierto por D5 no consulta el límite de D3");
+        ejecucion.LecturasDelLimite.Should().Be(0, "sin Clientes empresariales, lo abierto por D5 no consulta el límite de D3");
     }
+
+    [Fact]
+    public async Task Crear_una_Subcontrata_relacionada_con_Clientes_empresariales_se_cierra_al_Tenant_TEC()
+    {
+        var limite = OutboundCerradoTenantTecFijo.Cerrado();
+        var ejecucion = await EjecutarTipadoAsync<CrearSubcontrataCommand, Result<Guid>>(
+            ConClientes(), PapelActivo.TenantDeOrigen, soloInbound: false, limite);
+
+        ejecucion.LlegoAlHandler.Should().BeFalse("D3/DN-4 y EP-4: D5 no abre la Relación Empresarial con Clientes empresariales");
+        ejecucion.Respuesta!.Error!.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo,
+            "el mismo error que CrearEmpresaCommand con ClienteIds");
+        ejecucion.LecturasDelLimite.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Control_crear_una_Subcontrata_con_Clientes_empresariales_y_linea_Outbound_pasa()
+    {
+        var ejecucion = await EjecutarTipadoAsync<CrearSubcontrataCommand, Result<Guid>>(
+            ConClientes(), PapelActivo.TenantDeOrigen, soloInbound: false, OutboundCerradoTenantTecFijo.Abierto());
+
+        ejecucion.LlegoAlHandler.Should().BeTrue("sin la causa (Outbound cerrado) el mismo Command pasa");
+    }
+
+    [Fact]
+    public async Task Control_crear_una_Subcontrata_sin_Clientes_empresariales_sigue_abierto_al_Tenant_TEC()
+    {
+        var limite = OutboundCerradoTenantTecFijo.Cerrado();
+        var ejecucion = await EjecutarTipadoAsync<CrearSubcontrataCommand, Result<Guid>>(
+            new CrearSubcontrataCommand("Andamios del Sur S.L.", "B12345674", [], [Guid.NewGuid()]),
+            PapelActivo.TenantDeOrigen, soloInbound: false, limite);
+
+        ejecucion.LlegoAlHandler.Should().BeTrue("D5: la Subcontrata vinculada solo a Empresas propias está abierta");
+        limite.Preguntados.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <b>Caso pendiente de decisión de Chris (DN (b) de D5), no una regla aceptada.</b> Fija el comportamiento ACTUAL de un
+    /// Tenant TEC marcado sin línea Outbound que además es TCE solo Inbound: la guarda por servicio va antes que el límite de
+    /// D3 y le cierra los Commands de Subcontratas con su propio código. Si la decisión los abre a ese Tenant, este test se
+    /// cambia en el mismo incremento que la decisión.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CommandsDeSubcontratas))]
+    public async Task Pendiente_DN_b_de_D5_el_Tenant_TEC_marcado_y_solo_Inbound_hoy_no_ejecuta_los_Commands_de_Subcontratas(
+        string comando)
+    {
+        var limite = OutboundCerradoTenantTecFijo.Cerrado();
+        var ejecucion = await EjecutarAsync(comando, PapelActivo.TenantDeOrigen, soloInbound: true, limite);
+
+        ejecucion.LlegoAlHandler.Should().BeFalse("comportamiento actual, pendiente de DN (b) de D5");
+        ejecucion.Respuesta!.Error!.Codigo.Should().Be("Autorizacion.ComandoDeOutboundSinLineaOutbound",
+            "hoy decide la guarda por servicio, antes que el límite de D3");
+        ejecucion.LecturasDelLimite.Should().Be(0);
+    }
+
+    private static CrearSubcontrataCommand ConClientes() =>
+        new("Andamios del Sur S.L.", "B12345674", [Guid.NewGuid()], []);
 
     private static Task<Ejecucion> EjecutarAsync(
         string relativo, PapelActivo papel, bool soloInbound, OutboundCerradoTenantTecFijo limite)

@@ -239,7 +239,9 @@ public class LimiteTenantTecBehaviorTests
 
     /// <summary>
     /// D5 (DECISION_LOG del 2026-11-19): las Subcontratas se abren al Tenant TEC. Todos los Commands del área salen de lo
-    /// pendiente y quedan abiertos con su decisión citada; la lista se escribe a mano para que retirar la entrada dé rojo.
+    /// pendiente y el registro no cierra ninguno entero; la lista se escribe a mano para que retirar la entrada dé rojo. Lo que
+    /// D5 no abre (la Relación Empresarial con Clientes empresariales al crear, editar o restaurar una Subcontrata) se cierra
+    /// por datos o en el handler, no aquí (<c>SubcontratasAbiertasAlTenantTecTests</c>, <c>SubcontrataLimiteTenantTecTests</c>).
     /// </summary>
     [Theory]
     [MemberData(nameof(CommandsDeSubcontratas))]

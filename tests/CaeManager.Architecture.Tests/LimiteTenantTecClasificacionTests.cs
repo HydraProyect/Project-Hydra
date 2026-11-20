@@ -152,18 +152,29 @@ public class LimiteTenantTecClasificacionTests
         var crearEmpresa = Commands.Single(c => c.Name == "CrearEmpresaCommand");
         var fijarTarifa = Commands.Single(c => c.Name == "FijarTarifaOperadorCaeCommand");
         var crearSubcontrata = Commands.Single(c => c.Name == "CrearSubcontrataCommand");
+        var editarSubcontrata = Commands.Single(c => c.Name == "EditarSubcontrataCommand");
+        var restaurarSubcontrata = Commands.Single(c => c.Name == "RestaurarSubcontrataCommand");
+        var notaSubcontrata = Commands.Single(c => c.Name == "GuardarNotaInternaSubcontrataCommand");
         ClaseDelCodigo(crearCentro).Should().Be("cerrado-behavior");
         ClaseDelCodigo(crearEmpresa).Should().Be("cerrado-datos");
         ClaseDelCodigo(fijarTarifa).Should().Be("cerrado-handler");
-        ClaseDelCodigo(crearSubcontrata).Should().Be("abierto", "D5 abre las Subcontratas al Tenant TEC");
+        // D5 abre las Subcontratas al Tenant TEC salvo la Relación Empresarial con Clientes empresariales (D3/DN-4, DN-7 y
+        // EP-4), que se cierra como en Empresas: el alta por datos y la edición y la restauración en su handler.
+        ClaseDelCodigo(crearSubcontrata).Should().Be("cerrado-datos", "como CrearEmpresaCommand con ClienteIds");
+        ClaseDelCodigo(editarSubcontrata).Should().Be("cerrado-handler", "como EditarEmpresaCommandHandler");
+        ClaseDelCodigo(restaurarSubcontrata).Should().Be("cerrado-handler", "como RestaurarEmpresaCommandHandler");
+        ClaseDelCodigo(notaSubcontrata).Should().Be("abierto", "D5 abre el resto de las Subcontratas al Tenant TEC");
         ClaseDelCodigo(editarCentro).Should().BeNull();
         Commands.Where(RegistroLimiteTenantTec.EstaPendiente).Select(ClaseDelCodigo).Should().NotBeEmpty()
             .And.OnlyContain(c => c == "pendiente", "control positivo de «pendiente»: Comunicaciones espera a DN-5");
 
-        // Una Subcontrata clasificada como no-aplica, o como cerrada, contradice lo que el código abre por D5.
-        Desvios([new(NombreCorto(crearSubcontrata), "no-aplica", "")], [crearSubcontrata])
+        // Una Subcontrata abierta clasificada como no-aplica, o como pendiente, contradice lo que el código abre por D5.
+        Desvios([new(NombreCorto(notaSubcontrata), "no-aplica", "")], [notaSubcontrata])
             .Should().ContainSingle().Which.Should().StartWith("DISTINTA");
-        Desvios([new(NombreCorto(crearSubcontrata), "pendiente", "D5")], [crearSubcontrata])
+        Desvios([new(NombreCorto(notaSubcontrata), "pendiente", "D5")], [notaSubcontrata])
+            .Should().ContainSingle().Which.Should().StartWith("DISTINTA");
+        // Y la que se cierra por datos, clasificada como abierta por D5, también da rojo.
+        Desvios([new(NombreCorto(crearSubcontrata), "abierto", "D5")], [crearSubcontrata])
             .Should().ContainSingle().Which.Should().StartWith("DISTINTA");
 
         Linea Bien(Type t) => new(NombreCorto(t), ClaseDelCodigo(t) ?? "abierto", "motivo");

@@ -962,6 +962,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // F4 — misma doble escritura transitoria de arriba.
         ("Subcontratas.CrearSubcontrataCommandHandler", "IRelacionEmpresarialRepository"),
         ("Subcontratas.EditarSubcontrataCommandHandler", "IRelacionEmpresarialRepository"),
+        // D3 (DN-7) dentro de lo que abre D5: restaurar una Subcontrata con Clientes empresariales vigentes se cierra al
+        // Tenant TEC sin línea Outbound, como RestaurarEmpresaCommandHandler; solo lee si tiene alguno.
+        ("Subcontratas.RestaurarSubcontrataCommandHandler", "IRelacionEmpresarialRepository"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IAsignacionesQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IClientesQueryContext"),

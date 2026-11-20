@@ -197,7 +197,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
                 new AlcanceDatosServiceFalso(clienteIds: [], empresaIds: [subcontrataId], subcontrataIds: [subcontrataId]),
-                contexto);
+                contexto, new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             var resultado = await handler.Handle(
                 new EditarSubcontrataCommand(subcontrataId, "Subcontrata Cartera Uno S.L.", "B10380947", [], []),
@@ -325,7 +325,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
             new GuardDeCierreDeArista(contexto, contexto, contexto),
             new AlcanceDatosServiceFalso(clienteIds: carteraDeClientes, empresaIds: [subcontrataId], subcontrataIds: [subcontrataId]),
-            contexto);
+            contexto, new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
         return await handler.Handle(new EditarSubcontrataCommand(subcontrataId, razonSocial, cif, clienteIds, empresaIds), CancellationToken.None);
     }
@@ -454,7 +454,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarSubcontrataCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             // Deseado: quitar empresaUno, añadir empresaDos y el cliente.
             var resultado = await handler.Handle(
@@ -676,7 +677,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarSubcontrataCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             // Guardado "sin cambios": el request es literalmente lo que el DTO trajo.
             var resultado = await handler.Handle(
