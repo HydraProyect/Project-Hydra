@@ -17,6 +17,10 @@ namespace CaeManager.Web.Services;
 /// conexión y en el log del cliente, con el código HTTP).</item>
 /// </list>
 ///
+/// Fuera de una petición marcada, estos filtros dejan pasar la miga y el evento con la ruta; quien la quita en toda
+/// petición, marcada o no, es <see cref="PrivacidadDeSentry"/>, que aplica primero estos y después reduce la URL al
+/// origen. Lo de aquí se conserva porque el 5xx de una petición marcada no se envía ni siquiera con solo el origen.
+///
 /// Las métricas HTTP no llevan la ruta (solo método, host, puerto, esquema y código), así que no se filtran.
 /// </summary>
 public static class TrazasSinIdentificadoresEnLaRuta

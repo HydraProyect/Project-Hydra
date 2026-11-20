@@ -183,17 +183,18 @@ builder.WebHost.UseSentry(options =>
     // no ahogue el resto de Sentry. Ver CortacircuitoEventosSeqCaido para el
     // porqué de "acotado a Seq" y "throttle, no silencio total".
     var cortacircuitoSeq = string.IsNullOrWhiteSpace(urlSeq) ? null : new CortacircuitoEventosSeqCaido(urlSeq);
-    options.SetBeforeSend((sentryEvent, pista) =>
+
+    // Ninguna petición saliente lleva sentry-trace ni baggage (el valor por defecto las manda a todo host, también a
+    // las plataformas CAE externas); las migas de pan y los eventos salen con solo el origen de la URL de su petición
+    // HTTP, marcada o no, y sin URLs ni correos en el mensaje de las migas; el 5xx de una petición marcada con un CIF
+    // o un NIF no se envía: ver PrivacidadDeSentry y TrazasSinIdentificadoresEnLaRuta. El filtro de eventos de aquí va
+    // dentro del único SetBeforeSend, el de PrivacidadDeSentry, y corre antes de que el evento pierda la ruta. Va al
+    // final para que nada de lo anterior lo sustituya.
+    PrivacidadDeSentry.Configurar(options, (sentryEvent, pista) =>
         TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista) is { } evento
         && cortacircuitoSeq?.DebeDescartar(evento) != true
             ? evento
             : null);
-
-    // Ninguna petición saliente lleva sentry-trace ni baggage (el valor por defecto las manda a todo host, también a
-    // las plataformas CAE externas), y las migas de pan salen sin la ruta de una petición marcada con un CIF o un NIF
-    // ni URLs ni correos en su mensaje: ver PrivacidadDeSentry y TrazasSinIdentificadoresEnLaRuta. Va al final para
-    // que nada de lo anterior lo sustituya.
-    PrivacidadDeSentry.Configurar(options);
 });
 
 // OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
@@ -1790,7 +1791,9 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
 namespace CaeManager.Web.Services
 {
     /// <summary>
-    /// D-2: filtro de <c>SentryOptions.SetBeforeSend</c> que acota la captura
+    /// D-2: filtro de eventos de Sentry (el que Program.cs pasa al
+    /// <c>SetBeforeSend</c> de <c>PrivacidadDeSentry.Configurar</c>, que lo
+    /// aplica antes de dejar la URL en su origen) que acota la captura
     /// automática de peticiones HTTP fallidas de Sentry.AspNetCore (ver
     /// Program.cs, junto a <c>UseSentry</c>) para que un Seq caído no ahogue
     /// el resto de Sentry con un evento por cada exportación OTLP fallida.
@@ -1810,8 +1813,8 @@ namespace CaeManager.Web.Services
     /// por otras vías (arranque, releases).
     ///
     /// Estado de instancia, no estático a propósito: un único
-    /// <c>Program.cs</c> crea una sola instancia (cerrada en el lambda de
-    /// <c>SetBeforeSend</c>) para toda la vida del proceso, pero cada test
+    /// <c>Program.cs</c> crea una sola instancia (cerrada en el lambda del
+    /// filtro de eventos) para toda la vida del proceso, pero cada test
     /// puede construir la suya sin pisar el reloj de los demás.
     /// </summary>
     public sealed class CortacircuitoEventosSeqCaido(string urlSeq)
