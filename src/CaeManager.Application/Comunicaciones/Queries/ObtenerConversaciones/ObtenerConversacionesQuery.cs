@@ -276,6 +276,10 @@ public class ObtenerConversacionesQueryHandler(
         if (request.SoloFueraDeSla)
         {
             // Antes de paginar: el calendario del Operador CAE no es una duración constante traducible a SQL.
+            // shortcut: CalcularPlazosAsync carga en memoria las conversaciones vivas del conjunto visible, la dirección y la fecha de todos sus mensajes y un calendario
+            // por conversación, y la pantalla de la bandeja lo repite en cada refresco de plazos (un minuto) con «Fuera de plazo» como
+            // vista vigente; un filtro de plazos vencidos en SQL (vencimiento persistido o calendario precalculado) cuando el volumen
+            // de conversaciones vivas lo note.
             plazosFiltrados = await CalcularPlazosAsync(consulta, ahoraUtc, cancellationToken);
             var vencidas = plazosFiltrados.Where(p => p.Value.Vence <= ahoraUtc).Select(p => p.Key).ToArray();
             consulta = consulta.Where(c => vencidas.Contains(c.Id));

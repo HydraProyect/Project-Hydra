@@ -66,4 +66,14 @@
   <data name="AlDia" xml:space="preserve"><value>Al día</value></data>
   <data name="ErrorAbrirConversacion" xml:space="preserve"><value>No pudimos abrir la conversación</value></data>
   <data name="ErrorAbrirConversacionAyuda" xml:space="preserve"><value>Vuelve a intentarlo.</value></data>
+  <data name="FueraDePlazo" xml:space="preserve"><value>Fuera de plazo</value></data>
+  <data name="VistaAccesible" xml:space="preserve"><value>Vista: {0}. Cambiar de vista</value></data>
+  <data name="VistaElegir" xml:space="preserve"><value>Elegir vista</value></data>
+  <data name="VistasPrincipales" xml:space="preserve"><value>Vistas principales</value></data>
+  <data name="MasVistas" xml:space="preserve"><value>Más vistas</value></data>
+  <data name="CanalGrupo" xml:space="preserve"><value>Canal</value></data>
+  <data name="CanalTodos" xml:space="preserve"><value>Todos</value></data>
+  <data name="CanalTodosAccesible" xml:space="preserve"><value>Todos los canales</value></data>
+  <data name="CanalCorreo" xml:space="preserve"><value>Correo</value></data>
+  <data name="CanalWhatsApp" xml:space="preserve"><value>WhatsApp</value></data>
 </root>

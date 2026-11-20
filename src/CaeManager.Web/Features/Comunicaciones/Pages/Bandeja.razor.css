@@ -284,10 +284,177 @@
     text-align: center;
 }
 
-.bandeja-toggles {
+/* Selector «Vista» y chips de canal (lienzo «Pulida: bandeja de la cartera», `.filtro-vista`, `.canales`, `.nav-item`):
+   el disparador ocupa el ancho de la columna, el panel cae debajo y los chips van en una fila de tres. */
+.bandeja-vista-sel {
+    position: relative;
+}
+
+.bandeja-vista-disp {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    cursor: pointer;
+}
+
+.bandeja-vista-disp:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.bandeja-vista-disp:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.bandeja-vista-v {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Cierre al hacer clic fuera, sin JS: la misma superposición a pantalla completa que usa MenuAcciones. */
+.bandeja-vista-superposicion {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+}
+
+/* El panel es `fixed` y no `absolute`: `.bandeja-filtros` recorta con `overflow: hidden` (esquinas redondeadas) y un panel absoluto
+   quedaba cortado en la columna (modo Tabla, ≤ 1099 px), con «Más vistas», «Sin asignar» y «Fuera de plazo» fuera de alcance. Un
+   elemento `fixed` solo lo recorta su bloque contenedor, que aquí es la ventana (ningún ancestro lleva transform, filter ni contain).
+   Sin anclas CSS queda en su posición estática, justo debajo del disparador; con anclas (misma condición que el panel compacto de
+   MenuAcciones) se ancla al disparador, toma su ancho y, si no cabe debajo, se abre hacia arriba. */
+.bandeja-vista-panel {
+    position: fixed;
+    margin-top: var(--space-1);
+    z-index: 1031;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-sizing: border-box;
+    min-width: 260px;
+    max-width: calc(100vw - 2 * var(--space-4));
+    /* Un panel fixed no se desplaza con la página: con la ventana muy baja tiene su propio desplazamiento. */
+    max-height: min(420px, calc(100dvh - 2 * var(--space-4)));
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+}
+
+@supports (anchor-scope: --bandeja-vista) and (position-anchor: --bandeja-vista) {
+    .bandeja-vista-sel {
+        anchor-scope: --bandeja-vista;
+    }
+
+    .bandeja-vista-disp {
+        anchor-name: --bandeja-vista;
+    }
+
+    .bandeja-vista-panel {
+        position-anchor: --bandeja-vista;
+        top: anchor(bottom);
+        left: anchor(left);
+        width: max(260px, anchor-size(width));
+        position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
+}
+
+.bandeja-vista-titulo {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    font: 700 0.75rem/1rem var(--font-family);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.bandeja-vista-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: 500 0.875rem/1.25rem var(--font-family);
+    text-align: left;
+    cursor: pointer;
+}
+
+.bandeja-vista-fila:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.bandeja-vista-fila:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+/* Vista vigente: la señal de «opción elegida» de los desplegables de la aplicación (fondo primario suave y texto en negrita). */
+.bandeja-vista-fila-activa {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+.bandeja-vista-contador {
+    flex: none;
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    font-variant-numeric: tabular-nums;
+}
+
+.bandeja-vista-alerta {
+    color: var(--color-danger-700);
+    font-weight: 700;
+}
+
+.bandeja-vista-mas-ic {
+    display: inline-flex;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.bandeja-vista-mas-ic-abierto {
+    transform: rotate(180deg);
+}
+
+.bandeja-canales {
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
+}
+
+/* Chip de canal: la pastilla de la columna (`.bandeja-toggle`, con su estado activo) con el glifo y la cifra al lado.
+   El glifo de WhatsApp toma el color del texto de la pastilla, también sobre el fondo del chip activo. */
+.bandeja-canal {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.bandeja-canal-cifras {
+    font-variant-numeric: tabular-nums;
+}
+
+.bandeja-canal-glifo {
+    flex: none;
+    fill: currentColor;
 }
 
 .bandeja-toggle {
@@ -1177,14 +1344,9 @@ a.bandeja-documento-citado-nombre:hover {
     overflow-y: auto;
 }
 
-.bandeja-modo-tabla .bandeja-toggles {
-    flex-direction: column;
-    align-items: stretch;
-}
-
-.bandeja-modo-tabla .bandeja-toggles .bandeja-toggle {
+/* En el modo tabla la columna es de 240 px: el panel de vistas conserva su ancho mínimo y los tres chips siguen en una fila. */
+.bandeja-modo-tabla .bandeja-canal {
     min-height: 38px;
-    text-align: left;
 }
 
 /* Buscador de la cabecera de página (maqueta, `.bus`, E3): 36 px de alto, hasta 420 px, texto 13/18. */

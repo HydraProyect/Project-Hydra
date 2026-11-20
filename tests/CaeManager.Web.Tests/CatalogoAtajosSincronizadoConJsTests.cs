@@ -67,6 +67,28 @@ public class CatalogoAtajosSincronizadoConJsTests
     }
 
     /// <summary>
+    /// Un panel con rol de diálogo sin <c>aria-modal</c> (el selector «Vista» de la bandeja de Comunicaciones) no lo reconoce
+    /// <c>hayDialogoModalAbierto</c>: sin su propia guarda, j/k/f movían filas o robaban el foco con el panel abierto. bUnit no ejecuta
+    /// JS, así que se fija en el texto del fichero que la guarda existe, lee el disparador abierto y corre antes de repartir la tecla
+    /// y antes de devolver el foco a una fila.
+    /// </summary>
+    [Fact]
+    public void El_js_de_lista_cede_el_teclado_a_un_panel_de_dialogo_abierto_antes_de_repartir_la_tecla()
+    {
+        var contenidoJs = LeerJs("atajos-lista.js");
+
+        contenidoJs.Should().Contain("[aria-haspopup=\"dialog\"][aria-expanded=\"true\"]",
+            "el disparador del panel abierto anuncia aria-haspopup=\"dialog\" y aria-expanded=\"true\"");
+        var guardaDelManejador = contenidoJs.IndexOf("hayDialogoModalAbierto() || hayPanelDeDialogoAbierto()", contenidoJs.IndexOf("const manejador", StringComparison.Ordinal), StringComparison.Ordinal);
+        var reparto = contenidoJs.IndexOf("invokeMethodAsync('RecibirAtajo'", StringComparison.Ordinal);
+        guardaDelManejador.Should().BePositive("el manejador de teclado debe comprobar el panel abierto");
+        reparto.Should().BePositive();
+        guardaDelManejador.Should().BeLessThan(reparto, "la guarda va antes de entregar la tecla al componente");
+        Regex.IsMatch(contenidoJs, @"hayDialogoModalAbierto\(\) \|\| hayPanelDeDialogoAbierto\(\)\) return;\s*// Nunca roba").Should().BeTrue(
+            "devolver el foco a la fila activa tampoco debe sacarlo del panel abierto");
+    }
+
+    /// <summary>
     /// Mismo riesgo para la sección «Dentro de una ficha»: <see cref="CatalogoAtajos.Ficha"/> anuncia
     /// las letras de <c>TECLAS_FICHA</c> de <c>atajos-ficha.js</c> y, aparte, el rango «1 – 9», que
     /// en el JS no es una lista sino la expresión <c>/^[1-9]$/</c>.

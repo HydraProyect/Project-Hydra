@@ -335,10 +335,18 @@ public partial class ComunicacionesGen2Tests : BunitContext
             };
         }
 
+        /// <summary>El Gestor CAE que usa la pantalla: la vista «Mías» deja las conversaciones asignadas a este Id, como el handler real.</summary>
+        public Guid MiUsuarioId { get; } = Guid.NewGuid();
+
         /// <summary>Los filtros que esta pantalla manda de verdad; el resto de la consulta no los usan estos tests.</summary>
         public ResultadoPaginado<ConversacionListaDto> Pagina(ObtenerConversacionesQuery q)
         {
             var visibles = Conversaciones
+                .Where(c => q.Canal is null || c.Canal == q.Canal)
+                .Where(c => !q.SoloAsignadasAMi || c.EjecutivoAsignadoId == MiUsuarioId)
+                .Where(c => !q.SoloSinAsignar || c.EjecutivoAsignadoId is null)
+                .Where(c => !q.SoloEsperandoCliente || c.EsperandoCliente)
+                .Where(c => !q.SoloFueraDeSla || c.SlaRestante is { } restante && restante < TimeSpan.Zero)
                 .Where(c => q.ClienteId is null || c.ClienteId == q.ClienteId)
                 .Where(c => q.Estado is null || c.Estado == q.Estado)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
@@ -3190,7 +3198,14 @@ public partial class ComunicacionesGen2Tests : BunitContext
     private static int DetallesPedidos(MediadorControlado mediador, Guid conversacionId) =>
         mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == conversacionId);
 
-    private static int ListasPedidas(MediadorControlado mediador) => mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count();
+    /// <summary>
+    /// Las consultas de la lista: no cuentan las de una fila con las que la bandeja calcula las cifras de los chips de canal y del
+    /// panel «Vista» (<c>TamanoPagina == 1</c>), que cuelgan de cada carga y no son una lista pedida.
+    /// </summary>
+    private static IEnumerable<ObtenerConversacionesQuery> ConsultasDeLista(MediadorControlado mediador) =>
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina > 1);
+
+    private static int ListasPedidas(MediadorControlado mediador) => ConsultasDeLista(mediador).Count();
 
     private static (Escenario Escenario, ConversacionListaDto A, ConversacionListaDto B, ConversacionListaDto C) TresConversaciones()
     {
@@ -4201,10 +4216,12 @@ public partial class ComunicacionesGen2Tests : BunitContext
     /// Interlocutor (decisión de Chris del 2026-11-11, hallazgo MEDIO 3 de la r1 de la #2167): vale para Inbound y Outbound.
     /// </summary>
     [Fact]
-    public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
+    public async Task Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
     {
         var (cut, _) = Renderizar(new Escenario());
+        await AbrirPanelDeVistasAsync(cut);
 
+        cut.Find(".bandeja-vista-panel").TextContent.Should().Contain("Esperando respuesta del Interlocutor");
         cut.Markup.Should()
             .Contain("Esperando respuesta del Interlocutor")
             .And.Contain("Todos los Clientes empresariales")
@@ -4835,7 +4852,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Hilo 20");
         await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
         cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Hilo 21");
-        var consulta = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last();
+        var consulta = ConsultasDeLista(mediador).Last();
         consulta.Pagina.Should().Be(2);
         consulta.ClienteId.Should().Be(escenario.Clientes[0].Id);
     }
