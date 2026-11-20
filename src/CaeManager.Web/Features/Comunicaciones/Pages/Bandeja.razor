@@ -233,7 +233,7 @@
                     <details class="bandeja-filtros-avanzados">
                         <summary>Más filtros</summary>
                         <div class="bandeja-filtros-avanzados-campos">
-                            <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
+                            <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; AjustarVistaAlEstado(); await AplicarFiltrosAsync(); }">
                                 <option value="">Todos los estados</option>
                                 @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
                                 {

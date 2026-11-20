@@ -691,7 +691,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
-        var (cut, _) = Renderizar(escenario);
+        var (cut, _) = Renderizar(escenario, "comunicaciones?estado=Resuelta");
         await SeleccionarFila(cut, "Documentación pendiente");
 
         cut.WaitForAssertion(() => cut.FindAll(".bandeja-centro-acciones").Should().NotBeEmpty());
@@ -3945,7 +3945,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         var resuelta = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
         var escenario = new Escenario { Detalle = _ => DetalleDe(resuelta) };
         escenario.Conversaciones.Add(resuelta);
-        var (cut, _) = Renderizar(escenario);
+        var (cut, _) = Renderizar(escenario, "comunicaciones?estado=Resuelta");
 
         await SeleccionarFila(cut, "Documentación pendiente");
 
@@ -4975,6 +4975,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
             return Task.FromResult<object?>(Result.Exito());
         };
         var (cut, _) = Renderizar(escenario);
+        await ElegirVistaAsync(cut, "Todas", enMasVistas: true);
         await SeleccionarFila(cut, "Primera");
 
         await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });

@@ -662,7 +662,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private void SincronizarFiltrosDesdeUrl()
     {
+        var estadoPrevio = _estadoFiltro;
         _estadoFiltro = EstadoInicial ?? string.Empty;
+        if (_estadoFiltro != estadoPrevio) AjustarVistaAlEstado();
         _mesFiltro = MesInicial ?? string.Empty;
         _clienteIdFiltro = ClienteInicial ?? string.Empty;
         _busqueda = BusquedaInicial ?? string.Empty;
@@ -889,18 +891,26 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// El grupo de estados que manda una vista a la query (DN-O): «Abiertas» las vivas y «Archivadas» Resuelta y Cerrada; el resto de
     /// vistas, ninguno.
     /// </summary>
-    // shortcut: con un estado concreto elegido en «Más filtros» (o en ?estado=) no se manda grupo, para que el estado mande: sumados
-    // con AND, «Resuelta» o «Cerrada» bajo la vista por defecto «Abiertas» darían siempre una lista vacía y ese filtro dejaría de
-    // servir. Cuando «Resueltas» y «En espera de tercero» sean vistas del selector y el filtro «Estado» salga de «Más filtros»,
-    // mandar siempre el grupo.
-    private GrupoEstadoConversacion? GrupoDeVista(VistaLista vista) =>
-        !string.IsNullOrEmpty(_estadoFiltro) ? null
-        : vista switch
-        {
-            VistaLista.Abiertas => GrupoEstadoConversacion.Abiertas,
-            VistaLista.Archivadas => GrupoEstadoConversacion.Archivadas,
-            _ => null
-        };
+    private static GrupoEstadoConversacion? GrupoDeVista(VistaLista vista) => vista switch
+    {
+        VistaLista.Abiertas => GrupoEstadoConversacion.Abiertas,
+        VistaLista.Archivadas => GrupoEstadoConversacion.Archivadas,
+        _ => null
+    };
+
+    /// <summary>
+    /// El estado concreto («Estado» de «Más filtros» o <c>?estado=</c>) y el grupo de la vista se suman con AND y nunca amplían lo
+    /// visible. Si el estado que llega no cabe en el grupo de la vista vigente (por ejemplo «Resuelta» o «Cerrada» bajo la vista por
+    /// defecto «Abiertas»), la lista sería siempre vacía y el filtro «Estado» dejaría de servir: la vista pasa entonces a «Todas», que
+    /// no manda grupo, y el título, el disparador y los recuentos dicen lo que se está viendo. Solo se aplica cuando el estado cambia,
+    /// no al elegir una vista: quien elige «Abiertas» con un estado archivado ve la lista vacía y lo sabe.
+    /// </summary>
+    private void AjustarVistaAlEstado()
+    {
+        if (!Enum.TryParse<EstadoConversacion>(_estadoFiltro, out var estado)) return;
+        if (GrupoDeVista(_vistaLista) is { } grupo && !GruposEstadoConversacion.Estados(grupo).Contains(estado))
+            _vistaLista = VistaLista.Todas;
+    }
 
     /// <summary>
     /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta

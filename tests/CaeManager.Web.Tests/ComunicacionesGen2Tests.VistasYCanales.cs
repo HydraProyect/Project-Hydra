@@ -373,18 +373,54 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public void Un_estado_concreto_de_la_URL_manda_sobre_el_grupo_de_la_vista_y_Resuelta_no_queda_vacia_bajo_Abiertas()
+    public void Un_estado_de_la_URL_que_no_cabe_en_Abiertas_deja_la_vista_en_Todas_y_la_lista_no_queda_vacia()
     {
         var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
 
         var consulta = ConsultasDeLista(mediador).Last();
         consulta.Estado.Should().Be(EstadoConversacion.Cerrada);
-        consulta.GrupoEstado.Should().BeNull("el estado concreto acota más que el grupo");
+        consulta.GrupoEstado.Should().BeNull("la vista pasó a «Todas», que no manda grupo");
         AsuntosVisibles(cut).Should().Equal(["Cerrada"]);
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas", "el título dice lo que se está viendo");
     }
 
     [Fact]
-    public async Task Quitar_el_estado_concreto_devuelve_el_grupo_a_la_vista()
+    public void Un_estado_de_la_URL_que_cabe_en_Abiertas_conserva_la_vista_y_manda_el_grupo()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Abierta");
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.Estado.Should().Be(EstadoConversacion.Abierta);
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
+    }
+
+    [Fact]
+    public async Task Elegir_a_mano_una_vista_que_no_contiene_el_estado_manda_el_grupo_y_no_amplia_lo_visible()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
+
+        await ElegirVistaAsync(cut, "Abiertas");
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.Estado.Should().Be(EstadoConversacion.Cerrada);
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        AsuntosVisibles(cut).Should().BeEmpty("una conversación Cerrada no es de la vista Abiertas");
+    }
+
+    [Fact]
+    public async Task Con_un_estado_concreto_las_cifras_de_Archivadas_y_Todas_siguen_cuadrando()
+    {
+        var (cut, _) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
+        await AbrirPanelDeVistasAsync(cut);
+        await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
+
+        CifraDeVista(cut, "Archivadas").Should().Be("1");
+        CifraDeVista(cut, "Todas").Should().Be("1");
+    }
+
+    [Fact]
+    public async Task Elegir_un_estado_archivado_bajo_Abiertas_pasa_a_Todas_y_quitarlo_no_vuelve_a_Abiertas()
     {
         var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
 
@@ -394,8 +430,8 @@ public partial class ComunicacionesGen2Tests
 
         await SelectorDeEstado(cut).ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = string.Empty });
 
-        ConsultasDeLista(mediador).Last().GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
-        AsuntosVisibles(cut).Should().BeEquivalentTo(AsuntosVivos);
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().BeNull("la vista sigue en «Todas» hasta que se elija otra");
+        AsuntosVisibles(cut).Should().HaveCount(6);
     }
 
     // ---------------------------------------------------------------- chips de canal
