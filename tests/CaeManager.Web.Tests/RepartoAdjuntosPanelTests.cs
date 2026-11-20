@@ -177,7 +177,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         Texto(cut).Should().Contain("3 adjuntos: 2 por revisar, 1 sin destino");
         Texto(cut).Should().Contain("Requieren decisión · 3");
         cut.FindAll(".adjb-e").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Revisar", "Revisar", "Sin destino");
-        Botones(cut).Should().Contain(["Plegar", "Por revisar primero", "Por Trabajador", "Revisar 3 uno a uno"]);
+        Botones(cut).Should().Contain(["Plegar los adjuntos", "Por revisar primero", "Por Trabajador", "Revisar todos los adjuntos"]);
         cut.Find("a[href^='/comunicaciones/adjuntos/']").GetAttribute("target").Should().Be("_blank");
     }
 
@@ -231,17 +231,17 @@ public class RepartoAdjuntosPanelTests : BunitContext
             return resultado;
         };
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => cut.Find(".adjb [role='alert']").TextContent.Should().Contain("puede estar desactualizado"));
         // La fila vieja sigue a la vista, pero nada se puede tocar: el adjunto ya asignado aparecería como «Listo».
         cut.FindAll(".adjb-e").Should().NotBeEmpty();
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll(".adjb select").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
         cut.FindAll(".adjb input").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
         cut.FindAll(".adjb-p button").Should().OnlyContain(b => b.HasAttribute("disabled"));
         cut.FindAll(".adjb-m button").Should().HaveCount(3).And.OnlyContain(b => b.HasAttribute("disabled"));
-        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Descartar").Click();
+        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Ignorar adjunto").Click();
         mediador.De<ResolverAdjuntoCommand>().Should().BeEmpty("ni forzando el clic se actúa sobre filas desfasadas");
 
         mediador.RepartoFalla = false;
@@ -276,9 +276,9 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.Find("[data-selectores='fallo']").TextContent.Should().Contain("No pudimos cargar los nombres");
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("No se puede asignar hasta cargar los nombres del destino y del tipo.").And.NotContain("1 listo");
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue("el lote no lleva lo que no se puede nombrar");
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue("el lote no lleva lo que no se puede nombrar");
 
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
         cut.Find(".adjb-uno strong").TextContent.Should().Be("doc.pdf");
         cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
         mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
@@ -350,7 +350,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.Find("[data-selectores='no-identificados']").TextContent.Should().NotContain("No pudimos cargar los nombres");
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("Destino actual").And.Contain("elige uno de la lista para poder asignarlo");
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue();
 
         // El Trabajador entra en la cartera después de abrir el hilo: la recarga siguiente vuelve a leer los selectores y lo nombra.
         mediador.Trabajadores.Add(new(nuevo, "Lucía Mora", null, null));
@@ -358,7 +358,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
         Texto(cut).Should().Contain("Lucía Mora");
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeFalse();
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]
@@ -398,8 +398,8 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("no está entre los que puedes elegir: elige uno de la lista").And.NotContain("1 listo");
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue("el lote no lleva un tipo que no es de la clase del destino");
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue("el lote no lleva un tipo que no es de la clase del destino");
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
         cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
         mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
         cut.Find("[data-selectores='no-identificados'] button").TextContent.Trim().Should().Be("Reintentar");
@@ -441,7 +441,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         Texto(cut).Should().NotContain("Con el rol Consulta");
-        cut.Find("button.mini").HasAttribute("disabled").Should().BeFalse();
+        cut.Find(".adjb-a button").HasAttribute("disabled").Should().BeFalse();
         cut.Find("select[aria-label='Destino de b.pdf']").HasAttribute("disabled").Should().BeFalse();
     }
 
@@ -514,7 +514,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
         cut.Find("button[aria-label='Más acciones de a.pdf']").Click();
-        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Rechazar").Click();
+        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Rechazar documento").Click();
         cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Confirmar").HasAttribute("disabled").Should().BeTrue();
 
         cut.Find("input[aria-label='Motivo del rechazo de a.pdf']").Input("No es de esta obra");
@@ -534,7 +534,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
         cut.Find("button[aria-label='Más acciones de firma.png']").Click();
-        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Descartar").Click();
+        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Ignorar adjunto").Click();
 
         cut.WaitForAssertion(() => mediador.De<ResolverAdjuntoCommand>().Should().ContainSingle());
         mediador.De<ResolverAdjuntoCommand>().Single().Should().Be(new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Descartar));
@@ -566,7 +566,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
-        cut.Find(".adjb-r").TextContent.Should().Be("1 asignado, 1 descartado");
+        cut.Find(".adjb-r").TextContent.Should().Be("1 asignado, 1 ignorado");
         cut.FindAll(".adjb-w").Should().BeEmpty();
         cut.Find(".adjb-c button").Click();
 
@@ -586,7 +586,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("Indica la fecha de emisión para poder asignarlo.");
         Texto(cut).Should().Contain("1 adjunto con destino y tipo espera su fecha de emisión.");
-        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue();
     }
 
     [Fact]
@@ -602,7 +602,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         EscribirEmision(cut, "seguro.pdf", "2026-03-02");
 
         cut.WaitForAssertion(() => cut.FindAll(".adjb-e").Select(e => e.TextContent.Trim()).Should().OnlyContain(t => t == "Listo"));
-        var asignar = cut.Find(".adjb-p .boton-primario");
+        var asignar = cut.Find(".adjb-p .adjb-g button");
         asignar.TextContent.Trim().Should().Be("Asignar 2 listos a 1 Trabajador y 1 Empresa");
         asignar.GetAttribute("title").Should().Be("Una sola aprobación. No envía nada al remitente.");
         asignar.HasAttribute("disabled").Should().BeFalse();
@@ -623,7 +623,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         EscribirEmision(cut, "dni-pedro.pdf", "2026-04-01");
         cut.Find("input[aria-label='No caduca: dni-pedro.pdf']").Change(true);
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
         var lote = mediador.De<AsignarAdjuntosLoteCommand>().Single();
@@ -660,7 +660,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         EscribirEmision(cut, "bueno.pdf", "2026-03-01");
         EscribirEmision(cut, "malo.pdf", "2026-03-01");
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => cut.Find($".adjb-w[data-adjunto='{malo.Id}'] [role='alert']").TextContent
             .Should().Contain("ya tiene un Documento vigente"));
@@ -677,7 +677,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         foreach (var a in adjuntos) EscribirEmision(cut, a.NombreArchivo, "2026-03-01");
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().HaveCount(2));
         mediador.De<AsignarAdjuntosLoteCommand>().Select(c => c.Adjuntos.Count).Should().Equal(20, 5);
@@ -697,7 +697,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         foreach (var a in adjuntos) EscribirEmision(cut, a.NombreArchivo, "2026-03-01");
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes
             .Should().Contain(t => t.Mensaje.Contains("20 documentos asignados")));
@@ -716,7 +716,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         foreach (var a in adjuntos) EscribirEmision(cut, a.NombreArchivo, "2026-03-01");
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes
             .Should().Contain(t => t.Mensaje.Contains("20 documentos asignados")));
@@ -747,7 +747,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         EscribirEmision(cut, "dudoso.pdf", "2026-03-01");
 
-        cut.Find(".adjb-p .boton-primario").Click();
+        cut.Find(".adjb-p .adjb-g button").Click();
 
         cut.WaitForAssertion(() => cut.Find($".adjb-w[data-adjunto='{adjunto.Id}'] [role='alert']").TextContent
             .Should().Contain("No se pudo confirmar"));
@@ -811,7 +811,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
             [new(primero.Id, EstadoAsignacionAdjunto.Conflicto, null, "Ya hay un Documento vigente.")]);
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
         cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
         cut.Find(".adjb-uno select[aria-label='Tipo de documento de a.pdf']").Change(TipoDniTrabajador.ToString());
         cut.Find(".adjb-uno input[aria-label='Fecha de emisión de a.pdf']").Change("2026-03-01");
@@ -829,7 +829,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
 
         cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
         cut.Find(".adjb-uno-titulos .m-d").TextContent.Should().Contain("Adjunto 1 de 2");
@@ -847,7 +847,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).HasAttribute("disabled").Should().BeTrue();
         cut.FindAll(".adjb-uno").Should().BeEmpty();
     }
 
@@ -863,10 +863,248 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         // Al escribir la emisión la fila cambia de grupo pero sigue a la vista: quien corrige el vencimiento no la pierde.
         cut.FindAll(".adjb-w").Should().HaveCount(2);
-        cut.FindAll("[data-grupo] button").Single(b => b.TextContent.Trim() == "Plegar").Click();
+        cut.FindAll("[data-grupo] button").Single(b => b.TextContent.Trim() == "Plegar los listos").Click();
         cut.FindAll(".adjb-w").Should().HaveCount(1);
-        cut.FindAll("[data-grupo] button").Single(b => b.TextContent.Trim() == "Mostrar").Click();
+        cut.FindAll("[data-grupo] button").Single(b => b.TextContent.Trim() == "Mostrar los listos").Click();
 
         cut.FindAll(".adjb-w").Should().HaveCount(2);
+    }
+
+    // ---------- Lienzo «Pulida: correo con 8 adjuntos» (2026-11-20): pie, agrupación y estados de cada adjunto ----------
+
+    private static string[] TextosDe(AngleSharp.Dom.IElement contenedor, string selector) =>
+        contenedor.QuerySelectorAll(selector).Select(e => e.TextContent.Trim()).ToArray();
+
+    [Fact]
+    public void El_pie_no_lleva_primario_y_ofrece_asignar_los_listos_y_revisar_todos_los_adjuntos()
+    {
+        Preparar(Roles.GestorCae, Adj("dni-marta.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("suelto.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "dni-marta.pdf", "2026-03-01");
+        cut.WaitForAssertion(() => cut.Find(".adjb-p .adjb-g button").TextContent.Should().Contain("1 listo"));
+
+        // Un solo primario por superficie: el del pie es secundario (el primario es «Asignar documento» de la revisión uno a uno).
+        cut.FindAll(".adjb-p .boton-primario").Should().BeEmpty();
+        var botones = cut.FindAll(".adjb-p .adjb-g button");
+        botones.Select(b => b.TextContent.Trim()).Should().Equal("Asignar 1 listo a 1 Trabajador", "Revisar todos los adjuntos");
+        botones.Should().OnlyContain(b => b.ClassList.Contains("boton-secundario") && b.ClassList.Contains("boton-pequeno"));
+        botones[0].GetAttribute("title").Should().Be("Una sola aprobación. No envía nada al remitente.");
+        botones[1].HasAttribute("disabled").Should().BeFalse("queda un adjunto que pide una decisión");
+        cut.Find(".adjb-s").TextContent.Should().Be("Marta Ruiz: DNI");
+    }
+
+    [Fact]
+    public void Sin_adjuntos_que_decidir_Revisar_todos_los_adjuntos_se_desactiva_y_el_pie_desaparece_al_resolverlo_todo()
+    {
+        Preparar(Roles.GestorCae, Adj("dni-marta.pdf", trabajador: Marta, tipo: TipoDniTrabajador));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "dni-marta.pdf", "2026-03-01");
+        cut.WaitForAssertion(() => cut.Find(".adjb-p .adjb-g button").TextContent.Should().Contain("1 listo"));
+        cut.FindAll(".adjb-p .adjb-g button")[1].HasAttribute("disabled").Should().BeTrue();
+
+        cut.Find(".adjb-p .adjb-g button").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".adjb-p").Should().BeEmpty());
+    }
+
+    [Fact]
+    public void Cada_estado_de_adjunto_lleva_su_rotulo_y_su_tono_y_solo_Listo_no_es_neutro()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("listo.pdf", trabajador: Marta, tipo: TipoDniTrabajador),
+            Adj("revisar.pdf", trabajador: Pedro),
+            Adj("sin.pdf"),
+            Adj("asignado.pdf", trabajador: Marta, tipo: TipoDniTrabajador, estado: EstadoRepartoAdjunto.Asignado),
+            Adj("rechazado.pdf", estado: EstadoRepartoAdjunto.Rechazado, motivo: "No es de esta obra"),
+            Adj("ignorado.pdf", estado: EstadoRepartoAdjunto.Descartado));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "listo.pdf", "2026-03-01");
+        cut.WaitForAssertion(() => cut.Find(".adjb-r").TextContent.Should().Contain("1 listo"));
+        cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim().StartsWith("Ver resueltos")).Click();
+
+        string Tono(string archivo) => cut.FindAll(".adjb-w").Single(w => w.TextContent.Contains(archivo))
+            .QuerySelector(".adjb-e")!.ClassList.Single(c => c.StartsWith("badge-") && c != "badge-pequeno");
+        string Rotulo(string archivo) => cut.FindAll(".adjb-w").Single(w => w.TextContent.Contains(archivo)).QuerySelector(".adjb-e")!.TextContent.Trim();
+
+        new[] { "listo.pdf", "revisar.pdf", "sin.pdf", "asignado.pdf", "rechazado.pdf", "ignorado.pdf" }.Select(Rotulo)
+            .Should().Equal("Listo", "Revisar", "Sin destino", "Asignado", "Rechazado", "Ignorado");
+        Tono("listo.pdf").Should().Be("badge-exito");
+        new[] { "revisar.pdf", "sin.pdf", "asignado.pdf", "rechazado.pdf", "ignorado.pdf" }.Select(Tono).Should().OnlyContain(t => t == "badge-neutro");
+    }
+
+    [Fact]
+    public void Un_adjunto_asignado_se_ve_resuelto_con_su_destino_y_sin_acciones()
+    {
+        Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("asignado.pdf", trabajador: Pedro, tipo: TipoDniTrabajador, estado: EstadoRepartoAdjunto.Asignado));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim() == "Ver resueltos (1)").Click();
+
+        var fila = cut.FindAll(".adjb-w").Single(w => w.TextContent.Contains("asignado.pdf"));
+        fila.QuerySelector(".adjb-e")!.TextContent.Trim().Should().Be("Asignado");
+        fila.QuerySelector(".adjb-v")!.TextContent.Trim().Should().Be("Pedro Gil");
+        fila.QuerySelectorAll("select, input, button").Should().BeEmpty("lo asignado no se edita ni se reabre desde aquí");
+        TextosDe(fila, "a.boton").Should().Equal("Ver adjunto");
+    }
+
+    [Fact]
+    public void Un_vencimiento_que_ya_paso_se_dice_en_la_fila_y_ofrece_rechazar_sin_cambiar_la_situacion()
+    {
+        var adjunto = Adj("seguro.pdf", empresa: EmpresaPropia, tipo: TipoSeguroEmpresa);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "seguro.pdf", "2020-01-01");
+        cut.FindAll(".adjb-w").Single().QuerySelector("[data-vigencia]").Should().BeNull();
+
+        cut.Find("input[aria-label='Fecha de vencimiento de seguro.pdf']").Change("2020-09-30");
+
+        var vigencia = cut.Find("[data-vigencia='caducado']");
+        vigencia.TextContent.Trim().Should().Be("Caducó el 30/09/2020");
+        vigencia.ClassList.Should().Contain("adjb-v-mal");
+        // Sigue «Listo» y asignable: lo que ya caducó se avisa, no se prohíbe (el reparto no inventa esa regla).
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo");
+        cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeFalse();
+        var accion = cut.Find(".adjb-a button[aria-label='Rechazar el documento seguro.pdf']");
+        accion.TextContent.Trim().Should().Be("Rechazar documento");
+        cut.FindAll(".adjb-a button").Select(b => b.TextContent.Trim()).Should().NotContain("Elegir destino");
+
+        accion.Click();
+
+        cut.Find("input[aria-label='Motivo del rechazo de seguro.pdf']").Should().NotBeNull();
+        mediador.De<ResolverAdjuntoCommand>().Should().BeEmpty("rechazar pide el motivo antes de enviar nada");
+    }
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    [Fact]
+    public void El_dia_del_vencimiento_aun_no_esta_caducado_y_el_dia_siguiente_si()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("hoy.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("ayer.pdf", trabajador: Pedro, tipo: TipoDniTrabajador));
+        Services.AddSingleton<TimeProvider>(new RelojFijo(new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero)));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("input[aria-label='Fecha de vencimiento de hoy.pdf']").Change("2026-11-20");
+        cut.Find("input[aria-label='Fecha de vencimiento de ayer.pdf']").Change("2026-11-19");
+
+        cut.FindAll("[data-vigencia='caducado']").Select(e => e.TextContent.Trim()).Should().Equal("Caducó el 19/11/2026");
+    }
+
+    [Fact]
+    public void Un_vencimiento_pasado_en_un_adjunto_sin_destino_mantiene_Elegir_destino_como_accion_de_fila()
+    {
+        Preparar(Roles.GestorCae, Adj("suelto.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("input[aria-label='Fecha de vencimiento de suelto.pdf']").Change("2020-01-01");
+
+        var acciones = cut.FindAll(".adjb-a button").Select(b => b.TextContent.Trim()).ToArray();
+        acciones.Should().Contain("Elegir destino").And.NotContain("Rechazar documento");
+    }
+
+    [Fact]
+    public void Un_vencimiento_futuro_o_con_No_caduca_no_se_marca_como_caducado()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("futuro.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("eterno.pdf", trabajador: Pedro, tipo: TipoDniTrabajador));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("input[aria-label='Fecha de vencimiento de futuro.pdf']").Change("2099-12-31");
+        cut.Find("input[aria-label='Fecha de vencimiento de eterno.pdf']").Change("2020-01-01");
+        cut.Find("input[aria-label='No caduca: eterno.pdf']").Change(true);
+
+        cut.FindAll("[data-vigencia]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_fila_pendiente_lleva_Ver_adjunto_el_menu_de_mas_acciones_y_sus_tres_acciones_con_objeto()
+    {
+        Preparar(Roles.GestorCae, Adj("suelto.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        var fila = cut.Find(".adjb-w");
+
+        var ver = fila.QuerySelector("a[aria-label='Ver adjunto suelto.pdf']")!;
+        ver.TextContent.Trim().Should().Be("Ver adjunto");
+        ver.GetAttribute("target").Should().Be("_blank");
+        ver.GetAttribute("href").Should().StartWith("/comunicaciones/adjuntos/");
+        var mas = cut.Find("button[aria-label='Más acciones de suelto.pdf']");
+        mas.TextContent.Trim().Should().BeEmpty("es un botón de solo icono");
+        mas.QuerySelector("svg").Should().NotBeNull();
+        mas.GetAttribute("aria-expanded").Should().Be("false");
+        TextosDe(fila, ".adjb-a button").Should().Equal("Elegir destino", "");
+
+        mas.Click();
+
+        cut.Find("button[aria-label='Más acciones de suelto.pdf']").GetAttribute("aria-expanded").Should().Be("true");
+        TextosDe(cut.Find(".adjb-m"), "button").Should().Equal("Elegir destino", "Rechazar documento", "Ignorar adjunto");
+    }
+
+    [Fact]
+    public void Las_cabeceras_de_grupo_y_sus_conmutadores_siguen_el_orden_del_lienzo()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("listo.pdf", trabajador: Marta, tipo: TipoDniTrabajador),
+            Adj("suelto.pdf"),
+            Adj("hecho.pdf", estado: EstadoRepartoAdjunto.Descartado));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "listo.pdf", "2026-03-01");
+        cut.WaitForAssertion(() => cut.FindAll("[data-grupo]").Should().Contain(g => g.TextContent.Contains("Listos · 1")));
+
+        cut.FindAll("[data-grupo] > span:first-child").Select(g => g.TextContent.Trim()).Should().Equal("Requieren decisión · 1", "Listos · 1");
+        // Los conmutadores van en la cabecera del primer grupo: agrupar y, solo si hay resueltos, «Ver resueltos (n)».
+        TextosDe(cut.FindAll("[data-grupo]")[0], ".adjb-hc button").Should().Equal("Por revisar primero", "Por Trabajador", "Ver resueltos (1)");
+        TextosDe(cut.FindAll("[data-grupo]")[1], ".adjb-hc button").Should().Equal("Plegar los listos");
+        cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim() == "Por revisar primero").GetAttribute("aria-pressed").Should().Be("true");
+
+        cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim() == "Ver resueltos (1)").Click();
+
+        cut.FindAll("[data-grupo] > span:first-child").Select(g => g.TextContent.Trim()).Should().Equal("Requieren decisión · 1", "Listos · 1", "Resueltos · 1");
+    }
+
+    [Fact]
+    public void La_cabecera_pliega_y_muestra_los_adjuntos_con_el_objeto_del_lienzo()
+    {
+        Preparar(Roles.GestorCae, Adj("suelto.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.Find(".adjb-c strong").TextContent.Should().Be("Adjuntos del correo");
+        cut.Find(".adjb-r").TextContent.Should().Be("1 adjunto: 1 sin destino");
+
+        cut.Find(".adjb-c button").Click();
+
+        cut.Find(".adjb-c button").TextContent.Trim().Should().Be("Mostrar los adjuntos");
+        cut.Find(".adjb-c button").GetAttribute("aria-expanded").Should().Be("false");
+        cut.FindAll(".adjb-w").Should().BeEmpty();
+        cut.FindAll(".adjb-p").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_revision_uno_a_uno_usa_los_verbos_con_objeto_y_no_el_rechazar_y_reclamar_del_Visor()
+    {
+        Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+
+        var pie = TextosDe(cut.Find(".adjb-uno-pie"), "button");
+
+        pie.Should().Equal("Anterior", "Siguiente", "Rechazar documento", "Ignorar adjunto", "Asignar documento");
+        // Un único primario por superficie: en la revisión uno a uno es «Asignar documento» (el pie del bloque no se ve).
+        var primarios = cut.FindAll(".adjb .boton-primario");
+        primarios.Should().ContainSingle().Which.TextContent.Trim().Should().Be("Asignar documento");
+        // Aquí rechazar no reclama nada al remitente: el «Rechazar y reclamar el documento» es del Visor y es otra acción.
+        Texto(cut).Should().NotContain("reclamar");
     }
 }
