@@ -226,7 +226,7 @@
     <value>Conserva Outbound</value>
   </data>
   <data name="CorreccionDeclaracionConservaAyuda" xml:space="preserve">
-    <value>No se declara «solo Inbound»: la organización mantiene Outbound.</value>
+    <value>No se declara «solo Inbound»: la organización conserva Outbound.</value>
   </data>
   <data name="ErrorDeclaracionCorreccion" xml:space="preserve">
     <value>Elige si la organización es «solo Inbound» o conserva Outbound.</value>
@@ -253,7 +253,7 @@
     <value>Elige el tramo y la modalidad del Producto Contratado.</value>
   </data>
   <data name="DeclaracionSoloInboundTitulo" xml:space="preserve">
-    <value>Declaro que esta organización contrata solo Inbound.</value>
+    <value>Declaro que este Tenant no usa Outbound (solo Inbound).</value>
   </data>
   <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
     <value>Opcional. Márcala solo si la organización no usa Outbound: con la declaración y sin línea Outbound, se le cierra Outbound. Sin marcar, conserva Outbound.</value>
