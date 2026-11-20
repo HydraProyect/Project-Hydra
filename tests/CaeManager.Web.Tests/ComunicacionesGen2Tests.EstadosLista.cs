@@ -75,7 +75,7 @@ public partial class ComunicacionesGen2Tests
     {
         var (cut, mediador) = Renderizar(new Escenario());
 
-        cut.Find(".bandeja-lista .bandeja-al-dia .bandeja-al-dia-texto").TextContent.Trim().Should().Be("Al día");
+        cut.Find(".bandeja-lista .bandeja-al-dia span").TextContent.Trim().Should().Be("Al día");
         cut.FindAll(".bandeja-lista .bandeja-al-dia .badge").Should().BeEmpty("en el lienzo «Al día» es texto apagado, no un distintivo");
         TituloDelVacio(cut).Should().Be("No quedan conversaciones");
         TextoDelVacio(cut).Should().Be("Los mensajes nuevos entrarán en su buzón.");
@@ -152,7 +152,7 @@ public partial class ComunicacionesGen2Tests
         var (cut, _) = Renderizar(escenario);
 
         TituloDelVacio(cut).Should().Be("No quedan conversaciones");
-        cut.Find(".bandeja-lista .bandeja-al-dia-texto").TextContent.Trim().Should().Be("Al día");
+        cut.Find(".bandeja-lista .bandeja-al-dia span").TextContent.Trim().Should().Be("Al día");
     }
 
     [Theory]

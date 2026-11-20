@@ -1049,10 +1049,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Todas» y el canal.
     /// </summary>
     private bool HayFiltrosActivos =>
-        !string.IsNullOrEmpty(_intencionFiltro) ||
-        !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
-        || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
-        || _vistaLista != VistaLista.Todas || _canalFiltro is not null;
+        HayFiltrosAvanzados || HayBusqueda || _vistaLista != VistaLista.Todas || _canalFiltro is not null;
 
     // --- Vacíos de la lista (lienzo «Pulida: bandeja de la cartera», L-15) ---
 
@@ -1064,7 +1061,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         || !string.IsNullOrWhiteSpace(_mesFiltro) || !string.IsNullOrWhiteSpace(_clienteIdFiltro);
 
     /// <summary>
-    /// El Tenant beneficiario no tiene ningún buzón de correo conectado (ver <see cref="EsBuzonDeLaBandeja"/>). Solo se mira cuando la
+    /// El Tenant beneficiario no tiene ningún buzón de correo conectado (ver <see cref="EsBuzonConectado"/>). Solo se mira cuando la
     /// lista llega vacía y sin ningún filtro puesto; con filtros, un vacío nunca es «Sin buzones conectados».
     /// </summary>
     private bool _sinBuzonesConectados;
@@ -1090,7 +1087,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         : TextosLista["NadaEnVistaAyuda"].Value;
 
     /// <summary>La conexión de correo que alimenta la bandeja y desde la que se redacta: Habilitada y no personal de un Gestor CAE.</summary>
-    private static bool EsBuzonDeLaBandeja(ConexionIntegracionListaDto c) =>
+    private static bool EsBuzonConectado(ConexionIntegracionListaDto c) =>
         c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null;
 
     /// <summary>
@@ -1102,7 +1099,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         try
         {
             var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), token);
-            return !conexiones.Any(EsBuzonDeLaBandeja);
+            return !conexiones.Any(EsBuzonConectado);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
@@ -2468,7 +2465,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), _ciclo.Token);
         _conexionesRedactar = conexiones
-            .Where(EsBuzonDeLaBandeja)
+            .Where(EsBuzonConectado)
             .ToList();
         _conexionRedactarId = _conexionesRedactar.Count == 1 ? _conexionesRedactar[0].Id : null;
         _instantaneaRedactar.Fijar(ValoresRedactar());

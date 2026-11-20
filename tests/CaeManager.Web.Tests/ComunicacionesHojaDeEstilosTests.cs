@@ -120,7 +120,7 @@ public class ComunicacionesHojaDeEstilosTests
             .Should().MatchRegex(@"padding\s*:\s*var\(--space-2\) var\(--space-3\)");
         Regla(css, @"\.bandeja-cargando-texto").Should().MatchRegex(@"padding\s*:\s*0 var\(--space-4\)")
             .And.MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");
-        Regla(css, @"\.bandeja-al-dia-texto").Should().MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");
+        Regla(css, @"\.bandeja-al-dia").Should().MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");
     }
 
     [Fact]
