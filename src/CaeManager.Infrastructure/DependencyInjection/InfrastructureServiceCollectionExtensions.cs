@@ -399,6 +399,28 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae,
             CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ConectorCtaimaCae>();
 
+        // Conector de la API pública de dokify, de solo lectura. Se registra siempre: si llama o no lo decide la puerta, y
+        // el interruptor del proveedor nace apagado. Sin redirecciones; sin el pipeline de resiliencia, porque no constan
+        // los límites de uso; con todas las cabeceras tachadas en el log del HttpClient (RedactLoggedHeaders con predicado,
+        // no con lista, como en el de CTAIMACAE.net) y, además, sin el registro del HttpClient: el CIF o NIF por el que se
+        // pregunta va en la ruta, y su traza de petición la escribiría.
+        services.AddOptions<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyOptions>()
+            .Bind(configuration.GetSection(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(), "Integraciones:Dokify necesita una UrlBase HTTPS absoluta acabada en barra, un TimeoutSegundos entre 1 y 120 y un EsquemaAutorizacion de letras.")
+            .ValidateOnStart();
+        services.AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyClient>((sp, cliente) =>
+            {
+                var opcionesDokify = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<
+                    CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyOptions>>().Value;
+                cliente.Timeout = TimeSpan.FromSeconds(opcionesDokify.TimeoutSegundos);
+                cliente.MaxResponseContentBufferSize = CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyClient.TamanoMaximoRespuesta;
+            })
+            .ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.DokifyClient.CrearManejadorSinRedirecciones)
+            .RedactLoggedHeaders(_ => true)
+            .RemoveAllLoggers();
+        services.AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae,
+            CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify.ConectorDokify>();
+
         // F3b: IClienteRepository/ClienteRepository e
         // ISubcontrataRepository/SubcontrataRepository retirados — Cliente y
         // Subcontrata pasan a ser Empresa contraparte (EsPropia=false), ver

@@ -62,18 +62,70 @@ public class ExposicionDeRedDelDespliegueTests
     /// redirecciones, sin el pipeline de reintentos y con el valor de todas las cabeceras tachado en el log.
     /// </summary>
     [Fact]
-    public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras()
+    public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras() =>
+        ComprobarRegistroDelCliente("CtaimaCaeClient", "Ctaima", ["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"]);
+
+    /// <summary>
+    /// El cliente de dokify lleva el token en <c>Authorization</c> y el CIF o NIF por el que pregunta en la ruta: además del
+    /// cerco del de CTAIMACAE.net, su registro apaga el log del HttpClient, que escribiría la ruta. Solo el log: que
+    /// OpenTelemetry y Sentry no exporten la ruta lo prueba <see cref="La_ruta_con_identificadores_no_sale_ni_por_OpenTelemetry_ni_por_Sentry"/>.
+    /// </summary>
+    [Fact]
+    public void El_cliente_http_de_dokify_no_sigue_redirecciones_no_reintenta_tacha_sus_cabeceras_y_apaga_el_log_del_httpclient() =>
+        ComprobarRegistroDelCliente("DokifyClient", "Dokify", ["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders", "RemoveAllLoggers"]);
+
+    /// <summary>
+    /// El CIF o NIF de la ruta de dokify sale también por la instrumentación HTTP de OpenTelemetry (span con
+    /// <c>url.full</c> hacia Seq) y por el manejador de Sentry (miga de pan y evento de un 5xx). El cliente marca cada
+    /// petición y Program.cs filtra las marcadas en las dos. El comportamiento con la instrumentación real lo prueba
+    /// <c>TrazasSinIdentificadoresEnLaRutaTests</c> (Web.Tests); esto fija el cableado. CTAIMACAE.net no se marca: su
+    /// ruta es una constante sin identificadores (el Id de su Tenant va en una cabecera, tachada en el log).
+    /// </summary>
+    [Fact]
+    public void La_ruta_con_identificadores_no_sale_ni_por_OpenTelemetry_ni_por_Sentry()
     {
+        var raiz = RaizDelRepositorio();
+        var program = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Web", "Program.cs"));
+        var cliente = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Infrastructure", "Integraciones",
+            "ConectoresPlataformaCae", "Dokify", "DokifyClient.cs"));
+
+        cliente.Should().Contain("PeticionConIdentificadoresEnLaRuta.Marcar(peticion);", "cada petición de dokify va marcada");
+        System.Text.RegularExpressions.Regex.Matches(cliente, @"new HttpRequestMessage\(").Count
+            .Should().Be(1, "el cliente construye sus peticiones en un único sitio, el que las marca");
+        System.Text.RegularExpressions.Regex.Matches(cliente, @"\.SendAsync\(").Count
+            .Should().Be(1, "el cliente envía en un único sitio");
+        cliente.Should().MatchRegex(@"using \(PeticionConIdentificadoresEnLaRuta\.Enviando\(\)\)\s+respuesta = await http\.SendAsync\(",
+            "el envío va dentro del ámbito por el que el filtro de migas de Sentry reconoce la petición");
+
+        var trazas = program.IndexOf(".WithTracing(", StringComparison.Ordinal);
+        var metricas = program.IndexOf(".WithMetrics(", trazas, StringComparison.Ordinal);
+        trazas.Should().BeGreaterThan(0);
+        metricas.Should().BeGreaterThan(trazas);
+        var tramoTrazas = program[trazas..metricas];
+        System.Text.RegularExpressions.Regex.Matches(tramoTrazas, @"\.AddHttpClientInstrumentation\(").Count.Should().Be(1);
+        tramoTrazas.Should().Contain(".AddHttpClientInstrumentation(TrazasSinIdentificadoresEnLaRuta.ConfigurarInstrumentacionHttp)",
+            "una instrumentación HTTP de trazas sin el filtro exportaría url.full con el CIF o el NIF");
+
+        program.Should().Contain("options.SetBeforeBreadcrumb(TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan);");
+        program.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista)");
+        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeSend\(").Count
+            .Should().Be(1, "un segundo SetBeforeSend sustituiría al que filtra");
+        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count.Should().Be(1);
+    }
+
+    private static void ComprobarRegistroDelCliente(string cliente, string carpeta, string[] encadenados)
+    {
+        var tipo = $"CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.{carpeta}.{cliente}";
         var contenido = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
             "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"));
 
-        var inicio = contenido.IndexOf("AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient>", StringComparison.Ordinal);
-        inicio.Should().BeGreaterThan(0, "el cliente de CTAIMACAE.net se registra con AddHttpClient en este fichero");
+        var inicio = contenido.IndexOf($"AddHttpClient<{tipo}>", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0, $"{cliente} se registra con AddHttpClient en este fichero");
         var fin = contenido.IndexOf("AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae", inicio, StringComparison.Ordinal);
         fin.Should().BeGreaterThan(inicio, "el conector se registra justo después de su cliente");
         var registro = contenido[inicio..fin];
 
-        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)");
+        registro.Should().Contain($"ConfigurePrimaryHttpMessageHandler({tipo}.CrearManejadorSinRedirecciones)");
         // Tachado total con predicado: RedactLoggedHeaders(lista) sustituye el predicado por defecto de .NET 9+
         // (que tacha todo) y dejaría en claro Set-Cookie, Location u Ocp-Apim-Trace-Location.
         registro.Should().Contain(".RedactLoggedHeaders(_ => true)",
@@ -102,8 +154,8 @@ public class ExposicionDeRedDelDespliegueTests
             "un comentario o un escape unicode en el tramo burlaría la lista de abajo");
         System.Text.RegularExpressions.Regex.Matches(registro, @"(?m)(?:^\s*|\)\s*[!?]?)\s*\.\s*@?(\w+)\s*[<(]")
             .Select(m => m.Groups[1].Value)
-            .Should().Equal(["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"],
-                "el cliente de CTAIMACAE.net solo encadena su manejador sin redirecciones y el tachado total");
+            .Should().Equal(encadenados,
+                $"{cliente} solo encadena lo que declara este test: su manejador sin redirecciones y el tachado total (y, en dokify, el log apagado)");
         // Y el builder no se guarda en una variable para seguir encadenándole métodos fuera del tramo: la línea empieza
         // por «services.» y lo anterior acaba una sentencia o un bloque, así que tampoco cabe un «var b =» en la línea
         // de encima.
@@ -132,8 +184,9 @@ public class ExposicionDeRedDelDespliegueTests
                 .Concat(Directory.EnumerateFiles(raizSrc, "*.props", SearchOption.AllDirectories))
                 .Select(File.ReadAllText))
             .ToList();
-        fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\bCtaimaCaeClient\b|\([^)]*\bCtaimaCaeClient\b)").Count)
-            .Should().Be(1, "el cliente de CTAIMACAE.net se configura en un único registro de todo src");
+        var nombre = System.Text.RegularExpressions.Regex.Escape(cliente);
+        fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\b" + nombre + @"\b|\([^)]*\b" + nombre + @"\b)").Count)
+            .Should().Be(1, $"{cliente} se configura en un único registro de todo src");
         foreach (var global in new[]
                  {
                      "ConfigureHttpClientDefaults", "HttpClientFactoryOptions", "IHttpMessageHandlerBuilderFilter",

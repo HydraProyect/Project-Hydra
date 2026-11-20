@@ -182,11 +182,16 @@ builder.WebHost.UseSentry(options =>
     // el VPS); lo que sí es responsabilidad de este código es que esa caída
     // no ahogue el resto de Sentry. Ver CortacircuitoEventosSeqCaido para el
     // porqué de "acotado a Seq" y "throttle, no silencio total".
-    if (!string.IsNullOrWhiteSpace(urlSeq))
-    {
-        var cortacircuitoSeq = new CortacircuitoEventosSeqCaido(urlSeq);
-        options.SetBeforeSend((sentryEvent, _) => cortacircuitoSeq.DebeDescartar(sentryEvent) ? null : sentryEvent);
-    }
+    var cortacircuitoSeq = string.IsNullOrWhiteSpace(urlSeq) ? null : new CortacircuitoEventosSeqCaido(urlSeq);
+    options.SetBeforeSend((sentryEvent, pista) =>
+        TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista) is { } evento
+        && cortacircuitoSeq?.DebeDescartar(evento) != true
+            ? evento
+            : null);
+
+    // Una petición saliente con un CIF o un NIF en la ruta (la de una plataforma CAE) no deja su ruta en una miga de pan
+    // ni manda su 5xx a Sentry: ver TrazasSinIdentificadoresEnLaRuta.
+    options.SetBeforeBreadcrumb(TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan);
 });
 
 // OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
@@ -236,9 +241,10 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
             // MediatR: ver Observabilidad.ActivitySource / LoggingBehavior.
             .AddSource(Observabilidad.NombreOrigen)
             // HTTP entrante (páginas Razor, endpoints, API v1) y saliente
-            // (Anthropic OCR, Microsoft Graph...).
+            // (Anthropic OCR, Microsoft Graph...). Sin las salientes con un CIF o un NIF en la ruta
+            // (TrazasSinIdentificadoresEnLaRuta): su url.full llegaría a Seq.
             .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
+            .AddHttpClientInstrumentation(TrazasSinIdentificadoresEnLaRuta.ConfigurarInstrumentacionHttp)
             // EF Core: la traza real de cada SELECT/INSERT/UPDATE — lo que
             // permite ver si una latencia alta de comando viene de la cola
             // de PuertaAccesoDatos o de la consulta misma.
