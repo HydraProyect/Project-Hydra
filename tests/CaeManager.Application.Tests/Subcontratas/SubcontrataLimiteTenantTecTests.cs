@@ -17,7 +17,7 @@ namespace CaeManager.Application.Tests.Subcontratas;
 
 /// <summary>
 /// D5 abre las Subcontratas al Tenant TEC, pero no la Relación Empresarial de una Subcontrata con un Cliente empresarial:
-/// EP-4 deja al Tenant TEC «sin Clientes empresariales propios fuera de un ContratoAcceso», y D3 (EP-4, DN-7) cierra sus
+/// EP-4 deja al Tenant TEC «sin Clientes empresariales propios fuera de un ContratoAcceso», y D3 (con DN-7) cierra sus
 /// altas y restauraciones al Tenant TEC participante sin línea Outbound. Las dos vías que dependen de los datos que solo
 /// el handler carga se cierran en él, con la misma regla y el mismo error que en Empresas
 /// (<c>EditarEmpresaLimiteTenantTecTests</c>, <c>RestaurarEmpresaLimiteTenantTecTests</c>). El alta por datos

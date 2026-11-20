@@ -158,8 +158,8 @@ public class LimiteTenantTecClasificacionTests
         ClaseDelCodigo(crearCentro).Should().Be("cerrado-behavior");
         ClaseDelCodigo(crearEmpresa).Should().Be("cerrado-datos");
         ClaseDelCodigo(fijarTarifa).Should().Be("cerrado-handler");
-        // D5 abre las Subcontratas al Tenant TEC salvo la Relación Empresarial con Clientes empresariales (D3/DN-4, DN-7 y
-        // EP-4), que se cierra como en Empresas: el alta por datos y la edición y la restauración en su handler.
+        // D5 abre las Subcontratas al Tenant TEC salvo la Relación Empresarial con Clientes empresariales (EP-4, que D3
+        // aplica, y DN-7), que se cierra como en Empresas: el alta por datos y la edición y la restauración en su handler.
         ClaseDelCodigo(crearSubcontrata).Should().Be("cerrado-datos", "como CrearEmpresaCommand con ClienteIds");
         ClaseDelCodigo(editarSubcontrata).Should().Be("cerrado-handler", "como EditarEmpresaCommandHandler");
         ClaseDelCodigo(restaurarSubcontrata).Should().Be("cerrado-handler", "como RestaurarEmpresaCommandHandler");
