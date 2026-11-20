@@ -1,0 +1,176 @@
+@page "/inbound/control-acceso/asignar/{UsuarioId:guid}"
+@* AF-01 · Asignación de Centros a una persona con el rol «Control de acceso». Se abre desde la gestión de usuarios del Tenant TCE
+   por URL (el Núcleo no referencia tipos de Inbound). Solo entra quien gestiona cuentas (RolesQueGestionanCuentas: la query de la
+   cuenta lo exige); qué Centros son asignables lo decide AsignarCentrosControlAccesoCommand (pide GestionarInbound y solo toca los
+   Centros de su alcance). El Gestor CAE puede llamar al comando, pero no tiene pantalla de cuentas desde la que abrir esta. Un Centro del mismo Tenant que no se marca no se abre en portería. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Inbound.ControlAcceso.Commands.AsignarCentrosControlAcceso
+@using CaeManager.Application.Inbound.ControlAcceso.Queries.ObtenerCentrosDeControlAccesoDeUsuario
+@using CaeManager.Application.Usuarios
+@using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario
+@using CaeManager.Web.Features.Inbound.ControlAcceso.Recursos
+@using MediatR
+@implements IDisposable
+@inject Microsoft.Extensions.Localization.IStringLocalizer<TextosControlAcceso> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["AsignarTitulo", _nombre] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["AsignarTitulo", _nombre].Value} — {Marca.Nombre}")" />
+
+<ModalFormulario Visible="_visible" VisibleChanged="@(v => { if (!v) Cerrar(); })"
+                 Titulo="@Textos["AsignarTitulo", _nombre]"
+                 HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_error"
+                 Cargando="_cargando" MotivoCargando="@Textos["AsignarCargando"].Value"
+                 SinContenido="@(_asignables.Count == 0 ? SinAsignables : null)"
+                 MotivoGuardarDeshabilitado="@MotivoGuardarDeshabilitado"
+                 OnGuardar="GuardarAsync" TextoGuardar="@Textos["AsignarGuardar"]" TextoCancelar="@Textos["AsignarVolver"]">
+    <div class="campo" role="group">
+        <div class="lista-seleccion-multiple lista-seleccion-multiple-natural">
+            @foreach (var centro in _asignables)
+            {
+                <label class="campo-checkbox">
+                    <input type="checkbox"
+                           checked="@_marcados.Contains(centro.Id)"
+                           disabled="@_guardando"
+                           @onchange="e => Alternar(centro.Id, e.Value is bool marcado && marcado)" />
+                    @centro.Nombre
+                    <small class="texto-ayuda-campo"> (@centro.ClienteRazonSocial)</small>
+                </label>
+            }
+        </div>
+        <p class="texto-ayuda-campo">@Textos["AsignarAyuda"]</p>
+    </div>
+</ModalFormulario>
+</LimiteDeErrores>
+
+@code {
+    private const string RutaUsuarios = "/usuarios";
+
+    [Parameter] public Guid UsuarioId { get; set; }
+
+    [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private NavigationManager Navegacion { get; set; } = default!;
+    [Inject] private ToastService Toasts { get; set; } = default!;
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private IReadOnlyList<CentroSelectorDto> _asignables = [];
+    private readonly HashSet<Guid> _guardados = [];
+    private readonly HashSet<Guid> _marcados = [];
+    private string _nombre = string.Empty;
+    private bool _visible = true;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+
+    private bool HayCambios => !_guardados.SetEquals(_marcados);
+
+    private RenderFragment SinAsignables => builder =>
+    {
+        if (_error is not null) return;
+        builder.OpenElement(0, "p");
+        builder.AddContent(1, Textos["AsignarVacio"].Value);
+        builder.CloseElement();
+    };
+
+    /// <summary>Por qué «Guardar» está deshabilitado (el kit lo exige). Cargando lo dice el propio kit.</summary>
+    private string? MotivoGuardarDeshabilitado =>
+        _cargando ? null
+        : _asignables.Count == 0 ? (_error ?? Textos["AsignarVacio"].Value)
+        : !HayCambios ? Textos["AsignarSinCambios"].Value
+        : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cuenta = await Mediator.Send(new ObtenerCuentaUsuarioQuery(UsuarioId), _ciclo.Token);
+            if (cuenta.EsFallido || !cuenta.Valor.Roles.Contains(AutoridadSobreCuentas.RolControlAcceso))
+            {
+                _error = Textos["AsignarCuentaNoValida"].Value;
+                return;
+            }
+
+            _nombre = cuenta.Valor.NombreCompleto;
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(), _ciclo.Token);
+            var asignados = await Mediator.Send(new ObtenerCentrosDeControlAccesoDeUsuarioQuery(UsuarioId), _ciclo.Token);
+            _asignables = centros;
+            foreach (var a in asignados)
+            {
+                _guardados.Add(a.CentroId);
+                _marcados.Add(a.CentroId);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        catch (Exception)
+        {
+            _error = Textos["AsignarErrorCarga"].Value;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Alternar(Guid centroId, bool marcado)
+    {
+        _error = null;
+        if (marcado)
+            _marcados.Add(centroId);
+        else
+            _marcados.Remove(centroId);
+    }
+
+    private void Cerrar()
+    {
+        if (_guardando) return;
+        _visible = false;
+        Navegacion.NavigateTo(RutaUsuarios);
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando) return;
+        if (!HayCambios)
+        {
+            Cerrar();
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Mediator.Send(
+                new AsignarCentrosControlAccesoCommand(UsuarioId, _marcados.ToList()), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+
+            Toasts.Mostrar(Textos["AsignarGuardados", _nombre], TonoToast.Exito);
+            _guardando = false;
+            Cerrar();
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

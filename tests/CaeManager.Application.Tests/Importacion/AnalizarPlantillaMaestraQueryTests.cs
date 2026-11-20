@@ -32,12 +32,56 @@ public class AnalizarPlantillaMaestraQueryTests
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
+    private sealed class Criterio(bool cierra) : ICriterioDeOutbound
+    {
+        public PapelActivo? PapelPreguntado { get; private set; }
+
+        public Task<bool> AdmiteOutboundAsync(PapelActivo papel, CancellationToken cancellationToken = default) =>
+            Task.FromResult(!cierra);
+
+        public Task<bool> CierraPorSoloInboundAsync(PapelActivo papel, CancellationToken cancellationToken = default)
+        {
+            PapelPreguntado = papel;
+            return Task.FromResult(cierra);
+        }
+    }
+
+    private sealed class AdministradorDeOrigen : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(PapelActivo.TenantDeOrigen);
+    }
+
+    /// <summary>
+    /// «Inbound sin Outbound»: el <c>YaExiste</c> del plan diría qué Empresas, Centros y Trabajadores tiene el Tenant, así que
+    /// al Tenant solo Inbound con el papel de Tenant de origen se le niega antes de leer el archivo, y con el papel activo.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Al_Tenant_solo_Inbound_no_se_le_analiza_ni_se_consulta_nada(bool soloInbound)
+    {
+        var servicio = new ServicioFalso();
+        var criterio = new Criterio(soloInbound);
+
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new AdministradorDeOrigen(), criterio)
+            .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
+
+        criterio.PapelPreguntado.Should().Be(PapelActivo.TenantDeOrigen);
+        r.EsExitoso.Should().Be(!soloInbound);
+        servicio.Llamadas.Should().Be(soloInbound ? 0 : 1);
+        if (soloInbound) r.Error.Codigo.Should().Be("Importacion.SinLineaOutbound");
+    }
     [Fact]
     public async Task Sin_ser_Administrador_no_se_lee_el_archivo_ni_se_consulta_nada()
     {
         var servicio = new ServicioFalso();
 
-        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Gestor CAE"))
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Gestor CAE"), new Criterio(false))
             .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
 
         r.EsExitoso.Should().BeFalse();
@@ -49,7 +93,7 @@ public class AnalizarPlantillaMaestraQueryTests
     {
         var servicio = new ServicioFalso();
 
-        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Administrador"))
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Administrador"), new Criterio(false))
             .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
 
         r.EsExitoso.Should().BeTrue();
@@ -77,7 +121,7 @@ public class AnalizarPlantillaMaestraQueryTests
         var servicio = new ServicioFalso();
         var usuario = new Usuario(rol);
 
-        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, usuario)
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, usuario, new Criterio(false))
             .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
 
         r.EsExitoso.Should().Be(concede);

@@ -196,6 +196,17 @@ public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
     private static readonly AuthorizationPolicy CualquieraAutenticado =
         new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 
+    private sealed class TenantFijo : ITenantActual
+    {
+        public Guid? TenantId { get; } = Guid.NewGuid();
+    }
+
+    private sealed class NoSoloInbound : CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound
+    {
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+    }
+
     /// <summary>La composición de Program.cs: los dos handlers de papel, con ámbito.</summary>
     private static async Task<AuthorizationResult> AutorizarAsync(object? recurso, UsuarioConPapel usuario)
     {
@@ -203,6 +214,11 @@ public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
         servicios.AddLogging();
         servicios.AddAuthorizationCore();
         servicios.AddSingleton<ICurrentUserService>(usuario);
+        // Los endpoints de Outbound consultan el criterio de Outbound con el papel de Tenant de origen («Inbound sin
+        // Outbound», 2026-11-18); aquí el Tenant no es solo Inbound, así que decide solo el papel, como antes.
+        servicios.AddSingleton<ITenantActual>(new TenantFijo());
+        servicios.AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(new NoSoloInbound());
+        servicios.AddScoped<ICriterioDeOutbound, CriterioDeOutbound>();
         servicios.AddScoped<IAuthorizationHandler, PaginaDeOutboundPorPapelAuthorizationHandler>();
         servicios.AddScoped<IAuthorizationHandler, NucleoCerradoConPapelInboundAuthorizationHandler>();
 

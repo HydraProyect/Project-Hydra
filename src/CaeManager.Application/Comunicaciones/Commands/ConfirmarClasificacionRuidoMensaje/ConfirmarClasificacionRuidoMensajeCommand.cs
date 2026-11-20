@@ -58,7 +58,10 @@ public class ConfirmarClasificacionRuidoMensajeCommandHandler(
         var clasificacionMensaje = await clasificacionMensajeRepositorio.ObtenerPorMensajeIdAsync(request.MensajeId, cancellationToken);
         clasificacionMensaje?.ConfirmarManualmente();
 
-        var sugerenciaGestionId = await comunicacionesContext.SugerenciasGestionCorreo
+        // Con el marco de Comunicaciones del Tenant solo Inbound (D6=a), las sugerencias de Gestión no existen para él: el
+        // detalle no las proyecta y la bandeja no las cuenta. Aquí tampoco se leen, o la respuesta diría si un mensaje tiene
+        // una y el comando confirmaría los detalles de una Gestión, que es de Outbound.
+        var sugerenciaGestionId = AmbitoComunicacionesSoloInbound.Activo ? null : await comunicacionesContext.SugerenciasGestionCorreo
             .Where(s => s.MensajeId == request.MensajeId)
             .Select(s => (Guid?)s.Id)
             .FirstOrDefaultAsync(cancellationToken);

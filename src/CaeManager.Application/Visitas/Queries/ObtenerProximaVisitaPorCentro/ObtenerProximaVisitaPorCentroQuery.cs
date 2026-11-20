@@ -13,6 +13,13 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 /// cubre "en curso" y "próxima") con el <c>FechaInicio</c> más cercano; si
 /// hay varias en curso a la vez para el mismo centro, se prioriza la que
 /// antes termina (la ventana de riesgo más apremiante).
+///
+/// <para>
+/// Solo de los Centros visibles (<see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/>): los Ids que llegan
+/// son los de la lista que pinta la página, no autoridad. Es una petición de Outbound (área Visitas), así que a un
+/// Tenant solo Inbound con el papel de Tenant de origen el alcance no le da ningún Centro y la respuesta sale vacía,
+/// aunque la llame <c>/centros</c>, que es del Núcleo (hallazgo de la segunda opinión sobre la PR #2379).
+/// </para>
 /// </summary>
 [AreaDelEncargo("Visitas")]
 public record ObtenerProximaVisitaPorCentroQuery(IReadOnlyList<Guid> CentroIds)
@@ -21,7 +28,7 @@ public record ObtenerProximaVisitaPorCentroQuery(IReadOnlyList<Guid> CentroIds)
 /// <param name="TrabajadoresCount">Cuántos VisitaTrabajador tiene la visita — alimenta la ventana de contexto del badge (§ 3.7 del blueprint de Centro 360), antes solo mostraba fechas.</param>
 public record VisitaResumenDto(Guid VisitaId, DateOnly FechaInicio, DateOnly FechaFin, int TrabajadoresCount);
 
-public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visitasContext)
+public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerProximaVisitaPorCentroQuery, IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>
 {
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>> Handle(
@@ -30,10 +37,17 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
         if (request.CentroIds.Count == 0)
             return new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
 
+        // null es sin restricción; una lista, solo esos Centros (vacía: ninguno).
+        IReadOnlyList<Guid> centroIds = request.CentroIds;
+        if (await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken) is { } visibles)
+            centroIds = request.CentroIds.Intersect(visibles).ToList();
+        if (centroIds.Count == 0)
+            return new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
+
         var hoy = DiaDeNegocio.Hoy();
 
         var visitasActivas = await visitasContext.Visitas
-            .Where(v => request.CentroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaFin >= hoy)
+            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaFin >= hoy)
             .Select(v => new { v.Id, v.CentroId, v.FechaInicio, v.FechaFin })
             .ToListAsync(cancellationToken);
 

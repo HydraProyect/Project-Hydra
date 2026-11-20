@@ -91,10 +91,13 @@ public static class LineaInboundDemoSeeder
 
             // Vigente desde ayer: el gate DN-7 compara con el reloj de PostgreSQL, que en Docker o WSL puede ir por detrás del
             // de la aplicación; con un inicio de ahora mismo, la línea no valdría hasta que se pusieran de acuerdo.
+            // Con la declaración «solo Inbound» (opción A', DECISION_LOG e496f33): el Tenant TCE de demostración no opera
+            // Outbound, y con la declaración y sin línea Outbound TenantSoloInbound le cierra Outbound, como al Tenant TCE real.
+            // Una fila ya sembrada antes de la columna queda en false y ese Tenant conserva Outbound hasta resembrar.
             var ahora = DateTime.UtcNow;
             dbContextBootstrap.ProductosContratados.Add(ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, PagadorDemo, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
-                vigenteDesdeUtc: ahora.AddDays(-1), ahoraUtc: ahora));
+                vigenteDesdeUtc: ahora.AddDays(-1), ahoraUtc: ahora, declaraSoloInbound: true));
             await dbContextBootstrap.SaveChangesAsync(cancellationToken);
         }
 

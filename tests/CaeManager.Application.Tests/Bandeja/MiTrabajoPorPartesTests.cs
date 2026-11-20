@@ -92,6 +92,24 @@ public class MiTrabajoPorPartesTests
             "el sellado se cierra antes de cada entrega: lo que pinte la pantalla no corre bajo el Tenant de la parte");
     }
 
+    /// <summary>
+    /// «Inbound sin Outbound» (decisión del 2026-11-18): la consulta por partes es un flujo, no pasa por
+    /// <c>AmbitoInboundBehavior</c>, así que el handler fija él mismo el ámbito de petición de Outbound mientras construye
+    /// cada Tenant. Sin él, lo que lee fuera de MediatR (el alcance) tendría alcance de Outbound para el Tenant solo Inbound.
+    /// Y no queda abierto mientras el consumidor tiene el control.
+    /// </summary>
+    [Fact]
+    public async Task Cada_Tenant_se_construye_dentro_del_ambito_de_Outbound_y_se_cierra_antes_de_entregar()
+    {
+        var mediator = new MediatorPorTenant(tenantQueFalla: null);
+        var ambitoEnElConsumidor = new List<bool>();
+
+        await Recorrer(Handler(mediator, new PuertaAccesoDatos()), _ => ambitoEnElConsumidor.Add(AmbitoPeticionOutbound.Activo));
+
+        mediator.AmbitoOutboundAlConsultar.Should().HaveCount(3).And.OnlyContain(a => a);
+        ambitoEnElConsumidor.Should().HaveCount(4).And.OnlyContain(a => !a);
+    }
+
     [Fact]
     public async Task El_recorrido_es_secuencial_un_Tenant_cada_vez()
     {
@@ -184,6 +202,8 @@ public class MiTrabajoPorPartesTests
         public PuertaAccesoDatos? Puerta { get; init; }
         public int MaximoDeTenantsEnVuelo => _maximo;
         public List<Guid> TenantsConsultados { get; } = [];
+        /// <summary>Si el ámbito de petición de Outbound estaba abierto al consultar cada Tenant.</summary>
+        public List<bool> AmbitoOutboundAlConsultar { get; } = [];
         public int ConsultasConLaPuertaTomada { get; private set; }
         public int ConsultasConLaPuertaLibre { get; private set; }
 
@@ -204,6 +224,7 @@ public class MiTrabajoPorPartesTests
                 ?? throw new InvalidOperationException("La cola de un Tenant se consultó fuera de su ámbito.");
             if (request is ObtenerAlertasQuery)
             {
+                AmbitoOutboundAlConsultar.Add(AmbitoPeticionOutbound.Activo);
                 // Primera consulta de cada Tenant: marca su entrada y mide cuántos hay a la vez.
                 TenantsConsultados.Add(tenant);
                 _maximo = Math.Max(_maximo, Interlocked.Increment(ref _enVuelo));

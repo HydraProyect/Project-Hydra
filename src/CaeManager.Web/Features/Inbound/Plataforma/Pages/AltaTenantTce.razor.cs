@@ -57,6 +57,12 @@ public partial class AltaTenantTce
     private TramoTrabajadoresActivos? _tramo;
     private ModalidadSuscripcionAlta? _modalidad;
 
+    // Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y la marca el Actor de Plataforma TALVEG;
+    // nunca viene marcada, ni en el alta ni en la corrección (la corrección no la copia de la fila sustituida).
+    private bool _declaraSoloInbound;
+    // null = sin elegir: la corrección exige elegir la declaración «solo Inbound», sin valor por defecto.
+    private bool? _declaraSoloInboundCorr;
+
     private bool _editandoLinea;
     private bool _enviandoLinea;
 
@@ -150,6 +156,15 @@ public partial class AltaTenantTce
 
     private void CambiarModalidad(ModalidadSuscripcionAlta? valor) { _modalidad = valor; _error = null; }
 
+    private void CambiarDeclaracionSoloInbound(ChangeEventArgs e) { _declaraSoloInbound = e.Value is true; _error = null; }
+
+    private const string IdErrorDeclaracion = "alta-tce-corr-declaracion-error";
+
+    // El error de la línea es uno solo; solo es de la declaración cuando es el mensaje de «sin elegir».
+    private bool ErrorEsDeDeclaracion => _errorLinea is not null && _errorLinea == Textos["ErrorDeclaracionCorreccion"].Value;
+
+    private void ElegirDeclaracionSoloInboundCorr(bool declara) { _declaraSoloInboundCorr = declara; _errorLinea = null; }
+
     private void CambiarPagadorCorr(string valor) { _pagadorCorr = valor; _errorLinea = null; }
 
     private void CambiarTramoCorr(TramoTrabajadoresActivos? valor) { _tramoCorr = valor; _errorLinea = null; }
@@ -203,6 +218,7 @@ public partial class AltaTenantTce
         _pagador = string.Empty;
         _tramo = null;
         _modalidad = null;
+        _declaraSoloInbound = false;
         _error = null;
         _cancelado = true;
     }
@@ -224,7 +240,8 @@ public partial class AltaTenantTce
         _error = null;
         try
         {
-            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(enviado.Pagador, enviado.Tramo, enviado.Modalidad));
+            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(
+                enviado.Pagador, enviado.Tramo, enviado.Modalidad, DeclaraSoloInbound: _declaraSoloInbound));
             if (resultado.EsExitoso)
                 _contratado = enviado;
             else
@@ -249,6 +266,7 @@ public partial class AltaTenantTce
         _pagadorCorr = string.Empty;
         _tramoCorr = null;
         _modalidadCorr = null;
+        _declaraSoloInboundCorr = null;
         _editandoLinea = true;
     }
 
@@ -275,11 +293,18 @@ public partial class AltaTenantTce
             return;
         }
 
+        if (_declaraSoloInboundCorr is not { } declaraSoloInbound)
+        {
+            _errorLinea = Textos["ErrorDeclaracionCorreccion"];
+            return;
+        }
+
         _enviandoLinea = true;
         _errorLinea = null;
         try
         {
-            var resultado = await Mediator.Send(new CorregirLineaInboundCommand(_pagadorCorr.Trim(), tramo, modalidad));
+            var resultado = await Mediator.Send(new CorregirLineaInboundCommand(
+                _pagadorCorr.Trim(), tramo, modalidad, DeclaraSoloInbound: declaraSoloInbound));
             if (resultado.EsExitoso)
             {
                 _editandoLinea = false;
@@ -320,6 +345,8 @@ public partial class AltaTenantTce
                 // Tras la baja ya no hay Producto Contratado Inbound activo: la confirmación del alta deja de valer.
                 _contratado = null;
                 _paso = 1;
+                // La declaración «solo Inbound» valía para el alta que se acaba de dar de baja; un alta nueva empieza sin marcar.
+                _declaraSoloInbound = false;
             }
             else
                 _errorLinea = resultado.Error.Mensaje;

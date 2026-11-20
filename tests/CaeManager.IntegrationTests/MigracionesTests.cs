@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -64,11 +64,11 @@ public class MigracionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Siembra_los_seis_roles()
+    public async Task Siembra_todos_los_roles()
     {
-        // Administrador, DireccionCae, CoordinadorCae, GestorCae, Consulta, Cliente (ver Roles.cs, Fase 31).
+        // Los siete roles de Roles.Todos: los seis de la línea base más ControlAcceso (AF-01), sembrado por su migración.
         var total = await _dbContext.Roles.CountAsync();
-        total.Should().Be(6);
+        total.Should().Be(7);
     }
 
     [Fact]

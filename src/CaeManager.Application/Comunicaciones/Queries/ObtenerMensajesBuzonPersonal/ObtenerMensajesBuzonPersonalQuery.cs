@@ -39,8 +39,11 @@ public class ObtenerMensajesBuzonPersonalQueryHandler(
 
         if (conexionIds.Count == 0) return [];
 
+        // D6=a: al Tenant solo Inbound, solo los hilos anclados a una Empresa (AmbitoComunicacionesSoloInbound).
+        var soloConEmpresa = AmbitoComunicacionesSoloInbound.Activo;
         var conversaciones = await comunicacionesContext.Conversaciones
             .Where(c => c.ConexionIntegracionId != null && conexionIds.Contains(c.ConexionIntegracionId!.Value))
+            .Where(c => !soloConEmpresa || (c.ClienteId == null && c.EmpresaId != null))
             .Select(c => new { c.Id, c.Asunto })
             .ToListAsync(cancellationToken);
 

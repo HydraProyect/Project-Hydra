@@ -211,7 +211,25 @@
     <value>Si aquest Tenant ja té la línia Inbound, pots corregir el Pagador TALVEG, el tram o la modalitat, o donar-la de baixa. Si no la té, TALVEG t&apos;ho dirà quan ho intentis.</value>
   </data>
   <data name="CorreccionNota" xml:space="preserve">
-    <value>En desar, el Producte Contractat vigent es tanca i se n&apos;obre un altre des d&apos;ara amb les dades noves; l&apos;anterior queda a l&apos;historial.</value>
+    <value>En desar, el Producte Contractat vigent es tanca i se n&apos;obre un altre des d&apos;ara amb les dades noves; l&apos;anterior queda a l&apos;historial. La declaració «només Inbound» no es copia: tria a sota quina val ara.</value>
+  </data>
+  <data name="CorreccionDeclaracionLeyenda" xml:space="preserve">
+    <value>Declaració «només Inbound»</value>
+  </data>
+  <data name="CorreccionDeclaracionSoloTitulo" xml:space="preserve">
+    <value>Només Inbound: l&apos;organització no fa servir Outbound</value>
+  </data>
+  <data name="CorreccionDeclaracionSoloAyuda" xml:space="preserve">
+    <value>Amb aquesta declaració i sense línia Outbound, se li tanca Outbound.</value>
+  </data>
+  <data name="CorreccionDeclaracionConservaTitulo" xml:space="preserve">
+    <value>Manté Outbound</value>
+  </data>
+  <data name="CorreccionDeclaracionConservaAyuda" xml:space="preserve">
+    <value>No es declara «només Inbound»: l&apos;organització manté Outbound.</value>
+  </data>
+  <data name="ErrorDeclaracionCorreccion" xml:space="preserve">
+    <value>Tria si l&apos;organització és «només Inbound» o manté Outbound.</value>
   </data>
   <data name="CorreccionHecha" xml:space="preserve">
     <value>Línia Inbound corregida: el Producte Contractat nou és vigent des d&apos;ara.</value>
@@ -233,6 +251,12 @@
   </data>
   <data name="ErrorTramoModalidad" xml:space="preserve">
     <value>Tria el tram i la modalitat del Producte Contractat.</value>
+  </data>
+  <data name="DeclaracionSoloInboundTitulo" xml:space="preserve">
+    <value>Declaro que aquesta organització contracta només Inbound.</value>
+  </data>
+  <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
+    <value>Opcional. Marca-la només si l'organització no fa servir Outbound: amb la declaració i sense línia Outbound, se li tanca Outbound. Sense marcar, conserva Outbound.</value>
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>

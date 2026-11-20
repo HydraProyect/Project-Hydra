@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInbound;
 using CaeManager.Application.Plataforma;
@@ -39,8 +40,79 @@ public class ContratarLineaInboundCommandTests
         _productos = new ProductosContratadosFalsos(() => _transaccion.Dentro);
     }
 
-    private static ContratarLineaInboundCommand Comando(string pagador = "cus_PagadorTce") =>
-        new(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual);
+    private static ContratarLineaInboundCommand Comando(string pagador = "cus_PagadorTce", bool declaraSoloInbound = true) =>
+        new(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, declaraSoloInbound);
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y el comando la guarda en la fila de la
+    /// línea Inbound. Sin ella se contrata igual, la fila queda en <c>false</c> y el Tenant conserva Outbound.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_comando_persiste_la_declaracion_solo_Inbound_tal_como_llega(bool declara)
+    {
+        var resultado = await Handler(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id), _tenant.Id)
+            .Handle(Comando(declaraSoloInbound: declara), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        var inbound = _productos.Agregados.Should().ContainSingle().Subject;
+        inbound.DeclaraSoloInbound.Should().Be(declara);
+        new ContratarLineaInboundCommandValidator().Validate(Comando(declaraSoloInbound: declara)).IsValid.Should().BeTrue(
+            "la casilla es opcional");
+
+        // Sin línea Outbound, solo la declaración decide si el Tenant pasa a «solo Inbound».
+        AsignarTenant(inbound, _tenant.Id);
+        (await new TenantSoloInboundService(new LineasFalsas([inbound]), new RelojFijo(AhoraDeLaBase.AddMinutes(1)))
+            .EsSoloInboundAsync(_tenant.Id)).Should().Be(declara);
+    }
+
+    /// <summary>
+    /// Declararla con la línea Outbound registrada no cierra Outbound: el comando no toca la línea Outbound (bajo el rol de
+    /// aprovisionamiento no la ve), y <see cref="TenantSoloInboundService"/> sigue viendo su fila, así que el Tenant no pasa
+    /// a «solo Inbound».
+    /// </summary>
+    [Fact]
+    public async Task Con_la_declaracion_un_Tenant_con_linea_Outbound_contrata_Inbound_y_conserva_Outbound()
+    {
+        var outbound = ProductoContratado.Contratar(
+            LineaProductoContratado.OutboundGestionPropia, "cus_PagadorOutbound", TramoTrabajadoresActivos.De1A10,
+            ModalidadSuscripcionAlta.Anual, AhoraDeLaBase.AddDays(-60), ahoraUtc: AhoraDeLaBase.AddDays(-60));
+        AsignarTenant(outbound, _tenant.Id);
+
+        var resultado = await Handler(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id), _tenant.Id)
+            .Handle(Comando(declaraSoloInbound: true), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        var inbound = _productos.Agregados.Should().ContainSingle("el comando solo añade la línea Inbound").Subject;
+        inbound.Linea.Should().Be(LineaProductoContratado.Inbound);
+        // La base pone el Tenant del contexto firmado al guardar; el repositorio falso no.
+        AsignarTenant(inbound, _tenant.Id);
+        outbound.EstaEliminado.Should().BeFalse();
+        outbound.Estado.Should().Be(EstadoProductoContratado.Vigente, "la línea Outbound no se toca");
+
+        var lineas = new LineasFalsas([outbound, inbound]);
+        var soloInbound = await new TenantSoloInboundService(lineas, new RelojFijo(AhoraDeLaBase.AddMinutes(1)))
+            .EsSoloInboundAsync(_tenant.Id);
+        soloInbound.Should().BeFalse("con la línea Outbound registrada el Tenant conserva Outbound");
+
+        // Control del instrumento: la misma línea Inbound sin la Outbound sí es «solo Inbound».
+        (await new TenantSoloInboundService(new LineasFalsas([inbound]), new RelojFijo(AhoraDeLaBase.AddMinutes(1)))
+            .EsSoloInboundAsync(_tenant.Id)).Should().BeTrue();
+    }
+
+    private static void AsignarTenant(ProductoContratado producto, Guid tenantId) =>
+        typeof(EntidadConTenant).GetProperty(nameof(EntidadConTenant.TenantId))!.SetValue(producto, tenantId);
+
+    private sealed class LineasFalsas(IReadOnlyList<ProductoContratado> filas) : ILineaOutboundQueryContext
+    {
+        public IQueryable<ProductoContratado> ProductosContratados => new TestAsyncQueryable<ProductoContratado>(filas.AsQueryable());
+    }
+
+    private sealed class RelojFijo(DateTime ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(ahora);
+    }
 
     [Fact]
     public async Task Con_la_sesion_de_Aprovisionamiento_sobre_el_Tenant_activo_contrata_la_linea_Inbound_vigente_desde_ahora()
@@ -212,8 +284,8 @@ public class ContratarLineaInboundCommandTests
     public async Task Un_tramo_o_una_modalidad_fuera_de_la_lista_no_contrata()
     {
         var sesion = Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id);
-        var tramo = new ContratarLineaInboundCommand("cus_X", (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Anual);
-        var modalidad = new ContratarLineaInboundCommand("cus_X", TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99);
+        var tramo = new ContratarLineaInboundCommand("cus_X", (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true);
+        var modalidad = new ContratarLineaInboundCommand("cus_X", TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99, DeclaraSoloInbound: true);
 
         (await Handler(sesion, _tenant.Id).Handle(tramo, CancellationToken.None)).Error
             .Should().Be(ErroresContratarLineaInbound.ContratoNoValido);

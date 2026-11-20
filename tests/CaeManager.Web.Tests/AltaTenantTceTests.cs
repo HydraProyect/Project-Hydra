@@ -50,6 +50,10 @@ public class AltaTenantTceTests : BunitContext
     private static void Pulsar(IRenderedComponent<AltaTenantTce> cut, string texto) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto).Click();
 
+    /// <summary>Opción A' (DECISION_LOG e496f33): el Actor de Plataforma TALVEG marca la declaración opcional «solo Inbound».</summary>
+    private static void DeclararSoloInbound(IRenderedComponent<AltaTenantTce> cut) =>
+        cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']").Change(true);
+
     private static void IrAlPasoProducto(IRenderedComponent<AltaTenantTce> cut)
     {
         Pulsar(cut, "Continuar");
@@ -124,6 +128,7 @@ public class AltaTenantTceTests : BunitContext
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
 
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.FindAll(".alta-tce-seccion button").Should().HaveCount(4)
@@ -195,11 +200,40 @@ public class AltaTenantTceTests : BunitContext
 
         cut.Markup.Should().Contain("De 41 a 80 Trabajadores activos").And.Contain("cus_Delta123");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain(["Atrás", "Dar de alta", "Editar"]).And.NotContain("Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
-            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
         cut.Find(".alta-tce-ok").TextContent.Should().Contain("Logística Delta Sur S.A. dado de alta");
+    }
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y nunca viene marcada. Sin marcarla, el
+    /// alta se manda igual con la declaración en false, y el Tenant conserva Outbound.
+    /// </summary>
+    [Fact]
+    public void Sin_marcar_la_declaracion_solo_Inbound_el_alta_se_manda_sin_ella()
+    {
+        _mediator.RespuestaContratar = Result.Exito(ProductoId);
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+
+        var casilla = cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']");
+        casilla.HasAttribute("checked").Should().BeFalse("la declaración nunca viene marcada");
+        cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("contrata solo Inbound")
+            .And.Contain("Opcional").And.Contain("Sin marcar, conserva Outbound");
+        Pulsar(cut, "Dar de alta");
+
+        _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
+            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false));
+        cut.FindAll(".alta-tce-cuerpo [role='alert']").Should().BeEmpty();
+        cut.FindAll(".alta-tce-ok").Should().ContainSingle();
     }
 
     [Fact]
@@ -213,6 +247,7 @@ public class AltaTenantTceTests : BunitContext
         cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.Find(".alta-tce-cuerpo [role='alert']").TextContent.Should()
@@ -248,11 +283,148 @@ public class AltaTenantTceTests : BunitContext
         cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Elige el tramo y la modalidad");
 
         cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        ElegirDeclaracionCorreccion(cut, "conserva");
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
 
         _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
-            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false));
         cut.Find(".alta-tce-linea [role='status']").TextContent.Should().Contain("Línea Inbound corregida");
+    }
+
+    private static void ElegirDeclaracionCorreccion(IRenderedComponent<AltaTenantTce> cut, string valor) =>
+        cut.Find($"[data-campo='declara-solo-inbound-corr'] input[type='radio'][value='{valor}']").Change(valor);
+
+    private static void GuardarCorreccion(IRenderedComponent<AltaTenantTce> cut) =>
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
+
+    private static void RellenarLineaCorreccion(IRenderedComponent<AltaTenantTce> cut)
+    {
+        cut.Find("#corr-pagador").Input("cus_Nuevo9");
+        cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.Find("#corr-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
+    }
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la corrección contrata una fila nueva y no copia la declaración «solo Inbound» de la
+    /// sustituida, y la pantalla no lee la línea vigente. Por eso la declaración es una elección obligatoria y sin valor por
+    /// defecto: Guardar no envía nada mientras no se elija, y lo elegido viaja tal cual en el comando.
+    /// </summary>
+    [Fact]
+    public void La_correccion_exige_elegir_la_declaracion_solo_Inbound()
+    {
+        _mediator.RespuestaCorregir = Result.Exito(ProductoId);
+        var cut = RenderConSesion();
+
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']").Should().HaveCount(2);
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().OnlyContain(r => !r.HasAttribute("checked"), "ninguna opción viene elegida");
+        RellenarLineaCorreccion(cut);
+
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().BeEmpty("sin elegir la declaración no se envía el comando");
+        cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("solo Inbound");
+
+        ElegirDeclaracionCorreccion(cut, "solo");
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
+            .Which.DeclaraSoloInbound.Should().BeTrue();
+
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().OnlyContain(r => !r.HasAttribute("checked"), "cada edición empieza sin elegir");
+        RellenarLineaCorreccion(cut);
+        ElegirDeclaracionCorreccion(cut, "conserva");
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().HaveCount(2)
+            .And.Subject.Last().DeclaraSoloInbound.Should().BeFalse();
+    }
+
+    private static void PulsarEnLinea(IRenderedComponent<AltaTenantTce> cut, string texto) =>
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == texto).Click();
+
+    private static void DebeEmpezarSinElegir(IRenderedComponent<AltaTenantTce> cut, string porque) =>
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().HaveCount(2).And.OnlyContain(r => !r.HasAttribute("checked"), porque);
+
+    /// <summary>
+    /// «Cada edición empieza sin elegir» no puede depender de que la edición anterior acabara bien: lo elegido y abandonado
+    /// con Cancelar no se hereda en la edición siguiente (un «solo Inbound» olvidado se enviaría sin que nadie lo decida).
+    /// </summary>
+    [Fact]
+    public void Cancelar_la_edicion_descarta_la_declaracion_elegida()
+    {
+        var cut = RenderConSesion();
+
+        PulsarEnLinea(cut, "Editar");
+        ElegirDeclaracionCorreccion(cut, "solo");
+        cut.Find("[data-campo='declara-solo-inbound-corr'] input[value='solo']").HasAttribute("checked")
+            .Should().BeTrue("la elección se refleja mientras se edita");
+        PulsarEnLinea(cut, "Cancelar");
+        PulsarEnLinea(cut, "Editar");
+
+        DebeEmpezarSinElegir(cut, "tras Cancelar, la edición siguiente empieza sin elegir");
+    }
+
+    [Fact]
+    public void Un_fallo_del_comando_no_deja_la_declaracion_elegida_para_la_edicion_siguiente()
+    {
+        _mediator.RespuestaCorregir = Result.Fallo<Guid>(ErroresCorregirLineaInbound.SinLineaVigente);
+        var cut = RenderConSesion();
+
+        PulsarEnLinea(cut, "Editar");
+        RellenarLineaCorreccion(cut);
+        ElegirDeclaracionCorreccion(cut, "solo");
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle();
+        cut.Find(".alta-tce-linea [role='alert']").Should().NotBeNull("el comando falló y la edición sigue abierta");
+        PulsarEnLinea(cut, "Cancelar");
+        PulsarEnLinea(cut, "Editar");
+
+        DebeEmpezarSinElegir(cut, "tras un fallo del comando y Cancelar, la edición siguiente empieza sin elegir");
+    }
+
+    /// <summary>
+    /// El error de «sin elegir» se asocia al grupo de radios (aria-invalid y aria-describedby, que apuntan al párrafo del
+    /// error) y solo a él: un error de otro campo de la línea no marca el grupo como inválido ni lo describe. El grupo se
+    /// anuncia como radiogroup obligatorio.
+    /// </summary>
+    [Fact]
+    public void El_error_de_declaracion_marca_el_grupo_de_radios_como_invalido_y_lo_describe()
+    {
+        var cut = RenderConSesion();
+        PulsarEnLinea(cut, "Editar");
+        var grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("antes de guardar no hay error");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse();
+
+        PulsarEnLinea(cut, "Guardar");
+        cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Indica el Customer de Stripe");
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("el error es de otros campos, no de la declaración");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse("el error de otro campo no describe el grupo de radios");
+
+        RellenarLineaCorreccion(cut);
+        GuardarCorreccion(cut);
+
+        var error = cut.Find(".alta-tce-linea [role='alert']");
+        error.TextContent.Should().Contain("solo Inbound");
+        error.Id.Should().NotBeNullOrEmpty();
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.GetAttribute("aria-invalid").Should().Be("true");
+        grupo.GetAttribute("aria-required").Should().Be("true");
+        grupo.GetAttribute("aria-describedby").Should().Be(error.Id);
+        grupo.QuerySelector("legend .campo-obligatorio")!.TextContent.Should().Be("*");
+        grupo.QuerySelector("legend")!.TextContent.Should().NotContain("obligatoria");
+
+        ElegirDeclaracionCorreccion(cut, "solo");
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("al elegir se retira el error y el grupo deja de marcarse inválido");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse("al elegir el grupo deja de apuntar al error");
     }
 
     [Fact]
@@ -283,6 +455,7 @@ public class AltaTenantTceTests : BunitContext
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
 
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.FindAll(".alta-tce-linea button").Should().HaveCount(2)
@@ -301,6 +474,7 @@ public class AltaTenantTceTests : BunitContext
         cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
         cut.FindAll(".alta-tce-ok").Should().ContainSingle();
 
@@ -308,6 +482,48 @@ public class AltaTenantTceTests : BunitContext
         cut.FindAll("button").Last(b => b.TextContent.Trim() == "Dar de baja").Click();
 
         cut.FindAll(".alta-tce-ok").Should().BeEmpty("la línea ya no está vigente");
+    }
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» vale para un alta concreta. Ni al cancelar el alta ni tras dar
+    /// de baja la línea contratada puede quedar marcada para la siguiente: el Actor de Plataforma TALVEG la vuelve a hacer.
+    /// </summary>
+    [Theory]
+    [InlineData("cancelar")]
+    [InlineData("dar de baja")]
+    public void La_declaracion_solo_Inbound_no_sobrevive_al_alta_en_la_que_se_hizo(string camino)
+    {
+        var cut = RenderConSesion();
+        LlenarYIrAlResumen(cut);
+        DeclararSoloInbound(cut);
+
+        if (camino == "cancelar")
+        {
+            Pulsar(cut, "Cancelar");
+        }
+        else
+        {
+            Pulsar(cut, "Dar de alta");
+            cut.FindAll(".alta-tce-ok").Should().ContainSingle();
+            cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Dar de baja").Click();
+            cut.FindAll("button").Last(b => b.TextContent.Trim() == "Dar de baja").Click();
+            cut.FindAll(".alta-tce-ok").Should().BeEmpty();
+        }
+
+        LlenarYIrAlResumen(cut);
+        cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']").HasAttribute("checked")
+            .Should().BeFalse($"tras {camino} la declaración se pide otra vez");
+    }
+
+    private static void LlenarYIrAlResumen(IRenderedComponent<AltaTenantTce> cut)
+    {
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De11A40));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Dar de alta", "está en el Resumen");
     }
 
     private sealed class MediatorFalso : IMediator

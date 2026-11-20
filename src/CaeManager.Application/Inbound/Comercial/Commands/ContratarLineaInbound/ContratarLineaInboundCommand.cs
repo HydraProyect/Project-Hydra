@@ -43,10 +43,26 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 /// Un Pagador, un tramo o una modalidad mal introducidos se corrigen con <c>CorregirLineaInboundCommand</c>, y la línea
 /// se da de baja con <c>DarDeBajaLineaInboundCommand</c> (opción B del 2026-11-15).
 /// </para>
+///
+/// <para>
+/// <b>Declaración «solo Inbound»</b> (<see cref="DeclaraSoloInbound"/>, decisión de Chris del 2026-11-19, opción A',
+/// DECISION_LOG e496f33): se guarda en la fila de la línea Inbound que se contrata
+/// (<see cref="ProductoContratado.DeclaraSoloInbound"/>). Es opcional: sin marcar, se contrata igual y el Tenant conserva
+/// Outbound, porque <c>TenantSoloInbound</c> exige las tres condiciones (línea Inbound vigente, declaración marcada y
+/// ninguna línea Outbound). Así un Tenant que ya opera Outbound sin fila de la línea Outbound (no hay backfill) no queda
+/// cerrado a Outbound al contratar Inbound. El comando no lee la línea Outbound (bajo <c>cae_app_aprovisionamiento</c>
+/// la política RESTRICTIVE <c>aprovisionamiento_solo_lee_inbound</c> se la oculta) ni escribe nada de Facturación:
+/// declararla con una línea Outbound registrada no cierra nada, porque <c>TenantSoloInbound</c> sigue viendo esa fila.
+/// </para>
 /// </summary>
+/// <param name="DeclaraSoloInbound">
+/// El Actor de Plataforma TALVEG declara que el Tenant beneficiario contrata solo Inbound. Opcional: <c>false</c> deja al
+/// Tenant con Outbound.
+/// </param>
 [AreaDelEncargo("Comercial")]
 public record ContratarLineaInboundCommand(
-    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad)
+    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad,
+    bool DeclaraSoloInbound)
     : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class ContratarLineaInboundCommandValidator : AbstractValidator<ContratarLineaInboundCommand>
@@ -158,7 +174,7 @@ public class ContratarLineaInboundCommandHandler(
             var ahora = await productosContratados.InstanteDeLaTransaccionAsync(ct);
             var producto = ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
-                vigenteDesdeUtc: ahora, ahoraUtc: ahora);
+                vigenteDesdeUtc: ahora, ahoraUtc: ahora, declaraSoloInbound: request.DeclaraSoloInbound);
             productosContratados.Agregar(producto);
 
             // Ya contratada, o dos altas a la vez: el índice único parcial deja pasar una.

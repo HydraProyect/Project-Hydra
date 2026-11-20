@@ -231,6 +231,9 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.FijarCondicionesContratoAccesoCommandHandler",
         "ContratosAcceso.RenovarContratoAccesoCommandHandler",
         "ContratosAcceso.VincularTenantContratistaCommandHandler",
+
+        // Control de acceso (Inbound AF-01): los Centros que se asignan salen del alcance de quien asigna.
+        "ControlAcceso.AsignarCentrosControlAccesoCommandHandler",
         // Credencial de acceso físico (AF-02): el sujeto es acreditable solo si el actor ve el contrato de acceso de su evidencia
         // (ContratoAccesoAutorizacion.VisibleAsync, por el Cliente empresarial del contrato).
         "AccesoFisico.EmitirCredencialCommandHandler",

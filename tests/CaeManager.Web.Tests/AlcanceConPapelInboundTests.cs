@@ -6,6 +6,7 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -32,6 +33,27 @@ public class AlcanceConPapelInboundTests
 
         using (AmbitoPeticionInbound.Abrir())
             (await alcance.TieneAccesoTotalAsync()).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El rol «Control de acceso» (AF-01) no tiene alcance de cartera ni de Tenant entero con ningún papel, dentro ni fuera de una
+    /// petición de Inbound: lo único que abre son los Centros de <c>UsuariosControlAccesoCentro</c>, que lee su propia consulta.
+    /// </summary>
+    [Theory]
+    [InlineData(PapelActivo.Inbound, true)]
+    [InlineData(PapelActivo.Inbound, false)]
+    [InlineData(PapelActivo.Outbound, false)]
+    public async Task El_rol_Control_de_acceso_no_alcanza_ni_cartera_ni_el_Tenant_entero_con_ningun_papel(PapelActivo papel, bool dentroDePeticionInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("ControlAcceso", papel));
+
+        using (dentroDePeticionInbound ? AmbitoPeticionInbound.Abrir() : null)
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse();
+            (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
+        }
     }
 
     /// <summary>
@@ -169,8 +191,82 @@ public class AlcanceConPapelInboundTests
         (await alcance.TieneAccesoTotalAsync()).Should().BeTrue();
     }
 
-    private static AlcanceDatosService Alcance(CaeManagerDbContext contexto, ICurrentUserService usuario) =>
-        new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce }, new SinSesionPrivilegiada());
+    /// <summary>
+    /// «Inbound sin Outbound» (2026-11-18): al Tenant de origen solo Inbound, dentro de una petición de Outbound, ningún
+    /// perfil tiene alcance (no hay <c>ServicioCae.Outbound</c>); fuera de ella (Núcleo) el Administrador TCE conserva el
+    /// acceso total. Con <paramref name="soloInbound"/> en falso (Tenant histórico sin líneas o con las dos) no cambia nada.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("Administrador", false)]
+    [InlineData("DireccionCae", false)]
+    public async Task Al_Tenant_de_origen_solo_Inbound_una_peticion_de_Outbound_no_le_da_alcance(string rol, bool soloInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.TenantDeOrigen), Criterio(soloInbound));
+
+        using (AmbitoPeticionOutbound.Fijar(true))
+            (await alcance.TieneAccesoTotalAsync()).Should().Be(!soloInbound);
+        (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("fuera de una petición de Outbound el Núcleo no cambia");
+    }
+
+    /// <summary>
+    /// Hallazgo de la segunda opinión sobre la PR #2379: el badge de Visitas de <c>/centros</c> (página del Núcleo) usa
+    /// <c>ObtenerProximaVisitaPorCentroQuery</c>, que es de Outbound. Con el alcance real dentro de la petición de Outbound,
+    /// al Tenant de origen solo Inbound no le llega ningún Centro y el handler responde vacío sin leer Visitas; al Tenant de
+    /// origen con Outbound el alcance no restringe (y el handler lee todas, ver <c>ObtenerProximaVisitaPorCentroAlcanceTests</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Al_Tenant_de_origen_solo_Inbound_el_badge_de_Visitas_no_le_da_ningun_Centro(bool soloInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("Administrador", PapelActivo.TenantDeOrigen), Criterio(soloInbound));
+        var handler = new CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro
+            .ObtenerProximaVisitaPorCentroQueryHandler(new VisitasQueNoSeLeen(), alcance);
+
+        using (AmbitoPeticionOutbound.Fijar(true))
+        {
+            var centros = await alcance.ObtenerCentroIdsVisiblesAsync();
+            if (soloInbound)
+            {
+                centros.Should().BeEmpty();
+                (await handler.Handle(new([Guid.NewGuid()]), CancellationToken.None)).Should().BeEmpty(
+                    "sin ningún Centro visible el handler no llega a leer Visitas");
+            }
+            else
+            {
+                centros.Should().BeNull("el Tenant de origen con Outbound conserva su alcance sin restricción");
+            }
+        }
+    }
+
+    /// <summary>Unas Visitas que no se pueden leer: si el handler llegara a consultarlas, el test falla.</summary>
+    private sealed class VisitasQueNoSeLeen : CaeManager.Application.Visitas.IVisitasQueryContext
+    {
+        public IQueryable<CaeManager.Domain.Visitas.Visita> Visitas =>
+            throw new InvalidOperationException("el handler no debía leer Visitas");
+        public IQueryable<CaeManager.Domain.Visitas.VisitaTrabajador> VisitasTrabajadores =>
+            throw new InvalidOperationException("el handler no debía leer VisitasTrabajadores");
+    }
+
+    private static CriterioDeOutbound Criterio(bool soloInbound) => new(new ServiceCollection()
+        .AddSingleton<ITenantActual>(new TenantActualAmbiental { TenantId = TenantTce })
+        .AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(new SoloInboundFijo(soloInbound))
+        .BuildServiceProvider());
+
+    private sealed class SoloInboundFijo(bool soloInbound) : CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound
+    {
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(soloInbound);
+    }
+
+    private static AlcanceDatosService Alcance(
+        CaeManagerDbContext contexto, ICurrentUserService usuario, ICriterioDeOutbound? criterio = null) =>
+        new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce }, new SinSesionPrivilegiada(),
+            criterioDeOutbound: criterio);
 
     /// <summary>Un contexto que nunca conecta: el puerto 1 de localhost no tiene ningún PostgreSQL.</summary>
     private static CaeManagerDbContext ContextoSinServidor()

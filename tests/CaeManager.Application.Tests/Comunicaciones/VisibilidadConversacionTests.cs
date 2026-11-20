@@ -117,6 +117,50 @@ public class VisibilidadConversacionTests
         (await alcance.ConversacionVisibleAsync(null, null, BuzonPersonalPropio)).Should().BeTrue("el detalle");
     }
 
+    /// <summary>
+    /// D6=a del 2026-11-19 («hilos con sus Empresas contratistas»): dentro de una petición de Comunicaciones acotada al
+    /// Tenant solo Inbound (<see cref="AmbitoComunicacionesSoloInbound"/>), la lista y el detalle solo dejan pasar los
+    /// hilos anclados a una Empresa de su alcance, aunque el alcance sea total. El hilo con un Cliente empresarial, el de
+    /// triaje y el del buzón personal propio quedan fuera; los Clientes y los Centros dejan de ser visibles.
+    /// </summary>
+    [Theory]
+    [InlineData("total")]
+    [InlineData("propietario")]
+    public async Task Acotada_al_Tenant_solo_Inbound_solo_se_ven_los_hilos_anclados_a_una_Empresa(string nombre)
+    {
+        var alcance = Alcance(nombre);
+        var conversaciones = Conversaciones().Append(PorBuzon("Sin ancla: buzón personal propio", BuzonPersonalPropio)).ToList();
+        var fuera = await VisibilidadConversacion.ResolverAsync(alcance);
+        fuera.Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId).Compile()(conversaciones[0])
+            .Should().BeTrue("control: fuera del marco, el hilo con un Cliente de la cartera se ve");
+
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+        {
+            var visibilidad = await VisibilidadConversacion.ResolverAsync(alcance);
+            var predicado = visibilidad.Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId).Compile();
+
+            foreach (var conversacion in conversaciones)
+            {
+                // El ancla Empresa sigue pidiendo el alcance de gestión: con el total, cualquier Empresa; con la cartera,
+                // solo la de dentro.
+                var esperado = conversacion.ClienteId is null && conversacion.EmpresaId is { } empresa
+                               && (nombre == "total" || empresa == EmpresaDentro);
+                predicado(conversacion).Should().Be(esperado, $"«{conversacion.Asunto}» en la lista con el alcance «{nombre}»");
+                (await alcance.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId))
+                    .Should().Be(esperado, $"«{conversacion.Asunto}» en el detalle con el alcance «{nombre}»");
+            }
+
+            (await alcance.ClienteVisibleAsync(ClienteDentro)).Should().BeFalse("ningún Cliente empresarial");
+            (await alcance.ClienteOpcionalVisibleAsync(ClienteDentro)).Should().BeFalse("ni para una macro de un Cliente");
+            (await alcance.ClienteOpcionalVisibleAsync(null)).Should().BeTrue("una macro genérica sigue visible");
+            (await alcance.CentroVisibleAsync(Guid.NewGuid())).Should().BeFalse("ningún Centro");
+            (await alcance.CentroParaGestionVisibleAsync(Guid.NewGuid())).Should().BeFalse("ningún Centro para gestión");
+        }
+
+        AmbitoComunicacionesSoloInbound.Activo.Should().BeFalse("el marco se cierra al terminar");
+        (await alcance.ConversacionVisibleAsync(ClienteDentro, null, null)).Should().BeTrue("control: fuera del marco, como antes");
+    }
+
     [Fact]
     public async Task Otro_Gestor_CAE_de_la_misma_cartera_no_ve_el_hilo_sin_ancla_del_buzon_personal_ajeno()
     {

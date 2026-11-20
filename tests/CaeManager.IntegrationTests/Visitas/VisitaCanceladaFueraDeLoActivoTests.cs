@@ -107,7 +107,7 @@ public class VisitaCanceladaFueraDeLoActivoTests : IAsyncLifetime
     {
         await using var lectura = CrearContexto();
 
-        var porCentro = await new ObtenerProximaVisitaPorCentroQueryHandler(lectura)
+        var porCentro = await new ObtenerProximaVisitaPorCentroQueryHandler(lectura, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerProximaVisitaPorCentroQuery([_centroId]), CancellationToken.None);
 
         porCentro[_centroId].Select(v => v.VisitaId).Should().Equal([_activa]);

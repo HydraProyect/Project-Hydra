@@ -18,7 +18,7 @@ public record AsignacionPrevistaDto(Guid TrabajadorId, string TrabajadorNombre);
 /// <summary>Por qué nace una Gestión al crear la Visita.</summary>
 public enum MotivoGestionPrevista
 {
-    /// <summary>El Trabajador no tiene ningún Documento operativo de ese Tipo.</summary>
+    /// <summary>El Trabajador no tiene ningún Documento operativo de ese Tipo que no esté en renuncia.</summary>
     Falta = 0,
 
     /// <summary>Tiene Documento, pero ninguno vale en este Centro hasta la fecha de fin de la Visita.</summary>

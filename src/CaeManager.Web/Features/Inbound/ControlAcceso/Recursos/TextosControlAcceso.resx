@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MisCentrosTitulo" xml:space="preserve">
+    <value>Mis Centros</value>
+  </data>
+  <data name="MisCentrosGrupo" xml:space="preserve">
+    <value>Control de acceso</value>
+  </data>
+  <data name="MisCentrosErrorTitulo" xml:space="preserve">
+    <value>No se pudieron cargar tus Centros</value>
+  </data>
+  <data name="MisCentrosErrorDescripcion" xml:space="preserve">
+    <value>Inténtalo de nuevo en unos segundos.</value>
+  </data>
+  <data name="MisCentrosReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="MisCentrosVacioTitulo" xml:space="preserve">
+    <value>Todavía no tienes ningún Centro asignado</value>
+  </data>
+  <data name="MisCentrosVacioDescripcion" xml:space="preserve">
+    <value>Quien gestiona tu organización te asignará los Centros en los que controlas el acceso.</value>
+  </data>
+  <data name="AsignarTitulo" xml:space="preserve">
+    <value>Centros de {0}</value>
+  </data>
+  <data name="AsignarAyuda" xml:space="preserve">
+    <value>Solo abrirá la portería de los Centros que marques. Al desmarcar uno, deja de verlo.</value>
+  </data>
+  <data name="AsignarCargando" xml:space="preserve">
+    <value>Cargando Centros…</value>
+  </data>
+  <data name="AsignarSinCambios" xml:space="preserve">
+    <value>Marca o desmarca algún Centro</value>
+  </data>
+  <data name="AsignarVacio" xml:space="preserve">
+    <value>No hay ningún Centro que se pueda asignar.</value>
+  </data>
+  <data name="AsignarGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="AsignarVolver" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="AsignarGuardados" xml:space="preserve">
+    <value>Centros de {0} actualizados.</value>
+  </data>
+  <data name="AsignarErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar los Centros. Cierra y vuelve a abrir.</value>
+  </data>
+  <data name="AsignarCuentaNoValida" xml:space="preserve">
+    <value>Esta cuenta no tiene el rol Control de acceso.</value>
+  </data>
+</root>

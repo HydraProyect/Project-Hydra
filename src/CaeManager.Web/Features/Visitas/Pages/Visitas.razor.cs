@@ -1,3 +1,4 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -5,6 +6,7 @@ using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentr
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas;
+using CaeManager.Application.Visitas.AltaDeVisita;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -25,6 +27,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerPlanAltaVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
@@ -94,6 +97,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string? _instantaneaAlAbrir;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
+
+    /// <summary>Último motivo con que la defensa de «Guardar» frenó el alta (no un rechazo del servidor): se retira cuando la vista previa se resuelve.</summary>
+    private string? _motivoDeBloqueoMostrado;
     private Dictionary<string, string> _erroresCampo = new();
     private string? _errorTrabajadores => ObtenerError("TrabajadorIds");
 
@@ -104,6 +110,125 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _avisoCentroSinAsignados;
     private int _cargaRelacionados;
     private SelectorMultiple? _selectorTrabajadores;
+
+    // Vista previa del alta (decisión de Chris, 2026-11-19): qué Trabajadores quedarán asignados al Centro y qué Gestiones
+    // nacerán, calculado por el servidor con la misma regla que aplicará el Command. Solo en alta. «Guardar» solo se habilita
+    // con la vista previa calculada y sin impedimento (decisión del DECISION_LOG 2026-11-19: sin autoridad o con solape la
+    // Visita entera se rechaza, así que la pantalla no deja intentarlo): mientras se calcula, si falla, si no se puede calcular
+    // o si hay más Trabajadores que el tope, queda deshabilitado y el aviso dice por qué. El contador descarta las respuestas
+    // viejas, como _cargaRelacionados.
+    private enum EstadoPlanAlta
+    {
+        /// <summary>No hay nada que calcular (falta Centro, fecha de fin válida o Trabajadores) o aún no se ha pedido.</summary>
+        SinPedir,
+        Calculando,
+        Lista,
+        /// <summary>El servidor no devolvió vista previa (Centro fuera de alcance).</summary>
+        NoCalculada,
+        /// <summary>La consulta lanzó una excepción.</summary>
+        Fallida,
+        /// <summary>Más Trabajadores que el máximo de una Visita que asigna: ni se pide.</summary>
+        SuperaTope,
+    }
+
+    private PlanAltaVisitaPreviaDto? _planAlta;
+    private EstadoPlanAlta _estadoPlanAlta = EstadoPlanAlta.SinPedir;
+    private int _cargaPlanAlta;
+
+    private static int MaximoTrabajadoresVisitaQueAsigna => CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote;
+
+    // Trabajadores que no se pueden asignar hoy porque una Asignación cerrada al Centro tiene un periodo que se solapa con
+    // hoy. Mientras haya alguno, el servidor rechazaría la Visita entera: «Guardar» queda deshabilitado y el aviso lo dice y
+    // nombra a quién. Tiene prioridad sobre el plan y sobre el aviso de permiso.
+    private IReadOnlyList<AsignacionPrevistaDto>? PlanAltaSolapadas =>
+        _planAlta is { Plan.Solapadas.Count: > 0 } previa ? previa.Plan.Solapadas : null;
+
+    // El plan que se promete: sin solapadas y con algo que enseñar. Solo hace falta autoridad si hay alguien que asignar; sin
+    // Asignaciones previstas el servidor no la exige, así que ahí PuedeAsignar se ignora (ni bloquea ni esconde las Gestiones).
+    private PlanAltaVisitaDto? PlanAltaConAutoridad =>
+        _planAlta is { Plan: { Solapadas.Count: 0 } plan } previa
+        && (previa.PuedeAsignar || plan.Asignaciones.Count == 0)
+        && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
+
+    /// <summary>Hay algo que enseñar en la región viva; sin aviso la región se encoge para no añadir un hueco de más al formulario.</summary>
+    private bool HayVistaPreviaAlta =>
+        PlanAltaSolapadas is not null || PlanAltaSinPermiso || PlanAltaConAutoridad is not null || PlanAltaCalculando
+        || _estadoPlanAlta is EstadoPlanAlta.NoCalculada or EstadoPlanAlta.Fallida or EstadoPlanAlta.SuperaTope;
+
+    /// <summary>
+    /// Estado de la vista previa tal como lo conoce el servidor, para quien lo observa desde fuera (los E2E): con Blazor Server el
+    /// navegador ve el botón «Guardar» habilitado hasta que llega el repintado, y un clic dado en ese intervalo lo descarta el
+    /// servidor; esperar a «lista» es esperar a que el servidor ya haya calculado y repintado.
+    /// </summary>
+    private string EstadoVistaPreviaAlta => !PlanAltaNecesario
+        ? "sin-datos"
+        : _estadoPlanAlta switch
+        {
+            EstadoPlanAlta.Lista => "lista",
+            EstadoPlanAlta.NoCalculada => "no-calculada",
+            EstadoPlanAlta.Fallida => "fallida",
+            EstadoPlanAlta.SuperaTope => "supera-tope",
+            _ => "calculando",
+        };
+
+    private bool PlanAltaCalculando => PlanAltaNecesario && _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
+
+    private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
+
+    private ElementReference _regionVistaPrevia;
+
+    /// <summary>
+    /// «Reintentar» desaparece al empezar a calcular: la pantalla pasa a «Calculando» (y se repinta) antes de mover el foco a la
+    /// región de la vista previa, para que ni se vea la promesa vieja ni un usuario de teclado o de lector de pantalla pierda el foco.
+    /// </summary>
+    private async Task ReintentarPlanAltaAsync()
+    {
+        var carga = PrepararRecalculoPlanAlta();
+        StateHasChanged();
+
+        try
+        {
+            await _regionVistaPrevia.FocusAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Sin foco programático (circuito caído, prerrenderizado) el reintento sigue igual.
+        }
+
+        await PedirPlanAltaAsync(carga);
+    }
+
+    /// <summary>Hay datos para pedir la vista previa: alta con Centro, fecha de fin válida y algún Trabajador.</summary>
+    private bool PlanAltaNecesario =>
+        _editandoId is null && _trabajadorIdsSeleccionados.Count > 0 && Guid.TryParse(_centroId, out _) && DateOnly.TryParse(_fechaFin, out _);
+
+    /// <summary>
+    /// Motivo por el que «Guardar» está deshabilitado en el alta, o null si se puede guardar. Sin datos para pedir la vista
+    /// previa no se bloquea: las validaciones de siempre avisan de lo que falta.
+    /// </summary>
+    private string? MotivoGuardarDeshabilitadoAlta
+    {
+        get
+        {
+            if (!PlanAltaNecesario)
+                return null;
+            if (_estadoPlanAlta == EstadoPlanAlta.SuperaTope)
+                return Textos["MotivoGuardarSuperaTope", MaximoTrabajadoresVisitaQueAsigna].Value;
+            if (_estadoPlanAlta != EstadoPlanAlta.Lista)
+            {
+                var calculando = _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
+                return calculando ? Textos["MotivoGuardarCalculando"].Value : Textos["MotivoGuardarSinVistaPrevia"].Value;
+            }
+            return PlanAltaSolapadas is not null || PlanAltaSinPermiso ? Textos["MotivoGuardarVistaPreviaBloquea"].Value : null;
+        }
+    }
+
+    private void InvalidarPlanAlta()
+    {
+        _cargaPlanAlta++;
+        _planAlta = null;
+        _estadoPlanAlta = EstadoPlanAlta.SinPedir;
+    }
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
     // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en
@@ -1376,13 +1501,86 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         NavigationManager.NavigateTo($"/documentos?empresaIdFaltante={_documentacion!.EmpresaId}&tipoDocumentoId={item.TipoDocumentoId}");
     }
 
-    private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
+    private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool seleccionado)
     {
         _erroresCampo.Remove("TrabajadorIds");
         if (seleccionado)
             _trabajadorIdsSeleccionados.Add(trabajadorId);
         else
             _trabajadorIdsSeleccionados.Remove(trabajadorId);
+        await RecalcularPlanAltaAsync();
+    }
+
+    private async Task AlCambiarFechaFinAsync(string fechaFin)
+    {
+        _fechaFin = fechaFin;
+        await RecalcularPlanAltaAsync();
+    }
+
+    /// <summary>
+    /// Pide al servidor la vista previa del alta: qué Trabajadores quedarán asignados al Centro y qué Gestiones nacerán.
+    /// Solo en alta y con Centro, fecha de fin válida y al menos un Trabajador. Si la consulta falla o no devuelve nada
+    /// (fuera de alcance), no hay vista previa y el formulario sigue siendo utilizable.
+    /// </summary>
+    private Task RecalcularPlanAltaAsync() => PedirPlanAltaAsync(PrepararRecalculoPlanAlta());
+
+    /// <summary>
+    /// Descarta la vista previa anterior (y con ella cualquier respuesta en vuelo) y deja el estado que toca ya, de forma
+    /// síncrona: «Calculando» si hay que pedirla, «SuperaTope» si hay demasiados Trabajadores o «SinPedir» si no hay datos. Quien
+    /// la llama repinta después de esto, nunca antes: así no hay un repintado que enseñe la promesa vieja con «Guardar» habilitado.
+    /// </summary>
+    private int PrepararRecalculoPlanAlta()
+    {
+        InvalidarPlanAlta();
+
+        if (!PlanAltaNecesario)
+        {
+            RetirarMotivoDeBloqueoObsoleto();
+            return _cargaPlanAlta;
+        }
+
+        _estadoPlanAlta = _trabajadorIdsSeleccionados.Count > MaximoTrabajadoresVisitaQueAsigna
+            ? EstadoPlanAlta.SuperaTope
+            : EstadoPlanAlta.Calculando;
+        if (_estadoPlanAlta != EstadoPlanAlta.Calculando)
+            RetirarMotivoDeBloqueoObsoleto();
+        return _cargaPlanAlta;
+    }
+
+    /// <summary>Si el mensaje del formulario sigue siendo el motivo con que la defensa frenó «Guardar», ya no vale: la vista previa se resolvió.</summary>
+    private void RetirarMotivoDeBloqueoObsoleto()
+    {
+        if (_motivoDeBloqueoMostrado is not null && _mensajeErrorFormulario == _motivoDeBloqueoMostrado)
+            _mensajeErrorFormulario = null;
+        _motivoDeBloqueoMostrado = null;
+    }
+
+    /// <summary>Pide la vista previa de la carga preparada; si entretanto se preparó otra o ya no hay nada que pedir, no hace nada.</summary>
+    private async Task PedirPlanAltaAsync(int carga)
+    {
+        if (carga != _cargaPlanAlta || _estadoPlanAlta != EstadoPlanAlta.Calculando)
+            return;
+
+        var centroId = Guid.Parse(_centroId);
+        var fechaFin = DateOnly.Parse(_fechaFin);
+
+        PlanAltaVisitaPreviaDto? previa = null;
+        var fallo = false;
+        try
+        {
+            previa = await Mediator.Send(new ObtenerPlanAltaVisitaQuery(centroId, fechaFin, _trabajadorIdsSeleccionados.Order().ToList()));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            fallo = true;
+        }
+
+        if (carga != _cargaPlanAlta)
+            return;
+
+        _planAlta = previa;
+        _estadoPlanAlta = fallo ? EstadoPlanAlta.Fallida : previa is null ? EstadoPlanAlta.NoCalculada : EstadoPlanAlta.Lista;
+        RetirarMotivoDeBloqueoObsoleto();
     }
 
     /// <summary>
@@ -1428,6 +1626,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private void ReiniciarRelacionados()
     {
         _cargaRelacionados++;
+        InvalidarPlanAlta();
         _trabajadoresRelacionados = null;
         _soloRelacionados = false;
         _avisoCentroSinAsignados = false;
@@ -1436,7 +1635,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async Task AlCambiarCentroAsync(string centroId)
     {
         _centroId = centroId;
+        // La vista previa era de otro Centro: se descarta ya (y con ella cualquier respuesta en vuelo) para que, mientras se
+        // recalculan los relacionados, el formulario no enseñe ni envíe una promesa que no es de este Centro.
+        InvalidarPlanAlta();
         await RecalcularRelacionadosAsync();
+
+        // Se repinta «Calculando» antes de esperar a la vista previa: el repintado del manejador solo llegaría al terminar, y
+        // una vista previa que ya llegó mientras tardaban los relacionados seguiría a la vista con «Guardar» habilitado.
+        var carga = PrepararRecalculoPlanAlta();
+        StateHasChanged();
+        await PedirPlanAltaAsync(carga);
     }
 
     /// <summary>
@@ -1491,6 +1699,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
+        var recalcularPlanAlta = false;
 
         try
         {
@@ -1527,7 +1736,20 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                     return;
                 }
 
-                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId, horaEstimada));
+                // Defensa por si el botón no frenó (un evento que llega a la pantalla sin pasar por la guarda del kit): sin vista
+                // previa calculada y sin impedimento no se crea nada, y se dice el mismo motivo que el título del botón. Un clic
+                // sobre el botón ya deshabilitado lo descarta el kit antes; ese intervalo lo cubre la espera de los E2E.
+                if (MotivoGuardarDeshabilitadoAlta is { } motivoBloqueo)
+                {
+                    _mensajeErrorFormulario = motivoBloqueo;
+                    _motivoDeBloqueoMostrado = motivoBloqueo;
+                    return;
+                }
+
+                // Crear la Visita es la única confirmación: con la vista previa válida se pide siempre asignar y abrir las
+                // Gestiones que ella mostró (el servidor aplica la misma regla bajo el candado).
+                var resultado = await Mediator.Send(new CrearVisitaCommand(
+                    centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId, horaEstimada, AsignarYCrearGestiones: true));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -1539,16 +1761,21 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (mensajeError is not null)
             {
                 _mensajeErrorFormulario = mensajeError;
-                return;
+                // Un rechazo del servidor puede venir de que la vista previa se quedó vieja (autoridad perdida, solape nuevo):
+                // se vuelve a pedir (tras soltar el botón y repintar, para no dejar el cajón bloqueado mientras tarda) para que la
+                // pantalla diga lo que el servidor dice ahora.
+                recalcularPlanAlta = editandoId is null;
             }
+            else
+            {
+                ToastService.Mostrar(
+                    editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
+                    TonoToast.Exito);
 
-            ToastService.Mostrar(
-                editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
-                TonoToast.Exito);
-
-            _drawerVisible = false;
-            if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
-                await RecargarAsync();
+                _drawerVisible = false;
+                if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
+                    await RecargarAsync();
+            }
         }
         catch (ValidationException ex)
         {
@@ -1569,6 +1796,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         finally
         {
             _guardando = false;
+        }
+
+        if (recalcularPlanAlta)
+        {
+            // El repintado del manejador de eventos solo llega al terminar la tarea: se pide ya para que el mensaje del rechazo se
+            // vea y el botón deje de girar mientras se recalcula. Antes se invalida la vista previa vieja y se pasa a «Calculando»:
+            // si no, ese repintado enseñaría la promesa que el servidor acaba de rechazar con «Guardar» habilitado.
+            var cargaPlanAlta = PrepararRecalculoPlanAlta();
+            StateHasChanged();
+            await PedirPlanAltaAsync(cargaPlanAlta);
         }
     }
 

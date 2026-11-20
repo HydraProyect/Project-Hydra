@@ -1,8 +1,10 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -367,5 +369,124 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D6=a: al Tenant solo Inbound con el papel de Tenant de origen (marco <see cref="AmbitoComunicacionesSoloInbound"/>,
+    /// que fija la guarda) solo le quedan los hilos anclados a una Empresa contratista. «Redactar» sin Empresa abriría un
+    /// hilo sin ancla (triaje) que ese Tenant no ve: se rechaza antes de enviar.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_marco_solo_Inbound_sin_Empresa_se_rechaza_sin_enviar_ni_crear_el_hilo()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+
+        Result<Guid> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(
+                new EnviarMensajeNuevoCommand(conexion.Id, ["contacto@cliente.com"], "Bienvenida", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.Error.Should().Be(ErroresEnviarMensajeNuevo.SinEmpresaContratista);
+        graphClient.VecesEnviado.Should().Be(0, "no sale ningún correo");
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D6=a: si el proveedor agrupa el envío en un hilo existente sin ancla (triaje) o anclado a un Cliente, el Tenant solo
+    /// Inbound escribiría en un hilo que no ve. El correo ya salió, pero no se suma a ese hilo.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_el_marco_solo_Inbound_no_escribe_en_un_hilo_existente_sin_Empresa(bool ancladoACliente)
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+        graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-4", "hilo-triaje-321");
+        var existente = ancladoACliente
+            ? new Conversacion("Hilo de un Cliente", clienteId: Guid.NewGuid())
+            : new Conversacion("Hilo de triaje");
+        existente.AsociarConexion(conexion.Id, "hilo-triaje-321");
+        conversaciones.Agregar(existente);
+
+        Result<Guid> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(
+                new EnviarMensajeNuevoCommand(conexion.Id, ["c@contratista.com"], "Asunto", "<p>…</p>", EmpresaId: Guid.NewGuid()),
+                CancellationToken.None);
+
+        resultado.Error.Should().Be(ErroresEnviarMensajeNuevo.HiloFueraDeLosHilosConEmpresa);
+        existente.Mensajes.Should().BeEmpty("el mensaje no puede acabar en un hilo que ese Tenant no ve");
+        conversaciones.Conversaciones.Should().ContainSingle("no se crea otro hilo");
+    }
+
+    /// <summary>
+    /// D6=a, hilo anterior cerrado sin Empresa (triaje o de un Cliente): el mensaje no se escribe en él ni se enlaza a él;
+    /// abre un hilo nuevo anclado a la Empresa y no se pierde.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_el_marco_solo_Inbound_un_hilo_anterior_cerrado_sin_Empresa_no_se_enlaza_y_se_abre_uno_de_la_Empresa(bool ancladoACliente)
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+        graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-6", "hilo-cerrado-987");
+        var anterior = ancladoACliente
+            ? new Conversacion("Hilo cerrado de un Cliente", clienteId: Guid.NewGuid())
+            : new Conversacion("Hilo cerrado de triaje");
+        anterior.AsociarConexion(conexion.Id, "hilo-cerrado-987");
+        anterior.CambiarEstado(EstadoConversacion.Cerrada);
+        conversaciones.Agregar(anterior);
+        var empresaId = Guid.NewGuid();
+
+        Result<Guid> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(
+                new EnviarMensajeNuevoCommand(conexion.Id, ["c@contratista.com"], "Asunto", "<p>…</p>", EmpresaId: empresaId),
+                CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        anterior.Mensajes.Should().BeEmpty();
+        var nueva = conversaciones.Conversaciones.Should().ContainSingle(c => c.Id == resultado.Valor).Subject;
+        nueva.Should().NotBeSameAs(anterior);
+        nueva.EmpresaId.Should().Be(empresaId);
+        nueva.ConversacionAnteriorId.Should().BeNull("no se enlaza a un hilo que ese Tenant no ve");
+    }
+
+    /// <summary>Control de las de arriba: con una Empresa, el marco deja enviar, abrir el hilo y sumarse al de esa Empresa.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_el_marco_solo_Inbound_y_una_Empresa_envia_y_ancla_el_hilo_a_ella(bool hiloExistenteDeLaEmpresa)
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+        var empresaId = Guid.NewGuid();
+        Conversacion? existente = null;
+        if (hiloExistenteDeLaEmpresa)
+        {
+            graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-5", "hilo-empresa-654");
+            existente = new Conversacion("Hilo de la Empresa", clienteId: null, empresaId: empresaId);
+            existente.AsociarConexion(conexion.Id, "hilo-empresa-654");
+            conversaciones.Agregar(existente);
+        }
+
+        Result<Guid> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(
+                new EnviarMensajeNuevoCommand(conexion.Id, ["agenda@contratista.com"], "Documentación", "<p>…</p>", EmpresaId: empresaId),
+                CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        graphClient.VecesEnviado.Should().Be(1);
+        var conversacion = conversaciones.Conversaciones.Should().ContainSingle().Subject;
+        conversacion.Id.Should().Be(resultado.Valor);
+        conversacion.EmpresaId.Should().Be(empresaId);
+        conversacion.ClienteId.Should().BeNull();
+        conversacion.Mensajes.Should().ContainSingle(m => m.Direccion == DireccionMensaje.Saliente);
+        if (existente is not null)
+            conversacion.Should().BeSameAs(existente);
     }
 }

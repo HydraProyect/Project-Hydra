@@ -126,6 +126,57 @@
   <data name="AvisoCentroSinTrabajadoresAsignados" xml:space="preserve">
     <value>Aquest centre no té treballadors assignats.</value>
   </data>
+  <data name="PlanAltaAsignacion" xml:space="preserve">
+    <value>S'assignarà {0} a aquest centre.</value>
+  </data>
+  <data name="PlanAltaGestionesUna" xml:space="preserve">
+    <value>S'obrirà 1 gestió:</value>
+  </data>
+  <data name="PlanAltaGestionesVarias" xml:space="preserve">
+    <value>S'obriran {0} gestions:</value>
+  </data>
+  <data name="PlanAltaGestionFalta" xml:space="preserve">
+    <value>{0} ({1}): falta</value>
+  </data>
+  <data name="PlanAltaGestionCaduca" xml:space="preserve">
+    <value>{0} ({1}): caduca abans del final de la visita</value>
+  </data>
+  <data name="PlanAltaSinPermiso" xml:space="preserve">
+    <value>No tens permís per assignar treballadors a aquest centre i falta assignar algú de la visita, així que no es pot crear. Demana a qui tingui autoritat que faci aquesta assignació o treu de la visita qui no estigui assignat a aquest centre.</value>
+  </data>
+  <data name="PlanAltaSolapada" xml:space="preserve">
+    <value>{0} no es pot assignar avui a aquest centre: té una assignació tancada amb un període que coincideix amb avui.</value>
+  </data>
+  <data name="PlanAltaSolapadaConsecuencia" xml:space="preserve">
+    <value>La visita no es pot crear així. Treu de la visita qui no es pugui assignar o revisa'n l'assignació.</value>
+  </data>
+  <data name="PlanAltaCalculando" xml:space="preserve">
+    <value>Calculant a qui s'assignarà i quines gestions s'obriran…</value>
+  </data>
+  <data name="PlanAltaSuperaTope" xml:space="preserve">
+    <value>Una visita admet com a màxim {0} treballadors. Treu-ne alguns de la visita per poder desar-la.</value>
+  </data>
+  <data name="PlanAltaNoCalculada" xml:space="preserve">
+    <value>La visita no es pot crear amb aquesta selecció: o no tens accés a aquest centre, o algun treballador no pot entrar en una visita d'aquest centre. Revisa el centre i els treballadors triats.</value>
+  </data>
+  <data name="MotivoGuardarSuperaTope" xml:space="preserve">
+    <value>Treu treballadors: una visita admet com a màxim {0}.</value>
+  </data>
+  <data name="PlanAltaFallida" xml:space="preserve">
+    <value>No s'ha pogut calcular la vista prèvia. Torna-ho a provar.</value>
+  </data>
+  <data name="PlanAltaReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="MotivoGuardarCalculando" xml:space="preserve">
+    <value>Espera que acabi de calcular-se la vista prèvia.</value>
+  </data>
+  <data name="MotivoGuardarSinVistaPrevia" xml:space="preserve">
+    <value>No es pot desar sense la vista prèvia del que s'assignarà.</value>
+  </data>
+  <data name="MotivoGuardarVistaPreviaBloquea" xml:space="preserve">
+    <value>Resol l'avís de la vista prèvia: amb aquests treballadors la visita no es pot crear.</value>
+  </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centre…</value>
   </data>
