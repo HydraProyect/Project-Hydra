@@ -49,10 +49,10 @@
     <value>{0} rechazados</value>
   </data>
   <data name="Cab_Descartado_1" xml:space="preserve">
-    <value>{0} descartado</value>
+    <value>{0} ignorado</value>
   </data>
   <data name="Cab_Descartado_N" xml:space="preserve">
-    <value>{0} descartados</value>
+    <value>{0} ignorados</value>
   </data>
   <data name="Cab_Dividido_1" xml:space="preserve">
     <value>{0} dividido</value>
@@ -61,10 +61,10 @@
     <value>{0} divididos</value>
   </data>
   <data name="Plegar" xml:space="preserve">
-    <value>Plegar</value>
+    <value>Plegar los adjuntos</value>
   </data>
   <data name="Desplegar" xml:space="preserve">
-    <value>Desplegar</value>
+    <value>Mostrar los adjuntos</value>
   </data>
   <data name="VerDetalle" xml:space="preserve">
     <value>Ver detalle</value>
@@ -83,9 +83,6 @@
   </data>
   <data name="OcultarResueltos" xml:space="preserve">
     <value>Ocultar resueltos</value>
-  </data>
-  <data name="Mostrar" xml:space="preserve">
-    <value>Mostrar</value>
   </data>
   <data name="CabRequierenDecision" xml:space="preserve">
     <value>Requieren decisión · {0}</value>
@@ -118,13 +115,13 @@
     <value>Rechazado</value>
   </data>
   <data name="Estado_Descartado" xml:space="preserve">
-    <value>Descartado</value>
+    <value>Ignorado</value>
   </data>
   <data name="Estado_Dividido" xml:space="preserve">
     <value>Dividido</value>
   </data>
   <data name="Elegir" xml:space="preserve">
-    <value>Elegir</value>
+    <value>Elegir destino</value>
   </data>
   <data name="ElegirDe" xml:space="preserve">
     <value>Elegir destino de {0}</value>
@@ -135,14 +132,11 @@
   <data name="MasAcciones" xml:space="preserve">
     <value>Más acciones de {0}</value>
   </data>
-  <data name="CambiarDestino" xml:space="preserve">
-    <value>Cambiar destino</value>
-  </data>
   <data name="Rechazar" xml:space="preserve">
-    <value>Rechazar</value>
+    <value>Rechazar documento</value>
   </data>
   <data name="Descartar" xml:space="preserve">
-    <value>Descartar</value>
+    <value>Ignorar adjunto</value>
   </data>
   <data name="Deshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -154,7 +148,7 @@
     <value>Cancelar</value>
   </data>
   <data name="Asignar" xml:space="preserve">
-    <value>Asignar</value>
+    <value>Asignar documento</value>
   </data>
   <data name="Anterior" xml:space="preserve">
     <value>Anterior</value>
@@ -170,9 +164,6 @@
   </data>
   <data name="AsignarListosA" xml:space="preserve">
     <value>Asignar {0} a {1}</value>
-  </data>
-  <data name="RevisarUnoAUno" xml:space="preserve">
-    <value>Revisar {0} uno a uno</value>
   </data>
   <data name="Destinos_Trabajador_1" xml:space="preserve">
     <value>{0} Trabajador</value>
@@ -286,7 +277,7 @@
     <value>«{0}» rechazado</value>
   </data>
   <data name="ToastDescartado" xml:space="preserve">
-    <value>«{0}» descartado</value>
+    <value>«{0}» ignorado</value>
   </data>
   <data name="ToastReabierto" xml:space="preserve">
     <value>«{0}» vuelve a estar pendiente</value>
@@ -320,5 +311,26 @@
   </data>
   <data name="AsignacionIndeterminada" xml:space="preserve">
     <value>No se pudo confirmar si este adjunto llegó a asignarse. Se vuelve a leer el reparto: comprueba si sigue pendiente antes de volver a intentarlo.</value>
+  </data>
+  <data name="VerAdjuntoDe" xml:space="preserve">
+    <value>Ver adjunto {0}</value>
+  </data>
+  <data name="MostrarListos" xml:space="preserve">
+    <value>Mostrar los listos</value>
+  </data>
+  <data name="Caduco" xml:space="preserve">
+    <value>Caducó el {0}</value>
+  </data>
+  <data name="PlegarListos" xml:space="preserve">
+    <value>Plegar los listos</value>
+  </data>
+  <data name="VerAdjunto" xml:space="preserve">
+    <value>Ver adjunto</value>
+  </data>
+  <data name="RevisarTodos" xml:space="preserve">
+    <value>Revisar todos los adjuntos</value>
+  </data>
+  <data name="RechazarDe" xml:space="preserve">
+    <value>Rechazar el documento {0}</value>
   </data>
 </root>

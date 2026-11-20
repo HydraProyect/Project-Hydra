@@ -49,10 +49,10 @@
     <value>{0} rebutjats</value>
   </data>
   <data name="Cab_Descartado_1" xml:space="preserve">
-    <value>{0} descartat</value>
+    <value>{0} ignorat</value>
   </data>
   <data name="Cab_Descartado_N" xml:space="preserve">
-    <value>{0} descartats</value>
+    <value>{0} ignorats</value>
   </data>
   <data name="Cab_Dividido_1" xml:space="preserve">
     <value>{0} dividit</value>
@@ -61,10 +61,10 @@
     <value>{0} dividits</value>
   </data>
   <data name="Plegar" xml:space="preserve">
-    <value>Plega</value>
+    <value>Plega els adjunts</value>
   </data>
   <data name="Desplegar" xml:space="preserve">
-    <value>Desplega</value>
+    <value>Mostra els adjunts</value>
   </data>
   <data name="VerDetalle" xml:space="preserve">
     <value>Veure detall</value>
@@ -83,9 +83,6 @@
   </data>
   <data name="OcultarResueltos" xml:space="preserve">
     <value>Amagar resolts</value>
-  </data>
-  <data name="Mostrar" xml:space="preserve">
-    <value>Mostra</value>
   </data>
   <data name="CabRequierenDecision" xml:space="preserve">
     <value>Requereixen decisió · {0}</value>
@@ -118,13 +115,13 @@
     <value>Rebutjat</value>
   </data>
   <data name="Estado_Descartado" xml:space="preserve">
-    <value>Descartat</value>
+    <value>Ignorat</value>
   </data>
   <data name="Estado_Dividido" xml:space="preserve">
     <value>Dividit</value>
   </data>
   <data name="Elegir" xml:space="preserve">
-    <value>Triar</value>
+    <value>Triar destí</value>
   </data>
   <data name="ElegirDe" xml:space="preserve">
     <value>Triar el destí de {0}</value>
@@ -135,14 +132,11 @@
   <data name="MasAcciones" xml:space="preserve">
     <value>Més accions de {0}</value>
   </data>
-  <data name="CambiarDestino" xml:space="preserve">
-    <value>Canviar destí</value>
-  </data>
   <data name="Rechazar" xml:space="preserve">
-    <value>Rebutjar</value>
+    <value>Rebutjar document</value>
   </data>
   <data name="Descartar" xml:space="preserve">
-    <value>Descartar</value>
+    <value>Ignorar adjunt</value>
   </data>
   <data name="Deshacer" xml:space="preserve">
     <value>Desfer</value>
@@ -154,7 +148,7 @@
     <value>Cancel·lar</value>
   </data>
   <data name="Asignar" xml:space="preserve">
-    <value>Assignar</value>
+    <value>Assignar document</value>
   </data>
   <data name="Anterior" xml:space="preserve">
     <value>Anterior</value>
@@ -170,9 +164,6 @@
   </data>
   <data name="AsignarListosA" xml:space="preserve">
     <value>Assignar {0} a {1}</value>
-  </data>
-  <data name="RevisarUnoAUno" xml:space="preserve">
-    <value>Revisar {0} un a un</value>
   </data>
   <data name="Destinos_Trabajador_1" xml:space="preserve">
     <value>{0} Treballador</value>
@@ -286,7 +277,7 @@
     <value>«{0}» rebutjat</value>
   </data>
   <data name="ToastDescartado" xml:space="preserve">
-    <value>«{0}» descartat</value>
+    <value>«{0}» ignorat</value>
   </data>
   <data name="ToastReabierto" xml:space="preserve">
     <value>«{0}» torna a estar pendent</value>
@@ -320,5 +311,26 @@
   </data>
   <data name="AsignacionIndeterminada" xml:space="preserve">
     <value>No s&apos;ha pogut confirmar si aquest adjunt ha arribat a assignar-se. Es torna a llegir el repartiment: comprova si continua pendent abans de tornar-ho a provar.</value>
+  </data>
+  <data name="VerAdjuntoDe" xml:space="preserve">
+    <value>Veure l'adjunt {0}</value>
+  </data>
+  <data name="MostrarListos" xml:space="preserve">
+    <value>Mostra els llestos</value>
+  </data>
+  <data name="Caduco" xml:space="preserve">
+    <value>Va caducar el {0}</value>
+  </data>
+  <data name="PlegarListos" xml:space="preserve">
+    <value>Plega els llestos</value>
+  </data>
+  <data name="VerAdjunto" xml:space="preserve">
+    <value>Veure adjunt</value>
+  </data>
+  <data name="RevisarTodos" xml:space="preserve">
+    <value>Revisar tots els adjunts</value>
+  </data>
+  <data name="RechazarDe" xml:space="preserve">
+    <value>Rebutjar el document {0}</value>
   </data>
 </root>
