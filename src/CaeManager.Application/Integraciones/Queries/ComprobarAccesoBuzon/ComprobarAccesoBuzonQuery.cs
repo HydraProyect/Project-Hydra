@@ -86,7 +86,7 @@ public class ComprobarAccesoBuzonQueryHandler(
         if (conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
             return Fallo(
                 ReactivarConexionCommandHandler.CodigoReconexionNecesaria,
-                "Este buzón está desconectado: reconéctalo para que TALVEG vuelva a leerlo.");
+                "Este buzón está desconectado: vuelve a conectarlo con «Añadir buzón».");
 
         // Sin identidad guardada no hay con qué comparar lo que responda Microsoft: lo mismo que dice «Reconectar».
         if (identidad is null)

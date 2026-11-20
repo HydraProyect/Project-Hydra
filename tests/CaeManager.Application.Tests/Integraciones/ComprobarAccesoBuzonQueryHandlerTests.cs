@@ -133,6 +133,9 @@ public class ComprobarAccesoBuzonQueryHandlerTests
         var resultado = await entorno.Handler().Handle(new ComprobarAccesoBuzonQuery(conexion.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoReconexionNecesaria);
+        resultado.Error.Mensaje.Should().Be(
+            "Este buzón está desconectado: vuelve a conectarlo con «Añadir buzón».",
+            "una fila desconectada no ofrece «Reconectar»: se vuelve a dar de alta");
         entorno.Graph.VecesRefrescado.Should().Be(0);
         entorno.Graph.TokensDeIdentidad.Should().BeEmpty();
         entorno.UnitOfWork.VecesGuardado.Should().Be(0);
