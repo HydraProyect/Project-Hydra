@@ -10,7 +10,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 /// <summary>
 /// Los dos datos de actividad que la tabla de Buzones enseña por buzón (columnas «Último correo» y «Abiertas», lienzo
 /// «Comunicaciones multi-buzón», tablero de Buzones). Una sola petición para todos los buzones de la página: el coste no
-/// crece con su número (dos agregaciones, sin consulta por fila). La página la pide por el puerto del Núcleo
+/// crece con su número (tres consultas fijas, sin consulta por fila). La página la pide por el puerto del Núcleo
 /// <see cref="IActividadBuzones"/> (<see cref="ActividadBuzonesService"/>), no directamente (ADR-013).
 ///
 /// <para>
@@ -36,13 +36,13 @@ public record ObtenerActividadBuzonesQuery(IReadOnlyCollection<Guid> ConexionIds
 
 /// <summary>
 /// Implementación en Outbound del puerto <see cref="IActividadBuzones"/> del Núcleo: envía <see cref="ObtenerActividadBuzonesQuery"/>
-/// por el mediador para que la petición pase por la guarda y el ámbito de Outbound.
+/// por el mediador (ISender, el mismo que resuelve el contenedor para IMediator) para que la petición pase por la guarda y el ámbito de Outbound.
 /// </summary>
-public sealed class ActividadBuzonesService(IMediator mediator) : IActividadBuzones
+public sealed class ActividadBuzonesService(ISender mediador) : IActividadBuzones
 {
     public Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> ObtenerAsync(
         IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken = default) =>
-        mediator.Send(new ObtenerActividadBuzonesQuery(conexionIds), cancellationToken);
+        mediador.Send(new ObtenerActividadBuzonesQuery(conexionIds), cancellationToken);
 }
 
 public class ObtenerActividadBuzonesQueryHandler(

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
@@ -14,6 +15,8 @@ using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
@@ -84,6 +87,56 @@ public class ObtenerActividadBuzonesQueryTests
 
         actividad[buzon].ConversacionesAbiertas.Should().Be(abiertasEsperadas);
         actividad[buzon].UltimoCorreoUtc.Should().Be(soloInbound ? Base : Base.AddHours(6));
+    }
+
+    [Fact]
+    public async Task El_servicio_del_puerto_envia_la_peticion_por_el_mediador_con_los_mismos_buzones()
+    {
+        // Enviarla por el mediador es lo que la hace pasar por la guarda y el ámbito de Outbound (Tenant solo Inbound): si el
+        // servicio llamara al handler directamente, ese ámbito no se fijaría y la tabla contaría hilos que la bandeja oculta.
+        var uno = Guid.NewGuid();
+        var dos = Guid.NewGuid();
+        var respuesta = new Dictionary<Guid, ActividadBuzonDto> { [uno] = new(Base, 4) };
+        var mediador = new EmisorFalso(respuesta);
+
+        var resultado = await new ActividadBuzonesService(mediador).ObtenerAsync([uno, dos]);
+
+        resultado.Should().BeSameAs(respuesta);
+        mediador.Peticiones.Should().ContainSingle().Which.Should().BeOfType<ObtenerActividadBuzonesQuery>()
+            .Which.ConexionIds.Should().BeEquivalentTo([uno, dos]);
+    }
+
+    [Fact]
+    public void El_puerto_IActividadBuzones_esta_registrado_con_su_implementacion_de_Comunicaciones()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+
+        servicios.Should().ContainSingle(d => d.ServiceType == typeof(IActividadBuzones))
+            .Which.Should().Match<ServiceDescriptor>(d =>
+                d.ImplementationType == typeof(ActividadBuzonesService) && d.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    private sealed class EmisorFalso(IReadOnlyDictionary<Guid, ActividadBuzonDto> respuesta) : ISender
+    {
+        public List<object> Peticiones { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Peticiones.Add(request);
+            return Task.FromResult((TResponse)respuesta);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
+            where TRequest : IRequest => throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(
+            IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     [Fact]
