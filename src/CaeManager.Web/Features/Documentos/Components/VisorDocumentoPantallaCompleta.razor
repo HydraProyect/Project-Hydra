@@ -1,0 +1,444 @@
+@*
+    Visor modal de documento a pantalla completa, con cabecera (zoom, girar, descargar), cola de adjuntos, miniaturas y hojas:
+    tablero «Visor-Documento» del lienzo de Comunicaciones (L-65, PR-A2). Es solo presentación: quien lo abre le da la lista ya
+    resuelta de adjuntos y recibe el cierre por VisibleChanged. No sustituye a VisorDocumento (un solo archivo en un Modal
+    grande, que usan otras pantallas); es la variante de pantalla completa.
+
+    Fuera de esta PR, a propósito: el panel de revisión de la derecha (A3), el enlace desde el Reparto de adjuntos (A4) y la
+    división de PDF en pantalla (A5). Las hojas pintan la imagen del adjunto si lo es; de un PDF el servidor solo da hoy la
+    descarga (sin vista incrustada ni recuento de páginas), así que sin un contenido propio (parámetro Hoja) la hoja avisa de
+    que no hay vista previa.
+*@
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IStringLocalizer<TextosVisorDocumento> Textos
+
+@if (Abierto)
+{
+    var actual = Actual;
+    var total = TotalPaginas;
+    var pendientes = Pendientes;
+    <div class="vz-ov" @onclick="CerrarAsync">
+        <div class="vz-pn" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_panel"
+             @onclick:stopPropagation="true" @onkeydown="ManejarTeclaAsync">
+            <header class="vz-cab">
+                <span class="vz-ico-doc" aria-hidden="true"><Icono Nombre="documentos" /></span>
+                <span class="vz-tit">
+                    <h2 id="@_tituloId" class="vz-tit-h">@(Titulo ?? actual.NombreArchivo)</h2>
+                    <span class="vz-meta">@(Meta ?? ResumenAdjuntos())</span>
+                </span>
+                <div role="group" aria-label="@Textos["Zoom_Grupo"]" class="vz-grupo">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Zoom_Reducir"]" title="@Textos["Zoom_Reducir"]" OnClick="() => CambiarZoom(-PasoZoom)"><Icono Nombre="menos" Tamano="TamanoIcono.Pequeno" /></Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["Zoom_Restablecer", _zoom]" title="@Textos["Zoom_Restablecer", _zoom]" OnClick="RestablecerZoom"><span class="vz-pct">@_zoom %</span></Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Zoom_Ampliar"]" title="@Textos["Zoom_Ampliar"]" OnClick="() => CambiarZoom(PasoZoom)"><Icono Nombre="mas" Tamano="TamanoIcono.Pequeno" /></Boton>
+                </div>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Girar"]" title="@Textos["Girar"]" OnClick="Girar"><Icono Nombre="girar" Tamano="TamanoIcono.Pequeno" /></Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@(EsUrlRelativaSegura(actual.Url) ? actual.Url : null)" Deshabilitado="@(!EsUrlRelativaSegura(actual.Url))" download="@actual.NombreArchivo"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" />@Textos["Descargar"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono vz-btn-cerrar" aria-label="@Textos["Cerrar"]" title="@Textos["Cerrar"]" OnClick="CerrarAsync"><Icono Nombre="cerrar" /></Boton>
+            </header>
+
+            <nav class="vz-cola" aria-label="@Textos["Cola_Aria"]">
+                <span class="vz-cola-pos">
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_lista.Count < 2)" class="vz-btn-icono" aria-label="@Textos["Cola_Anterior"]" title="@Textos["Cola_Anterior"]" OnClick="() => AdjuntoRelativo(-1)"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /></Boton>
+                    <span class="vz-cola-n" tabindex="-1" @ref="_posicion">@Textos["Cola_Posicion", _indice + 1, _lista.Count]</span>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_lista.Count < 2)" class="vz-btn-icono" aria-label="@Textos["Cola_Siguiente"]" title="@Textos["Cola_Siguiente"]" OnClick="() => AdjuntoRelativo(1)"><Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></Boton>
+                </span>
+                <span class="vz-marcas" role="list">
+                    @foreach (var j in Enumerable.Range(0, _lista.Count))
+                    {
+                        var destino = j;
+                        var adjunto = _lista[j];
+                        var etiqueta = EtiquetaMarca(adjunto, j);
+                        <span role="listitem" @key="adjunto.Id">
+                            <button type="button" class="@ClaseMarca(adjunto.Estado)" aria-current="@(j == _indice ? "true" : "false")" aria-label="@etiqueta" title="@etiqueta" @onclick="() => IrAAdjunto(destino)">
+                                @switch (adjunto.Estado)
+                                {
+                                    case EstadoAdjuntoVisor.Asignado:
+                                        <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                                        break;
+                                    case EstadoAdjuntoVisor.Rechazado:
+                                        <Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" />
+                                        break;
+                                    default:
+                                        <text>@(j + 1)</text>
+                                        break;
+                                }
+                            </button>
+                        </span>
+                    }
+                </span>
+                <span class="vz-cola-adj">
+                    <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" />
+                    <span class="vz-cola-nombre" title="@actual.NombreArchivo">@actual.NombreArchivo</span>
+                    <span class="vz-cola-peso">@DescribirArchivo(actual)</span>
+                </span>
+                @if (pendientes > 0)
+                {
+                    <span class="vz-cola-resto">@(pendientes == 1 ? Textos["Cola_Queda_1"] : Textos["Cola_Quedan_N", pendientes])</span>
+                }
+                else
+                {
+                    <Badge Tono="TonoBadge.Neutro"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />@Textos["Cola_Revisados"]</Badge>
+                }
+                <span class="vz-atajos">
+                    <kbd class="vz-atajo">@Textos["Atajo_FlechaIzquierda"]</kbd><kbd class="vz-atajo">@Textos["Atajo_FlechaDerecha"]</kbd><span>@Textos["Atajo_CambianAdjunto"]</span>
+                    <kbd class="vz-atajo">[</kbd><kbd class="vz-atajo">]</kbd><span>@Textos["Atajo_CambianPagina"]</span>
+                    <kbd class="vz-atajo">@Textos["Atajo_Mas"]</kbd><kbd class="vz-atajo">@Textos["Atajo_Menos"]</kbd><span>@Textos["Atajo_CambianZoom"]</span>
+                    <kbd class="vz-atajo">@Textos["Atajo_Escape"]</kbd><span>@Textos["Atajo_CierraVisor"]</span>
+                </span>
+            </nav>
+
+            <div class="vz-cuerpo">
+                <nav class="vz-nav" aria-label="@Textos["Paginas_Aria"]">
+                    @{ var clavesMiniaturas = new ClavesDeHermanos(); }
+                    @foreach (var pagina in Enumerable.Range(0, total))
+                    {
+                        <button type="button" class="vz-pag" aria-current="@(pagina == _pagina ? "true" : "false")" aria-label="@Textos["Pagina_N", pagina + 1]" @onclick="() => IrAPagina(pagina)" @key="clavesMiniaturas.De(pagina)">
+                            <span class="@(pagina == _pagina ? "vz-mini vz-mini-actual" : "vz-mini")" aria-hidden="true"><span></span><span class="vz-w100"></span><span class="vz-w90"></span><span class="vz-w95"></span><span class="vz-w70"></span></span>
+                            @(pagina + 1)
+                        </button>
+                    }
+                </nav>
+                @* shortcut: Blazor no decide el preventDefault por tecla desde el servidor. Con el foco en el lienzo y el zoom por encima del 100 % las flechas se dejan al desplazamiento nativo en vez de cambiar de adjunto, y Re Pág y Av Pág desplazan siempre (solo « [ » y « ] » cambian de página). Mejorar con un manejador de teclas en visor-documento.js si hace falta el atajo completo del lienzo. *@
+                <div class="vz-lienzo" tabindex="0" role="region" aria-label="@Textos["Lienzo_Aria"]" @ref="_lienzo" @onkeydown="ManejarTeclaLienzoAsync" @onkeydown:stopPropagation="true">
+                    @{ var clavesHojas = new ClavesDeHermanos(); }
+                    @foreach (var p in Enumerable.Range(0, total))
+                    {
+                        var hoja = new HojaVisor(actual, p + 1, total);
+                        <div class="@ClaseHoja" style="--vz-zoom:@_zoom" data-visor-pagina="@p" @key="clavesHojas.De(p)">
+                            <article class="vz-papel" aria-label="@Textos["Pagina_DeN", hoja.Numero, hoja.Total]">
+                                @if (Hoja is not null)
+                                {
+                                    @Hoja(hoja)
+                                }
+                                else
+                                {
+                                    @HojaPorDefecto(hoja)
+                                }
+                            </article>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const int ZoomMinimo = 50;
+    private const int ZoomMaximo = 200;
+    private const int ZoomInicial = 100;
+    private const int PasoZoom = 10;
+    private const int MaximoPaginas = 500;
+
+    private static int _siguienteId;
+    private readonly string _tituloId = $"vz-titulo-{Interlocked.Increment(ref _siguienteId)}";
+    private ElementReference _panel;
+    private ElementReference _posicion;
+    private ElementReference _lienzo;
+    private IJSObjectReference? _trampaFoco;
+    private IJSObjectReference? _modulo;
+    private IReadOnlyList<AdjuntoVisor> _lista = Array.Empty<AdjuntoVisor>();
+    private bool _abiertoAntes;
+    private bool _previoAbierto;
+    private int _indice;
+    private int _pagina;
+    private int _zoom = ZoomInicial;
+    private int _giro;
+    private int? _irA;
+
+    private int Pendientes => _lista.Count(a => a.Estado == EstadoAdjuntoVisor.Pendiente);
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Los adjuntos de la cola, ya resueltos por quien abre el visor. Sin adjuntos el visor no se pinta aunque <see cref="Visible"/> sea verdadero.</summary>
+    [Parameter] public IReadOnlyList<AdjuntoVisor>? Adjuntos { get; set; }
+
+    /// <summary>Posición (desde 0) del adjunto con el que se abre el visor. Fuera de rango se ajusta al más cercano.</summary>
+    [Parameter] public int IndiceInicial { get; set; }
+
+    /// <summary>Título de la cabecera. Sin valor, el nombre del archivo del adjunto actual.</summary>
+    [Parameter] public string? Titulo { get; set; }
+
+    /// <summary>Línea bajo el título. Sin valor, el número de adjuntos.</summary>
+    [Parameter] public string? Meta { get; set; }
+
+    /// <summary>Contenido de cada hoja. Sin valor, la imagen del adjunto si lo es, o el aviso de que no hay vista previa.</summary>
+    [Parameter] public RenderFragment<HojaVisor>? Hoja { get; set; }
+
+    private bool Abierto => Visible && _lista.Count > 0;
+
+    private AdjuntoVisor Actual => _lista[Math.Clamp(_indice, 0, _lista.Count - 1)];
+
+    private int TotalPaginas => Math.Clamp(Actual.Paginas, 1, MaximoPaginas);
+
+    private string ClaseHoja =>
+        "vz-hoja" + (_zoom > ZoomInicial ? " vz-hoja-ampliada" : string.Empty) + (_giro != 0 ? $" vz-giro-{_giro}" : string.Empty);
+
+    protected override void OnParametersSet()
+    {
+        _lista = Adjuntos ?? Array.Empty<AdjuntoVisor>();
+
+        // Al abrirse (cerrado → abierto) se parte de cero: el zoom, el giro y la hoja de la vez anterior no se arrastran.
+        if (Abierto && !_abiertoAntes)
+        {
+            _indice = IndiceInicial;
+            _pagina = 0;
+            _zoom = ZoomInicial;
+            _giro = 0;
+            _irA = null;
+        }
+
+        if (_lista.Count > 0)
+            _indice = Math.Clamp(_indice, 0, _lista.Count - 1);
+
+        _abiertoAntes = Abierto;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Abierto && !_previoAbierto)
+        {
+            await ActivarTrampaFocoAsync();
+            await EnfocarPosicionAsync();
+        }
+        else if (!Abierto && _previoAbierto)
+        {
+            await LiberarTrampaFocoAsync();
+        }
+
+        _previoAbierto = Abierto;
+
+        if (Abierto && _irA is { } destino)
+        {
+            _irA = null;
+            await LlevarLienzoAsync(destino);
+        }
+    }
+
+    private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
+
+    private Task ManejarTeclaAsync(KeyboardEventArgs e) => ProcesarTeclaAsync(e, enLienzo: false);
+
+    private Task ManejarTeclaLienzoAsync(KeyboardEventArgs e) => ProcesarTeclaAsync(e, enLienzo: true);
+
+    private async Task ProcesarTeclaAsync(KeyboardEventArgs e, bool enLienzo)
+    {
+        // Ctrl y Meta quedan para el navegador; AltGr llega como Ctrl+Alt y sí pasa, porque « [ » y « ] » lo necesitan.
+        if ((e.CtrlKey || e.MetaKey) && !e.AltKey)
+            return;
+
+        // En el lienzo ampliado las flechas desplazan: no se capturan para cambiar de adjunto.
+        var desplaza = enLienzo && _zoom > ZoomInicial;
+
+        switch (e.Key)
+        {
+            case "Escape":
+                await CerrarAsync();
+                break;
+            case "ArrowRight" when !desplaza:
+                AdjuntoRelativo(1);
+                break;
+            case "ArrowLeft" when !desplaza:
+                AdjuntoRelativo(-1);
+                break;
+            case "]":
+                IrAPagina(Math.Min(_pagina + 1, TotalPaginas - 1));
+                break;
+            case "[":
+                IrAPagina(Math.Max(_pagina - 1, 0));
+                break;
+            case "+":
+            case "=":
+                CambiarZoom(PasoZoom);
+                break;
+            case "-":
+                CambiarZoom(-PasoZoom);
+                break;
+        }
+    }
+
+    private void IrAAdjunto(int destino)
+    {
+        if (destino == _indice || destino < 0 || destino >= _lista.Count)
+            return;
+
+        _indice = destino;
+        _pagina = 0;
+        _giro = 0;
+        _irA = 0;
+    }
+
+    private void AdjuntoRelativo(int delta)
+    {
+        var n = _lista.Count;
+        if (n > 1)
+            IrAAdjunto((((_indice + delta) % n) + n) % n);
+    }
+
+    private void IrAPagina(int destino)
+    {
+        _pagina = Math.Clamp(destino, 0, TotalPaginas - 1);
+        _irA = _pagina;
+    }
+
+    private void CambiarZoom(int delta) => _zoom = Math.Clamp(_zoom + delta, ZoomMinimo, ZoomMaximo);
+
+    private void RestablecerZoom() => _zoom = ZoomInicial;
+
+    private void Girar() => _giro = (_giro + 90) % 360;
+
+    private string ResumenAdjuntos() =>
+        _lista.Count == 1 ? Textos["Meta_Adjunto_1", _lista.Count] : Textos["Meta_Adjuntos_N", _lista.Count];
+
+    private string EtiquetaMarca(AdjuntoVisor adjunto, int posicion) =>
+        adjunto.Estado switch
+        {
+            EstadoAdjuntoVisor.Asignado => Textos["Marca_Asignado", posicion + 1, adjunto.NombreArchivo],
+            EstadoAdjuntoVisor.Rechazado => Textos["Marca_Rechazado", posicion + 1, adjunto.NombreArchivo],
+            _ => Textos["Marca_Pendiente", posicion + 1, adjunto.NombreArchivo]
+        };
+
+    private static string ClaseMarca(EstadoAdjuntoVisor estado) =>
+        estado switch
+        {
+            EstadoAdjuntoVisor.Asignado => "vz-marca vz-marca-asignado",
+            EstadoAdjuntoVisor.Rechazado => "vz-marca vz-marca-rechazado",
+            _ => "vz-marca"
+        };
+
+    private enum TipoArchivo { Pdf, Imagen, Otro }
+
+    private static TipoArchivo TipoDe(AdjuntoVisor adjunto) =>
+        Path.GetExtension(adjunto.NombreArchivo).ToLowerInvariant() switch
+        {
+            ".pdf" => TipoArchivo.Pdf,
+            ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" => TipoArchivo.Imagen,
+            _ => TipoArchivo.Otro
+        };
+
+    private string DescribirArchivo(AdjuntoVisor adjunto)
+    {
+        var tipo = TipoDe(adjunto);
+        var partes = new List<string>
+        {
+            tipo switch
+            {
+                TipoArchivo.Pdf => Textos["Tipo_Pdf"],
+                TipoArchivo.Imagen => Textos["Tipo_Imagen"],
+                _ => Textos["Tipo_Documento"]
+            }
+        };
+
+        if (tipo != TipoArchivo.Imagen)
+            partes.Add(adjunto.Paginas == 1 ? Textos["Paginas_1", adjunto.Paginas] : Textos["Paginas_N", adjunto.Paginas]);
+
+        if (!string.IsNullOrWhiteSpace(adjunto.Peso))
+            partes.Add(adjunto.Peso);
+
+        return string.Join(" · ", partes);
+    }
+
+    /// <summary>
+    /// Solo se enlazan (descarga e imagen) direcciones relativas del propio sitio: <c>/ruta</c>, nunca <c>//otro-sitio</c> ni un
+    /// esquema (<c>javascript:</c>). La lista llega de quien abre el visor, y un valor así no debe llegar a un href ni a un src.
+    /// Pública solo para poder probarla directamente (función pura, sin InternalsVisibleTo en CaeManager.Web).
+    /// </summary>
+    public static bool EsUrlRelativaSegura(string? url) =>
+        !string.IsNullOrEmpty(url) && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'));
+
+    private RenderFragment HojaPorDefecto(HojaVisor hoja) => @<text>
+        @if (TipoDe(hoja.Adjunto) == TipoArchivo.Imagen && EsUrlRelativaSegura(hoja.Adjunto.Url))
+        {
+            <img class="vz-img" src="@hoja.Adjunto.Url" alt="@hoja.Adjunto.NombreArchivo" />
+        }
+        else
+        {
+            <div class="vz-sin-vista">
+                <Icono Nombre="documentos" Tamano="TamanoIcono.Grande" />
+                <p class="vz-sin-vista-titulo">@Textos["Hoja_SinVista_Titulo"]</p>
+                <p class="vz-sin-vista-texto">@Textos["Hoja_SinVista_Texto"]</p>
+            </div>
+        }
+    </text>;
+
+    /// <summary>
+    /// Foco atrapado en el visor y devuelto a quien lo abrió al cerrarlo: la misma trampa que el Modal (dialogo-foco.js). Mejor
+    /// esfuerzo, como allí: sin el módulo (circuito cerrándose, o bUnit sin navegador) el visor sigue usable y Escape no depende de ella.
+    /// </summary>
+    private async Task ActivarTrampaFocoAsync()
+    {
+        try
+        {
+            var modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            if (modulo is null) return;
+
+            await using (modulo)
+            {
+                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _panel);
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+
+    /// <summary>Al abrirse, el foco va a «Documento n de N» (como en el lienzo); la trampa lo habría dejado en el primer control.</summary>
+    private async Task EnfocarPosicionAsync()
+    {
+        try
+        {
+            await _posicion.FocusAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task LlevarLienzoAsync(int pagina)
+    {
+        try
+        {
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/visor-documento.js");
+            await _modulo.InvokeVoidAsync("irAPagina", _lienzo, pagina);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        if (_trampaFoco is null) return;
+
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+
+        try
+        {
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await LiberarTrampaFocoAsync();
+
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

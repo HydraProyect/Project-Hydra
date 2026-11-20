@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Tanca el visor</value>
+  </data>
+  <data name="Zoom_Grupo" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="Zoom_Reducir" xml:space="preserve">
+    <value>Redueix el zoom</value>
+  </data>
+  <data name="Zoom_Ampliar" xml:space="preserve">
+    <value>Amplia el zoom</value>
+  </data>
+  <data name="Zoom_Restablecer" xml:space="preserve">
+    <value>{0} %, restableix el zoom</value>
+  </data>
+  <data name="Girar" xml:space="preserve">
+    <value>Gira el document</value>
+  </data>
+  <data name="Descargar" xml:space="preserve">
+    <value>Descarrega el document</value>
+  </data>
+  <data name="Cola_Aria" xml:space="preserve">
+    <value>Cua d'adjunts per revisar</value>
+  </data>
+  <data name="Cola_Anterior" xml:space="preserve">
+    <value>Vés a l'adjunt anterior</value>
+  </data>
+  <data name="Cola_Siguiente" xml:space="preserve">
+    <value>Vés a l'adjunt següent</value>
+  </data>
+  <data name="Cola_Posicion" xml:space="preserve">
+    <value>Document {0} de {1}</value>
+  </data>
+  <data name="Marca_Pendiente" xml:space="preserve">
+    <value>Adjunt {0}, pendent: {1}</value>
+  </data>
+  <data name="Marca_Asignado" xml:space="preserve">
+    <value>Adjunt {0}, assignat: {1}</value>
+  </data>
+  <data name="Marca_Rechazado" xml:space="preserve">
+    <value>Adjunt {0}, rebutjat: {1}</value>
+  </data>
+  <data name="Cola_Queda_1" xml:space="preserve">
+    <value>En queda 1 per revisar</value>
+  </data>
+  <data name="Cola_Quedan_N" xml:space="preserve">
+    <value>En queden {0} per revisar</value>
+  </data>
+  <data name="Cola_Revisados" xml:space="preserve">
+    <value>Tots els adjunts revisats</value>
+  </data>
+  <data name="Atajo_FlechaIzquierda" xml:space="preserve">
+    <value>Fletxa esquerra</value>
+  </data>
+  <data name="Atajo_FlechaDerecha" xml:space="preserve">
+    <value>Fletxa dreta</value>
+  </data>
+  <data name="Atajo_CambianAdjunto" xml:space="preserve">
+    <value>canvien d'adjunt.</value>
+  </data>
+  <data name="Atajo_CambianPagina" xml:space="preserve">
+    <value>canvien de pàgina.</value>
+  </data>
+  <data name="Atajo_Mas" xml:space="preserve">
+    <value>Més</value>
+  </data>
+  <data name="Atajo_Menos" xml:space="preserve">
+    <value>Menys</value>
+  </data>
+  <data name="Atajo_CambianZoom" xml:space="preserve">
+    <value>canvien el zoom.</value>
+  </data>
+  <data name="Atajo_Escape" xml:space="preserve">
+    <value>Escape</value>
+  </data>
+  <data name="Atajo_CierraVisor" xml:space="preserve">
+    <value>tanca el visor.</value>
+  </data>
+  <data name="Paginas_Aria" xml:space="preserve">
+    <value>Pàgines</value>
+  </data>
+  <data name="Lienzo_Aria" xml:space="preserve">
+    <value>Pàgines del document</value>
+  </data>
+  <data name="Pagina_N" xml:space="preserve">
+    <value>Pàgina {0}</value>
+  </data>
+  <data name="Pagina_DeN" xml:space="preserve">
+    <value>Pàgina {0} de {1}</value>
+  </data>
+  <data name="Meta_Adjunto_1" xml:space="preserve">
+    <value>{0} adjunt</value>
+  </data>
+  <data name="Meta_Adjuntos_N" xml:space="preserve">
+    <value>{0} adjunts</value>
+  </data>
+  <data name="Tipo_Pdf" xml:space="preserve">
+    <value>PDF</value>
+  </data>
+  <data name="Tipo_Imagen" xml:space="preserve">
+    <value>Imatge</value>
+  </data>
+  <data name="Tipo_Documento" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="Paginas_1" xml:space="preserve">
+    <value>{0} pàgina</value>
+  </data>
+  <data name="Paginas_N" xml:space="preserve">
+    <value>{0} pàgines</value>
+  </data>
+  <data name="Hoja_SinVista_Titulo" xml:space="preserve">
+    <value>Aquesta pàgina no té previsualització</value>
+  </data>
+  <data name="Hoja_SinVista_Texto" xml:space="preserve">
+    <value>Descarrega el document per veure'l.</value>
+  </data>
+</root>
