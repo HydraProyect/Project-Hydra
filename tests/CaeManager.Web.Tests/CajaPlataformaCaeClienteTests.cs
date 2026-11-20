@@ -28,6 +28,10 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     private static readonly Guid EmpresaId = Guid.NewGuid();
     private readonly RelojManual _reloj = new();
 
+    // Plazo explícito de las esperas asíncronas: el por defecto de bUnit (1 s) es de pared y, con varios preflights a la vez en la
+    // misma máquina, la continuación de la carga o del clic puede tardar más sin que el componente esté mal.
+    private static readonly TimeSpan Plazo = TimeSpan.FromSeconds(10);
+
     public CajaPlataformaCaeClienteTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -116,7 +120,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
         cut.FindAll("button").Last(b => b.TextContent.Contains("Guardar", StringComparison.Ordinal)).Click();
 
     [Fact]
-    public void Mientras_la_pagina_no_habilita_la_carga_no_consulta_nada()
+    public async Task Mientras_la_pagina_no_habilita_la_carga_no_consulta_nada()
     {
         var mediador = new MediatorFalso();
 
@@ -129,7 +133,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
 
         cut.Render(p => p.Add(c => c.Cargar, true));
 
-        cut.WaitForAssertion(() => cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Nalanda"), Plazo);
         mediador.Enviadas.Select(e => e.GetType()).Should().Equal(
             typeof(ObtenerPlataformaCaeClienteQuery), typeof(ObtenerAccesosPlataformaCaeClienteQuery));
         _avisosDeCarga.Should().Be(1, "la caja avisa una sola vez, al terminar su lectura");
@@ -150,7 +154,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     }
 
     [Fact]
-    public void El_conflicto_de_version_avisa_cierra_relee_y_reenvia_la_version_actualizada()
+    public async Task El_conflicto_de_version_avisa_cierra_relee_y_reenvia_la_version_actualizada()
     {
         var mediador = new MediatorFalso { ConflictoDeVersion = true };
         var versionLeida = mediador.Plataforma!.Version;
@@ -163,7 +167,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
 
         Guardar(cut);
 
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
         {
             mediador.Enviadas.OfType<GuardarPlataformaCaeClienteCommand>().Should().ContainSingle()
                 .Which.Version.Should().Be(versionLeida);
@@ -172,7 +176,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
             cut.FindAll("input").Should().BeEmpty("el formulario obsoleto se cierra");
             Services.GetRequiredService<ToastService>().Mensajes.Should()
                 .ContainSingle(m => m.Mensaje.Contains("Otra persona modificó", StringComparison.Ordinal) && m.Tono == TonoToast.Error);
-        });
+        }, Plazo);
 
         mediador.ConflictoDeVersion = false;
         cut.Find("[data-editar-plataforma]").Click();
@@ -183,7 +187,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     }
 
     [Fact]
-    public void Tras_un_conflicto_al_guardar_la_plataforma_se_vuelve_a_leer_la_caja()
+    public async Task Tras_un_conflicto_al_guardar_la_plataforma_se_vuelve_a_leer_la_caja()
     {
         var mediador = new MediatorFalso { GuardadoEnConflicto = true };
         var cut = Montar(mediador);
@@ -194,16 +198,16 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
         cut.Find("input").Input("Nalanda Pro");
         Guardar(cut);
 
-        cut.WaitForAssertion(() =>
+        await cut.WaitForAssertionAsync(() =>
         {
             mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1);
             cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Dokify", "al reabrir, el modal parte de lo que guardó la otra persona");
             cut.Markup.Should().Contain("Otra persona acaba de registrar la plataforma.");
-        });
+        }, Plazo);
     }
 
     [Fact]
-    public void Tras_un_conflicto_al_guardar_un_acceso_se_vuelven_a_leer_los_accesos()
+    public async Task Tras_un_conflicto_al_guardar_un_acceso_se_vuelven_a_leer_los_accesos()
     {
         var mediador = new MediatorFalso { GuardadoEnConflicto = true };
         var cut = Montar(mediador);
@@ -217,7 +221,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
         cut.Find("input").Input("nuevo-usuario");
         Guardar(cut);
 
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1));
+        await cut.WaitForAssertionAsync(() => mediador.Enviadas.OfType<ObtenerAccesosPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1), Plazo);
         cut.Find($"[data-acceso-empresa='{EmpresaId}']").TextContent.Should().Contain("otro-usuario");
     }
 
@@ -317,14 +321,14 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     }
 
     [Fact]
-    public void Mostrar_pide_la_contrasena_una_vez_y_se_oculta_sola_a_los_30_segundos()
+    public async Task Mostrar_pide_la_contrasena_una_vez_y_se_oculta_sola_a_los_30_segundos()
     {
         var mediador = new MediatorFalso();
         var cut = Montar(mediador);
 
         cut.Find("[data-mostrar-contrasena]").Click();
 
-        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"), Plazo);
         mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle()
             .Which.Should().Be(new RevelarContrasenaAccesoPlataformaCaeQuery(ClienteEmpresarialId, EmpresaId));
 
@@ -332,18 +336,18 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
         cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal");
 
         _reloj.Avanzar(TimeSpan.FromSeconds(1));
-        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••"), Plazo);
         cut.Markup.Should().NotContain("s3cr3ta-del-portal");
     }
 
     [Fact]
-    public void Ocultar_antes_de_tiempo_no_vuelve_a_pedir_la_contrasena()
+    public async Task Ocultar_antes_de_tiempo_no_vuelve_a_pedir_la_contrasena()
     {
         var mediador = new MediatorFalso();
         var cut = Montar(mediador);
 
         cut.Find("[data-mostrar-contrasena]").Click();
-        cut.WaitForAssertion(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-contrasena-valor]").TextContent.Should().Be("s3cr3ta-del-portal"), Plazo);
         cut.Find("[data-mostrar-contrasena]").Click();
 
         cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••");
@@ -352,14 +356,14 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     }
 
     [Fact]
-    public void Copiar_la_contrasena_usa_la_misma_peticion_auditada()
+    public async Task Copiar_la_contrasena_usa_la_misma_peticion_auditada()
     {
         var mediador = new MediatorFalso();
         var cut = Montar(mediador);
 
         cut.Find("[data-contrasena] .boton-copiar").Click();
 
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle());
+        await cut.WaitForAssertionAsync(() => mediador.Enviadas.OfType<RevelarContrasenaAccesoPlataformaCaeQuery>().Should().ContainSingle(), Plazo);
         cut.Find("[data-contrasena-valor]").TextContent.Should().Be("••••••••••", "copiar no la deja a la vista");
     }
 }

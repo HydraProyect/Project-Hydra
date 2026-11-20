@@ -26,6 +26,10 @@ public class IsloteInteractivoTests : BunitContext
 {
     private const string DetalleInterno = "Npgsql: tenant 7f3a… columna secreta";
 
+    // Plazo explícito de las esperas asíncronas: el por defecto de bUnit (1 s) es de pared y, con varios preflights a la vez en la
+    // misma máquina, el aviso del límite puede tardar más en pintarse sin que el islote esté mal.
+    private static readonly TimeSpan Plazo = TimeSpan.FromSeconds(10);
+
     private readonly AlertaOperativaQueCuenta _alertas = new();
 
     public IsloteInteractivoTests()
@@ -40,11 +44,11 @@ public class IsloteInteractivoTests : BunitContext
     }
 
     [Fact]
-    public void Una_excepcion_en_el_OnInitializedAsync_del_islote_muestra_el_aviso_compacto_y_no_tumba_el_circuito()
+    public async Task Una_excepcion_en_el_OnInitializedAsync_del_islote_muestra_el_aviso_compacto_y_no_tumba_el_circuito()
     {
         var cut = Render<IsloteQueFallaAlIniciar>();
 
-        cut.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-limite-errores-compacto]"), Plazo);
         ComprobarAvisoCompactoConRecarga(cut);
         cut.FindAll("#contenido").Should().BeEmpty();
         _alertas.Capturadas.Should().ContainSingle().Which.Message.Should().Be(DetalleInterno,
@@ -52,7 +56,7 @@ public class IsloteInteractivoTests : BunitContext
     }
 
     [Fact]
-    public void Una_excepcion_en_un_manejador_del_islote_muestra_el_aviso_compacto_y_no_tumba_el_circuito()
+    public async Task Una_excepcion_en_un_manejador_del_islote_muestra_el_aviso_compacto_y_no_tumba_el_circuito()
     {
         var cut = Render<IsloteQueFallaEnManejador>();
         cut.Find("#contenido").TextContent.Should().Be("Islote cargado");
@@ -60,17 +64,17 @@ public class IsloteInteractivoTests : BunitContext
         var clic = () => cut.Find("#accion").Click();
 
         clic.Should().NotThrow("el fallo del manejador lo contiene el islote, no llega al circuito");
-        cut.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-limite-errores-compacto]"), Plazo);
         ComprobarAvisoCompactoConRecarga(cut);
         _alertas.Capturadas.Should().ContainSingle();
     }
 
     [Fact]
-    public void Una_excepcion_en_OnAfterRenderAsync_del_islote_queda_contenida()
+    public async Task Una_excepcion_en_OnAfterRenderAsync_del_islote_queda_contenida()
     {
         var cut = Render<IsloteQueFallaTrasPintar>();
 
-        cut.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-limite-errores-compacto]"), Plazo);
         ComprobarAvisoCompactoConRecarga(cut);
         _alertas.Capturadas.Should().ContainSingle();
     }
@@ -100,12 +104,12 @@ public class IsloteInteractivoTests : BunitContext
     }
 
     [Fact]
-    public void Un_islote_real_de_MainLayout_que_falla_al_iniciar_no_tumba_el_circuito()
+    public async Task Un_islote_real_de_MainLayout_que_falla_al_iniciar_no_tumba_el_circuito()
     {
         var render = () => Render<SesionDelCircuito>();
 
         var cut = render.Should().NotThrow("SesionDelCircuito es IsloteInteractivo: el fallo de su OnInitializedAsync se contiene").Subject;
-        cut.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
+        await cut.WaitForAssertionAsync(() => cut.Find("[data-limite-errores-compacto]"), Plazo);
         _alertas.Capturadas.Should().ContainSingle();
         cut.Markup.Should().NotContain(DetalleInterno);
     }
