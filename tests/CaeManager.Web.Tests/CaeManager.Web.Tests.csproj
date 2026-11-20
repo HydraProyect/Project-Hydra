@@ -59,6 +59,12 @@
     <!-- Lo que TrazaAlFallar decide sin navegador (borrar, publicar, anotar el -sin-traza.txt): se prueba aquí, en local
          y en el job de bUnit, porque el proyecto de E2E solo corre con servidor y navegador (ver TramosDeTrazaTests). -->
     <Compile Include="..\CaeManager.E2ETests\TramosDeTraza.cs" Link="E2E\TramosDeTraza.cs" />
+    <!-- Los falsos de la puerta del conector, para probarla con el conector dokify real (internal de Infrastructure). -->
+    <Compile Include="..\CaeManager.Application.Tests\Integraciones\ConexionPlataformaCaeRepositorioFalso.cs" Link="PuertaConector\ConexionPlataformaCaeRepositorioFalso.cs" />
+    <Compile Include="..\CaeManager.Application.Tests\Integraciones\ProveedorPlataformaCaeRepositorioFalso.cs" Link="PuertaConector\ProveedorPlataformaCaeRepositorioFalso.cs" />
+    <Compile Include="..\CaeManager.Application.Tests\Clientes\UnitOfWorkFalso.cs" Link="PuertaConector\UnitOfWorkFalso.cs" />
+    <Compile Include="..\CaeManager.Application.Tests\Common\FileStorageServiceFalso.cs" Link="PuertaConector\FileStorageServiceFalso.cs" />
+    <Compile Include="..\CaeManager.Application.Tests\CurrentUserServiceFalso.cs" Link="PuertaConector\CurrentUserServiceFalso.cs" />
   </ItemGroup>
 
   <ItemGroup>

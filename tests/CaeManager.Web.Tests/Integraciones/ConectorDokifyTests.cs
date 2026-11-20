@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -510,6 +511,162 @@ public class ConectorDokifyTests
         alta.Fallo.Should().Be(MotivoUsoConector.SinConector);
         subida.Fallo.Should().Be(MotivoUsoConector.SinConector);
         _handler.Peticiones.Should().BeEmpty();
+
+        IConectorPlataformaCae puerto = conector;
+        puerto.AdmiteOperacion(OperacionConectorPlataformaCae.LeerEstadoDocumento).Should().BeTrue();
+        puerto.AdmiteOperacion(OperacionConectorPlataformaCae.DarDeAltaTrabajador).Should().BeFalse(
+            "la puerta deniega el alta como SinConector antes de abrir un uso");
+        puerto.AdmiteOperacion(OperacionConectorPlataformaCae.SubirDocumento).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Cada_peticion_lleva_la_marca_de_ruta_con_identificadores()
+    {
+        var marcadas = new List<bool>();
+        var enAmbito = new List<bool>();
+        var cliente = new DokifyClient(
+            new HttpClient(new HandlerQueMira(p =>
+            {
+                marcadas.Add(PeticionConIdentificadoresEnLaRuta.Lleva(p));
+                enAmbito.Add(PeticionConIdentificadoresEnLaRuta.EnviandoAhora);
+            })),
+            Options.Create(new DokifyOptions()), _logger);
+
+        await cliente.ObtenerDocumentosAsync(_credencial, ElementoDokify.Trabajador, NifPrueba, CancellationToken.None);
+        await cliente.ListarEmpresasAsync(_credencial, 0, 50, CancellationToken.None);
+
+        marcadas.Should().Equal([true, true], "OpenTelemetry y Sentry dejan de exportar la ruta por esta marca");
+        enAmbito.Should().Equal([true, true], "el manejador de Sentry, por fuera del pipeline, ve el ámbito del envío");
+        PeticionConIdentificadoresEnLaRuta.EnviandoAhora.Should().BeFalse("el ámbito no sale del envío");
+        PeticionConIdentificadoresEnLaRuta.Lleva(new HttpRequestMessage(HttpMethod.Get, Base)).Should().BeFalse(
+            "control: una petición sin marcar no la lleva");
+    }
+
+    [Fact]
+    public async Task Una_respuesta_mas_grande_que_el_tope_real_es_inesperada_y_no_plataforma_no_disponible()
+    {
+        _handler.Responder(HttpStatusCode.OK, new string('a', (int)DokifyClient.TamanoMaximoRespuesta + 1));
+        var cliente = new DokifyClient(
+            new HttpClient(_handler) { MaxResponseContentBufferSize = DokifyClient.TamanoMaximoRespuesta },
+            Options.Create(new DokifyOptions()), _logger);
+
+        var resultado = await cliente.ObtenerDocumentosAsync(_credencial, ElementoDokify.Empresa, CifPrueba, CancellationToken.None);
+
+        resultado.Fallo.Should().Be(MotivoUsoConector.Inesperado, "dokify contestó: no es una plataforma caída");
+        _logger.Todo.Should().Contain("más grande que el tope").And.NotContain(CifPrueba);
+    }
+
+    [Fact]
+    public async Task Una_pagina_con_mas_filas_de_las_pedidas_es_inesperada()
+    {
+        var filas = string.Join(',', Enumerable.Range(0, DokifyClient.TamanoMaximoPagina + 1).Select(i => $$"""{"vat":"B{{i:D8}}","name":"E"}"""));
+        _handler.Responder(HttpStatusCode.OK, Pagina(0, 1, filas));
+
+        var resultado = await Crear().ListarEmpresasAsync(_credencial, CancellationToken.None);
+
+        resultado.Fallo.Should().Be(MotivoUsoConector.Inesperado);
+    }
+
+    [Fact]
+    public async Task Una_pagina_con_las_filas_justas_se_acepta()
+    {
+        var filas = string.Join(',', Enumerable.Range(0, DokifyClient.TamanoMaximoPagina).Select(i => $$"""{"vat":"B{{i:D8}}","name":"E"}"""));
+        _handler.Responder(HttpStatusCode.OK, Pagina(0, 1, filas));
+
+        var resultado = await Crear().ListarEmpresasAsync(_credencial, CancellationToken.None);
+
+        resultado.Valor.Should().HaveCount(DokifyClient.TamanoMaximoPagina);
+    }
+
+    [Fact]
+    public async Task Un_listado_que_pasa_de_su_plazo_total_es_plataforma_no_disponible()
+    {
+        _handler.Colgar();
+        // Sin Timeout por página: solo el plazo total puede cortar, así que sin él la prueba no acaba (y cae por el tope
+        // de abajo, no por el Timeout del HttpClient, que también daría PlataformaNoDisponible).
+        var conector = new ConectorDokify(CrearCliente(Timeout.InfiniteTimeSpan)) { PlazoTotalDeListado = TimeSpan.FromMilliseconds(200) };
+
+        var listado = conector.ListarTrabajadoresAsync(_credencial, CifPrueba, CancellationToken.None);
+        var primero = await Task.WhenAny(listado, Task.Delay(TimeSpan.FromSeconds(20)));
+
+        primero.Should().BeSameAs(listado, "el plazo total corta el listado colgado");
+        (await listado).Fallo.Should().Be(MotivoUsoConector.PlataformaNoDisponible);
+        _logger.Todo.Should().NotContain("no respondió a tiempo", "no lo cortó el Timeout por página");
+        ConectorDokify.PlazoTotalDeListadoPorDefecto.Should().BeLessThan(TimeSpan.FromMinutes(10));
+    }
+
+    [Fact]
+    public async Task La_cancelacion_de_quien_llama_durante_un_listado_se_propaga()
+    {
+        _handler.Colgar();
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var llamada = () => Crear(TimeSpan.FromSeconds(30)).ListarEmpresasAsync(_credencial, cancelacion.Token);
+
+        await llamada.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Theory]
+    [InlineData("""{"11":{"name":"Seguro","requests":{"501":{"uid":501,"status_code":2}}}}""")]
+    [InlineData("""[{"name":"Seguro","requests":[{"uid":501,"status_code":2}]}]""")]
+    [InlineData("""{"11":{"uid":11,"name":"Seguro","requests":{"501":{"status_code":2}}}}""")]
+    [InlineData("""[{"uid":11,"name":"Seguro","requests":[{"status_code":2}]}]""")]
+    public async Task Un_tipo_o_una_solicitud_sin_uid_hace_inesperados_los_documentos_y_no_usa_la_clave_ni_el_indice(string cuerpo)
+    {
+        _handler.Responder(HttpStatusCode.OK, cuerpo);
+
+        var resultado = await Crear().ObtenerDocumentosAsync(_credencial, ElementoDokify.Trabajador, NifPrueba, CancellationToken.None);
+
+        resultado.Fallo.Should().Be(MotivoUsoConector.Inesperado);
+    }
+
+    [Theory]
+    [InlineData("a\r\nb.pdf", "a__b.pdf")]
+    [InlineData("fac\u202Efdp.exe", "fac_fdp.exe")]
+    [InlineData("c:\\x\\a:b*c\"d.pdf", "a_b_c_d.pdf")]
+    [InlineData("tab\tnul\u0000.pdf", "tab_nul_.pdf")]
+    [InlineData("..", "documento")]
+    [InlineData(" .oculto. ", "oculto")]
+    [InlineData("Señalización (copia)-1_v2.pdf", "Señalización (copia)-1_v2.pdf")]
+    public async Task El_nombre_del_fichero_se_sanea_con_una_lista_explicita_en_cualquier_sistema(string nombre, string esperado)
+    {
+        _handler.Responder(HttpStatusCode.OK, $$"""{"document":"AQID","contentType":"application/pdf","fileName":{{System.Text.Json.JsonSerializer.Serialize(nombre)}}}""");
+
+        var resultado = await Crear().DescargarDocumentoAsync(_credencial, ElementoDokify.Empresa, CifPrueba, "11", CancellationToken.None);
+
+        resultado.Valor.NombreFichero.Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData("text/html", "application/octet-stream")]
+    [InlineData("image/svg+xml", "application/octet-stream")]
+    [InlineData("application/xhtml+xml", "application/octet-stream")]
+    [InlineData("application/pdf; charset=binary", "application/octet-stream")]
+    [InlineData("Application/PDF", "application/pdf")]
+    [InlineData("image/png", "image/png")]
+    public async Task Solo_pasan_los_tipos_de_contenido_de_la_lista(string tipo, string esperado)
+    {
+        _handler.Responder(HttpStatusCode.OK, $$"""{"document":"AQID","contentType":{{System.Text.Json.JsonSerializer.Serialize(tipo)}},"fileName":"a.pdf"}""");
+
+        var resultado = await Crear().DescargarDocumentoAsync(_credencial, ElementoDokify.Empresa, CifPrueba, "11", CancellationToken.None);
+
+        resultado.Valor.TipoContenido.Should().Be(esperado);
+    }
+
+    [Fact]
+    public void La_maquina_no_escribe_su_matricula_ni_su_numero_de_serie()
+    {
+        new MaquinaDokify("MAQ-0001", "Maquina", "M-1", "Fabricante", "SN-0001").ToString()
+            .Should().NotContain("MAQ-0001").And.NotContain("SN-0001");
+    }
+
+    private sealed class HandlerQueMira(Action<HttpRequestMessage> mirar) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            mirar(request);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+        }
     }
 
     [Fact]

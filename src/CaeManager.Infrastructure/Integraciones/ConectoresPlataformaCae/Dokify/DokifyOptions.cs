@@ -4,6 +4,13 @@ namespace CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify
 /// Dónde y cuánto esperar a la API pública de dokify. No lleva el token: es la credencial de cada Conexión
 /// y llega cifrada por la puerta (<c>OperacionesConectorPlataformaCae</c>), nunca por configuración. Que el
 /// conector llame o no lo decide la puerta: el interruptor del proveedor nace apagado.
+///
+/// <para>
+/// Los valores por defecto (la URL pública de dokify, <c>Bearer</c> y 30 s) son válidos, así que sin la sección
+/// <see cref="SeccionConfiguracion"/> la validación del arranque pasa igual. Es a propósito: ninguno de ellos activa nada
+/// (sin interruptor encendido y sin credencial de una Conexión no sale ninguna llamada) y exigir la sección obligaría a
+/// configurar en todos los entornos una integración que nace apagada.
+/// </para>
 /// </summary>
 public sealed class DokifyOptions
 {

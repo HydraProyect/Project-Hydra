@@ -40,7 +40,14 @@ public sealed record TrabajadorDokify(string Vat, string Nombre, string Apellido
     public override string ToString() => nameof(TrabajadorDokify);
 }
 
-public sealed record MaquinaDokify(string Matricula, string Nombre, string Modelo, string Fabricante, string NumeroSerie);
+/// <summary>
+/// Una máquina en dokify. La matrícula y el número de serie identifican un bien que puede ser de un autónomo:
+/// <see cref="ToString"/> no los escribe, igual que los demás modelos con identificadores (OWASP ASVS 4.0.3 V7.1.2).
+/// </summary>
+public sealed record MaquinaDokify(string Matricula, string Nombre, string Modelo, string Fabricante, string NumeroSerie)
+{
+    public override string ToString() => nameof(MaquinaDokify);
+}
 
 /// <summary>
 /// Una solicitud de documento de un elemento. <see cref="CodigoEstado"/> es el <c>status_code</c> tal como llegó, para
@@ -49,7 +56,7 @@ public sealed record MaquinaDokify(string Matricula, string Nombre, string Model
 public sealed record DocumentoDokify(
     string TipoDocumentoId, string TipoDocumentoNombre, string SolicitudId, int? CodigoEstado, EstadoDocumentoDokify Estado);
 
-/// <summary>Una asignación de un elemento a un grupo de un cliente, con el recuento de sus solicitudes.</summary>
+/// <summary>Una asignación de un elemento a un grupo de una Empresa cliente en dokify, con el recuento de sus solicitudes.</summary>
 public sealed record AsignacionDokify(
     string Uid, string Grupo, int? Adjuntas, int? Validadas, int? Caducadas, int? Rechazadas, int? Pendientes);
 

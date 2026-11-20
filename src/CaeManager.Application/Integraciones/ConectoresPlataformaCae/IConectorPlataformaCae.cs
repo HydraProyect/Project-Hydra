@@ -5,9 +5,10 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// <summary>
 /// Contrato común de una conexión por API oficial con una plataforma CAE de terceros. Ni Domain ni
 /// Application conocen ninguna plataforma: cada una es una implementación en Infrastructure, elegida
-/// por <see cref="CodigoProveedor"/> contra <c>ProveedorPlataformaCae.Codigo</c>. Hoy hay una registrada,
-/// la de CTAIMACAE.net, y no llama: aún no existe contrato de API con ninguna plataforma, el interruptor
-/// del proveedor nace apagado y al conector todavía no le llegan todos los datos que la API exige.
+/// por <see cref="CodigoProveedor"/> contra <c>ProveedorPlataformaCae.Codigo</c>. Hoy hay dos registradas,
+/// la de CTAIMACAE.net y la de dokify (de solo lectura), y ninguna llama: aún no existe contrato de API con
+/// ninguna plataforma, el interruptor de cada proveedor nace apagado y a los conectores todavía no les
+/// llegan todos los datos que sus API exigen.
 ///
 /// <para>
 /// Solo lo llama <see cref="IOperacionesConectorPlataformaCae"/>, que ya ha hecho todas las
@@ -19,6 +20,13 @@ public interface IConectorPlataformaCae
 {
     /// <summary>Debe coincidir con <c>ProveedorPlataformaCae.Codigo</c>.</summary>
     string CodigoProveedor { get; }
+
+    /// <summary>
+    /// Si el conector hace esta operación con su plataforma. La puerta lo pregunta antes de abrir el uso: una operación
+    /// que el conector no hace se deniega como <c>SinConector</c>, sin llamada y sin uso iniciado, igual que una plataforma
+    /// sin conector. Por defecto, todas.
+    /// </summary>
+    bool AdmiteOperacion(OperacionConectorPlataformaCae operacion) => true;
 
     Task<ResultadoConector<EstadoDocumentoEnPlataforma>> LeerEstadoDocumentoAsync(
         CredencialApiConector credencial, SolicitudLecturaEstado solicitud, CancellationToken cancellationToken);

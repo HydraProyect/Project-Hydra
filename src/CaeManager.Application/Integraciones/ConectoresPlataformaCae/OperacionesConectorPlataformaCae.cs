@@ -29,7 +29,7 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// proceso de fondo llega con el incremento de cola.</item>
 /// <item>El kill switch de la plataforma, en el catálogo global, leído de la base en cada operación.</item>
 /// <item>El Add-on de subida automática del Tenant, su estado comercial y que no esté suspendido.</item>
-/// <item>Hay credencial y hay conector registrado.</item>
+/// <item>Hay credencial y hay conector registrado que haga la operación (<c>AdmiteOperacion</c>).</item>
 /// </list>
 ///
 /// <para>
@@ -207,7 +207,9 @@ public class OperacionesConectorPlataformaCae(
 
         var conector = conectores.FirstOrDefault(c =>
             string.Equals(c.CodigoProveedor, proveedor?.Codigo, StringComparison.OrdinalIgnoreCase));
-        if (conector is null)
+        // Una operación que el conector no hace (dokify es de solo lectura) es, para esa operación, una plataforma sin
+        // conector: se deniega aquí, antes de iniciar un uso con una clave de idempotencia que nunca saldría.
+        if (conector is null || !conector.AdmiteOperacion(operacion))
         {
             await DenegarAsync(conexion.Id, operacion, acreditacionId, trabajadorId, MotivoUsoConector.SinConector, cancellationToken);
             return null;

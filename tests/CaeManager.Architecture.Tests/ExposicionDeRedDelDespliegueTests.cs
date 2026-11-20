@@ -67,11 +67,51 @@ public class ExposicionDeRedDelDespliegueTests
 
     /// <summary>
     /// El cliente de dokify lleva el token en <c>Authorization</c> y el CIF o NIF por el que pregunta en la ruta: además del
-    /// cerco del de CTAIMACAE.net, su registro apaga el log del HttpClient, que escribiría la ruta.
+    /// cerco del de CTAIMACAE.net, su registro apaga el log del HttpClient, que escribiría la ruta. Solo el log: que
+    /// OpenTelemetry y Sentry no exporten la ruta lo prueba <see cref="La_ruta_con_identificadores_no_sale_ni_por_OpenTelemetry_ni_por_Sentry"/>.
     /// </summary>
     [Fact]
-    public void El_cliente_http_de_dokify_no_sigue_redirecciones_no_reintenta_tacha_sus_cabeceras_y_no_registra_sus_peticiones() =>
+    public void El_cliente_http_de_dokify_no_sigue_redirecciones_no_reintenta_tacha_sus_cabeceras_y_apaga_el_log_del_httpclient() =>
         ComprobarRegistroDelCliente("DokifyClient", "Dokify", ["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders", "RemoveAllLoggers"]);
+
+    /// <summary>
+    /// El CIF o NIF de la ruta de dokify sale también por la instrumentación HTTP de OpenTelemetry (span con
+    /// <c>url.full</c> hacia Seq) y por el manejador de Sentry (miga de pan y evento de un 5xx). El cliente marca cada
+    /// petición y Program.cs filtra las marcadas en las dos. El comportamiento con la instrumentación real lo prueba
+    /// <c>TrazasSinIdentificadoresEnLaRutaTests</c> (Web.Tests); esto fija el cableado. CTAIMACAE.net no se marca: su
+    /// ruta es una constante sin identificadores (el Id de su Tenant va en una cabecera, tachada en el log).
+    /// </summary>
+    [Fact]
+    public void La_ruta_con_identificadores_no_sale_ni_por_OpenTelemetry_ni_por_Sentry()
+    {
+        var raiz = RaizDelRepositorio();
+        var program = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Web", "Program.cs"));
+        var cliente = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Infrastructure", "Integraciones",
+            "ConectoresPlataformaCae", "Dokify", "DokifyClient.cs"));
+
+        cliente.Should().Contain("PeticionConIdentificadoresEnLaRuta.Marcar(peticion);", "cada petición de dokify va marcada");
+        System.Text.RegularExpressions.Regex.Matches(cliente, @"new HttpRequestMessage\(").Count
+            .Should().Be(1, "el cliente construye sus peticiones en un único sitio, el que las marca");
+        System.Text.RegularExpressions.Regex.Matches(cliente, @"\.SendAsync\(").Count
+            .Should().Be(1, "el cliente envía en un único sitio");
+        cliente.Should().MatchRegex(@"using \(PeticionConIdentificadoresEnLaRuta\.Enviando\(\)\)\s+respuesta = await http\.SendAsync\(",
+            "el envío va dentro del ámbito por el que el filtro de migas de Sentry reconoce la petición");
+
+        var trazas = program.IndexOf(".WithTracing(", StringComparison.Ordinal);
+        var metricas = program.IndexOf(".WithMetrics(", trazas, StringComparison.Ordinal);
+        trazas.Should().BeGreaterThan(0);
+        metricas.Should().BeGreaterThan(trazas);
+        var tramoTrazas = program[trazas..metricas];
+        System.Text.RegularExpressions.Regex.Matches(tramoTrazas, @"\.AddHttpClientInstrumentation\(").Count.Should().Be(1);
+        tramoTrazas.Should().Contain(".AddHttpClientInstrumentation(TrazasSinIdentificadoresEnLaRuta.ConfigurarInstrumentacionHttp)",
+            "una instrumentación HTTP de trazas sin el filtro exportaría url.full con el CIF o el NIF");
+
+        program.Should().Contain("options.SetBeforeBreadcrumb(TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan);");
+        program.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista)");
+        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeSend\(").Count
+            .Should().Be(1, "un segundo SetBeforeSend sustituiría al que filtra");
+        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count.Should().Be(1);
+    }
 
     private static void ComprobarRegistroDelCliente(string cliente, string carpeta, string[] encadenados)
     {

@@ -24,8 +24,9 @@ namespace CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify
 /// <para>
 /// Ninguna respuesta de dokify sale de aquí como texto: un fallo es un <see cref="MotivoUsoConector"/> y el log solo lleva
 /// el código HTTP y el nombre de la operación. El CIF o NIF por el que se pregunta va en la ruta (la API no ofrece otra
-/// forma), así que el registro del <c>HttpClient</c> está apagado entero: su traza de petición escribiría la ruta. No
-/// reintenta: son lecturas, pero no constan los límites de uso de la API.
+/// forma), así que el registro del <c>HttpClient</c> está apagado entero (su traza de petición escribiría la ruta) y cada
+/// petición lleva la marca <see cref="PeticionConIdentificadoresEnLaRuta"/> y se envía dentro de su ámbito, por los
+/// que OpenTelemetry y Sentry no la exportan. No reintenta: son lecturas, pero no constan los límites de uso de la API.
 /// </para>
 /// </summary>
 internal sealed partial class DokifyClient(
@@ -38,7 +39,7 @@ internal sealed partial class DokifyClient(
 
     // shortcut: la wiki no documenta el tamaño máximo de página; se pide de 50 en 50, por debajo del que cualquier API
     // admite. Medirlo contra el sandbox cuando dokify conteste.
-    public const int TamanoMaximoPagina = 50;
+    public const int TamanoMaximoPagina = DokifyMapeo.MaximoDeFilasPorPagina;
 
     private const int LongitudMaximaCabecera = 4096;
 
@@ -153,12 +154,14 @@ internal sealed partial class DokifyClient(
 
         var esquema = opciones.Value.EsquemaAutorizacion;
         using var peticion = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(opciones.Value.UrlBase), ruta));
+        PeticionConIdentificadoresEnLaRuta.Marcar(peticion);
         peticion.Headers.TryAddWithoutValidation(CabeceraAutorizacion, string.IsNullOrEmpty(esquema) ? token : $"{esquema} {token}");
 
         HttpResponseMessage respuesta;
         try
         {
-            respuesta = await http.SendAsync(peticion, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            using (PeticionConIdentificadoresEnLaRuta.Enviando())
+                respuesta = await http.SendAsync(peticion, HttpCompletionOption.ResponseContentRead, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -169,6 +172,13 @@ internal sealed partial class DokifyClient(
         {
             logger.LogWarning("dokify no respondió a tiempo en {Operacion}.", operacion);
             return ResultadoConector<T>.Falla(MotivoUsoConector.PlataformaNoDisponible);
+        }
+        catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConfigurationLimitExceeded)
+        {
+            // La respuesta pasó de TamanoMaximoRespuesta (o una cabecera, de su límite): dokify contestó, así que no es
+            // una plataforma caída sino una respuesta que no se espera.
+            logger.LogWarning("dokify devolvió una respuesta más grande que el tope en {Operacion}.", operacion);
+            return ResultadoConector<T>.Falla(MotivoUsoConector.Inesperado);
         }
         catch (HttpRequestException ex)
         {
