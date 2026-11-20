@@ -339,6 +339,34 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         pagina.FindAll("table[data-coordinador-principal]").Should().BeEmpty("cerrada no es lo mismo que con principal");
     }
 
+    /// <summary>
+    /// D3, R1: la celda de acciones de la fila cerrada no se queda vacía; dice el motivo con el texto que ya da el comando
+    /// cuando deniega «Asumir» (<c>ErrorAsumirOutboundCerrado</c>), como texto secundario. La fila abierta no lo lleva.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void D3_la_fila_con_Outbound_cerrado_dice_el_motivo_en_lugar_de_Asumir(string cultura)
+    {
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        var abierta = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        var cerrada = EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, personas: 2, outboundCerrado: true);
+        _mediator.Alerta = new AlertaDePrincipal(true, [abierta, cerrada]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        Textos["ErrorAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
+        var acciones = pagina.Find(
+            $"table[data-sin-principal] tr[data-operacion='{cerrada.AsignacionOperacionId}'] td.sin-principal-acciones");
+        var motivo = acciones.QuerySelector("[data-motivo='outbound-cerrado']");
+        motivo.Should().NotBeNull();
+        motivo!.ClassList.Should().Contain("sin-principal-motivo");
+        motivo.TextContent.Trim().Should().Be(Textos["ErrorAsumirOutboundCerrado"].Value);
+        acciones.QuerySelectorAll("button").Should().BeEmpty();
+        pagina.FindAll($"table[data-sin-principal] tr[data-operacion='{abierta.AsignacionOperacionId}'] [data-motivo]")
+            .Should().BeEmpty("la fila que se puede asumir ofrece «Asumir» y no un motivo");
+    }
+
     [Fact]
     public async Task Asumir_envia_el_Command_de_esa_operacion_sin_confirmacion_y_recarga_la_alerta()
     {

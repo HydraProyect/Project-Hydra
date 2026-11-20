@@ -26,11 +26,15 @@
                         <td>@Situacion(operacion)</td>
                         <td class="sin-principal-acciones">
                             @* «Asumir» solo donde el comando lo permitiría (D3, R1): con Outbound cerrado la fila
-                               se lista igual, sin la acción. *@
+                               se lista igual, sin la acción y con el motivo. *@
                             @if (operacion.SePuedeAsumir)
                             {
                                 <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                        OnClick="() => AsumirAsync(operacion)" Deshabilitado="_enCurso is not null">@Textos["SinPrincipalAsumir"]</Boton>
+                            }
+                            else
+                            {
+                                <span class="sin-principal-motivo" data-motivo="outbound-cerrado">@Textos["ErrorAsumirOutboundCerrado"]</span>
                             }
                         </td>
                     </tr>

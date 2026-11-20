@@ -45,8 +45,9 @@ namespace CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 /// <b>D3, R1</b> (DECISION_LOG 2026-11-20, punto 5): si la operación no tiene principal actual,
 /// designar es asumirla sin una baja previa, y se deniega con
 /// <see cref="ErroresLimiteTenantTec.OutboundCerrado"/> si Outbound está cerrado para el Tenant
-/// beneficiario o para el Tenant de origen del Operador CAE externo. Con principal actual sustituye,
-/// como el relevo, y sigue permitido.
+/// beneficiario o para el Tenant de origen del Operador CAE externo, con la misma regla que «Asumir»
+/// (<see cref="EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync"/>). Con principal
+/// actual sustituye, como el relevo, y sigue permitido.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Usuarios")]
@@ -109,22 +110,16 @@ public class DesignarGestorCaePrincipalCommandHandler(
                     return Result.Exito();
 
                 // D3, R1 (DECISION_LOG 2026-11-20, punto 5): sin principal actual, designar es asumir la
-                // operación sin una baja previa que lo justifique. Se deniega si Outbound está cerrado
-                // para el Tenant de origen del Operador CAE externo (leído con él como Tenant activo) o
-                // para el Tenant beneficiario (en su ámbito). Con principal actual es una sustitución,
-                // como el relevo, y sigue permitida.
+                // operación sin una baja previa que lo justifique, y se deniega con la misma regla que
+                // «Asumir» (EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync): Outbound
+                // cerrado para el Tenant de origen del Operador CAE externo o para el Tenant beneficiario,
+                // cada uno leído con él como Tenant activo. Con principal actual es una sustitución, como
+                // el relevo, y sigue permitida.
                 if (decision.PrincipalActualUsuarioId is null)
                 {
-                    bool cerrado;
-                    using (AmbitoTenantExplicito.Establecer(decision.OperadorTenantId))
-                        cerrado = await outboundCerrado.EstaCerradoAsync(decision.OperadorTenantId, ct);
-                    if (!cerrado)
-                    {
-                        using (AmbitoTenantExplicito.Establecer(decision.PropietarioTenantId))
-                            cerrado = await outboundCerrado.EstaCerradoAsync(decision.PropietarioTenantId, ct);
-                    }
-
-                    if (cerrado)
+                    var abiertos = await EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync(
+                        outboundCerrado, [decision.PropietarioTenantId], decision.OperadorTenantId, ct);
+                    if (!abiertos.Contains(decision.PropietarioTenantId))
                         return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
                 }
 

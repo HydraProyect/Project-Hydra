@@ -176,9 +176,11 @@ public static class EscaladoDePrincipalDeCartera
     ///
     /// <para>
     /// Es la única definición de la regla: la aplican «Asumir»
-    /// (<c>AsumirPrincipalDeOperacionCommand</c>), el primer usuario elegible
-    /// (<see cref="AsignarAlPrimerElegibleAsync"/>) y la alerta que ofrece «Asumir»
-    /// (<c>ObtenerOperacionesSinPrincipalQuery</c>), para que la acción solo se ofrezca donde el
+    /// (<c>AsumirPrincipalDeOperacionCommand</c>), «Designar principal» sin principal actual
+    /// (<c>DesignarGestorCaePrincipalCommand</c>), el primer usuario elegible
+    /// (<see cref="AsignarAlPrimerElegibleAsync"/>), la alerta que ofrece «Asumir»
+    /// (<c>ObtenerOperacionesSinPrincipalQuery</c>) y el diálogo que ofrece «Designar principal»
+    /// (<c>ObtenerPersonasConCarteraQuery</c>), para que cada acción solo se ofrezca donde el
     /// comando la permite. El relevo como consecuencia de una baja no pasa por aquí.
     /// </para>
     /// </summary>
