@@ -28,6 +28,7 @@
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Comunicaciones.Recursos
+@using System.Globalization
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.Authorization
@@ -46,8 +47,8 @@
         <div class="adjb-c">
             <strong>@Textos["Titulo"]</strong>
             <span class="adjb-r">@Cabecera(resumen)</span>
-            <button type="button" class="tx-b" aria-expanded="@(BotonCabeceraPulsado(enCurso) ? "true" : "false")"
-                    @onclick="() => AlternarCabecera(enCurso)">@TextoBotonCabecera(enCurso)</button>
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-expanded="@(BotonCabeceraPulsado(enCurso) ? "true" : "false")"
+                   OnClick="() => AlternarCabecera(enCurso)">@TextoBotonCabecera(enCurso)</Boton>
         </div>
 
         @if (!_puedeEscribir)
@@ -98,8 +99,8 @@
                             <span class="adjb-hc">
                                 @if (grupo.Plegable)
                                 {
-                                    <button type="button" class="tx-b" aria-expanded="@(grupo.Abierto ? "true" : "false")"
-                                            @onclick="() => _listosAbiertos = !_listosAbiertos">@(grupo.Abierto ? Textos["Plegar"] : Textos["Mostrar"])</button>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" aria-expanded="@(grupo.Abierto ? "true" : "false")"
+                                           OnClick="() => _listosAbiertos = !_listosAbiertos">@(grupo.Abierto ? Textos["PlegarListos"] : Textos["MostrarListos"])</Boton>
                                 }
                                 @if (grupo.Conmuta)
                                 {
@@ -142,9 +143,11 @@
                 }
                 <div class="adjb-g">
                     @BotonAsignarListos(listos)
+                    @* En el lienzo este botón abre el Visor de documento con todos los adjuntos (PR-A4); hasta entonces abre la revisión
+                       uno a uno de este bloque, que recorre lo que pide una decisión. *@
                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                            Deshabilitado="@(Bloqueado || resumen.ParaRevisarUnoAUno == 0)"
-                           OnClick="() => AbrirUnoAUno(null)">@Textos["RevisarUnoAUno", resumen.ParaRevisarUnoAUno]</Boton>
+                           OnClick="() => AbrirUnoAUno(null)">@Textos["RevisarTodos"]</Boton>
                 </div>
             </div>
         }
@@ -427,13 +430,23 @@ else if (_errorCarga is not null)
         _ => Textos["Estado_Dividido"].Value
     };
 
-    private static string ClaseEstado(SituacionAdjunto s) => s switch
-    {
-        SituacionAdjunto.Listo => "e-ok",
-        SituacionAdjunto.PorRevisar => "e-av",
-        SituacionAdjunto.SinDestino => "e-mal",
-        _ => string.Empty
-    };
+    // Como en el lienzo: solo «Listo» se distingue del resto, que van en neutro. Lo que en el lienzo es el tono «sistema» (cian, lo que
+    // propone Vega) no existe en el Badge del sistema de diseño: se queda en éxito hasta que haya un tono propio.
+    private static TonoBadge TonoEstado(SituacionAdjunto s) => s == SituacionAdjunto.Listo ? TonoBadge.Exito : TonoBadge.Neutro;
+
+    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+
+    private TimeProvider Reloj => Servicios.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
+
+    /// <summary>
+    /// La fecha de vencimiento que la persona escribió, si ya pasó y el adjunto no es «No caduca». Es lo único que el reparto sabe de
+    /// «caducado»: en el lienzo lo lee Vega del PDF, y esa lectura no se guarda (ver el informe de la PR). No cambia la situación del
+    /// adjunto ni lo que se puede asignar: solo lo dice en la fila y ofrece rechazarlo.
+    /// </summary>
+    private DateOnly? Caducado(FilaReparto f) =>
+        f.Pendiente && !f.Edicion.NoCaduca && f.Edicion.Vencimiento is { } vence && vence < CaeManager.Domain.Common.DiaDeNegocio.Hoy(Reloj)
+            ? vence
+            : null;
 
     private string? NotaDeFila(FilaReparto f)
     {
@@ -452,7 +465,7 @@ else if (_errorCarga is not null)
     private int EsperanFecha() => _filas.Count(f => f.Pendiente && f.TieneDestino && f.Adjunto.TipoDocumentoId is not null && f.NombresConocidos && !f.Edicion.FechasValidas);
 
     private RenderFragment BotonAsignarListos(IReadOnlyList<FilaReparto> listos) =>
-        BotonAsignar(TextoAsignarListos(listos), listos.Count == 0, AsignarListosAsync);
+        BotonAsignar(TextoAsignarListos(listos), listos.Count == 0, AsignarListosAsync, VarianteBoton.Secundario);
 
     private Task AsignarListosAsync() => AsignarAsync(FilasListas(), avanzar: false);
 
@@ -483,7 +496,7 @@ else if (_errorCarga is not null)
         <div class="adjb-f">
             <div class="adjb-x">
                 <div class="adjb-1">
-                    <span class="adjb-e @ClaseEstado(f.Situacion)">@TextoEstado(f.Situacion)</span>
+                    <Badge Tono="TonoEstado(f.Situacion)" Tamano="TamanoBadge.Pequeno" class="adjb-e">@TextoEstado(f.Situacion)</Badge>
                     <a class="link adjb-nm" href="@UrlArchivo(f)" target="_blank" rel="noopener"
                        title="@Textos["Abrir", f.Adjunto.NombreArchivo]">@f.Adjunto.NombreArchivo</a>
                     <span class="m-d adjb-tp" title="@NombreTipo(f.Adjunto)">@NombreTipo(f.Adjunto)</span>
@@ -492,6 +505,11 @@ else if (_errorCarga is not null)
                     @if (f.Pendiente)
                     {
                         @Campos(f)
+                        @if (Caducado(f) is { } caduco)
+                        {
+                            @* Lo que la persona escribió como vencimiento ya pasó: se dice con todas las letras, no solo con el color. *@
+                            <span class="m-d adjb-v adjb-v-mal" data-vigencia="caducado">@Textos["Caduco", caduco.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)]</span>
+                        }
                     }
                     else
                     {
@@ -500,20 +518,28 @@ else if (_errorCarga is not null)
                 </div>
             </div>
             <span class="adjb-a">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Href="@UrlArchivo(f)" target="_blank" rel="noopener"
+                       aria-label="@Textos["VerAdjuntoDe", f.Adjunto.NombreArchivo]">@Textos["VerAdjunto"]</Boton>
                 @if (f.Pendiente)
                 {
-                    @if (f.Situacion is SituacionAdjunto.PorRevisar or SituacionAdjunto.SinDestino)
+                    // Una sola acción de fila, la que pide la situación: rechazar si ya caducó; si no, elegir destino.
+                    @if (Caducado(f) is not null && f.Situacion == SituacionAdjunto.Listo)
                     {
-                        <button type="button" class="mini" aria-label="@Textos["ElegirDe", f.Adjunto.NombreArchivo]"
-                                disabled="@(Bloqueado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["RechazarDe", f.Adjunto.NombreArchivo]"
+                               Deshabilitado="@Bloqueado" OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
                     }
-                    <button type="button" class="mini" aria-expanded="@(f.Edicion.MenuAbierto ? "true" : "false")"
-                            aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" disabled="@(Bloqueado)"
-                            @onclick="() => f.Edicion.MenuAbierto = !f.Edicion.MenuAbierto">@Textos["Mas"]</button>
+                    else if (f.Situacion is SituacionAdjunto.PorRevisar or SituacionAdjunto.SinDestino)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["ElegirDe", f.Adjunto.NombreArchivo]"
+                               Deshabilitado="@Bloqueado" OnClick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</Boton>
+                    }
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="adjb-mas" aria-expanded="@(f.Edicion.MenuAbierto ? "true" : "false")"
+                           aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" title="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" Deshabilitado="@Bloqueado"
+                           OnClick="() => f.Edicion.MenuAbierto = !f.Edicion.MenuAbierto"><Icono Nombre="mas-opciones" /></Boton>
                 }
                 else if (f.Adjunto.Estado is EstadoRepartoAdjunto.Rechazado or EstadoRepartoAdjunto.Descartado)
                 {
-                    <button type="button" class="mini" disabled="@(Bloqueado)" @onclick="() => ReabrirAsync(f)">@Textos["Deshacer"]</button>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="@Bloqueado" OnClick="() => ReabrirAsync(f)">@Textos["Deshacer"]</Boton>
                 }
             </span>
         </div>
@@ -525,9 +551,9 @@ else if (_errorCarga is not null)
                     <span class="m-d adjb-nota-fila">@nota</span>
                 }
                 @* El menú puede seguir abierto de antes de una recarga fallida: sus acciones también esperan a releer. *@
-                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["CambiarDestino"]</button>
-                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => PedirMotivo(f)">@Textos["Rechazar"]</button>
-                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => DescartarAsync(f)">@Textos["Descartar"]</button>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@Bloqueado" OnClick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@Bloqueado" OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@Bloqueado" OnClick="() => DescartarAsync(f)">@Textos["Descartar"]</Boton>
             </div>
         }
         @if (f.Pendiente && !f.Edicion.MenuAbierto && NotaDeFila(f) is { } notaFila)
@@ -544,9 +570,9 @@ else if (_errorCarga is not null)
                 <input type="text" class="adjb-motivo" maxlength="@AdjuntoMensaje.LongitudMaximaMotivoRechazo"
                        aria-label="@Textos["MotivoRechazoDe", f.Adjunto.NombreArchivo]" placeholder="@Textos["MotivoRechazo"]"
                        value="@f.Edicion.Motivo" @oninput="e => f.Edicion.Motivo = e.Value?.ToString() ?? string.Empty" />
-                <button type="button" class="mini" disabled="@(Bloqueado || string.IsNullOrWhiteSpace(f.Edicion.Motivo))"
-                        @onclick="() => RechazarAsync(f)">@Textos["Confirmar"]</button>
-                <button type="button" class="mini" @onclick="() => f.Edicion.PideMotivo = false">@Textos["Cancelar"]</button>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || string.IsNullOrWhiteSpace(f.Edicion.Motivo))"
+                       OnClick="() => RechazarAsync(f)">@Textos["Confirmar"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => f.Edicion.PideMotivo = false">@Textos["Cancelar"]</Boton>
             </div>
         }
         @if (f.Pendiente && f.Edicion.Aviso is { } aviso)
@@ -664,12 +690,12 @@ else if (_errorCarga is not null)
                    OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || !f.Pendiente)"
                    OnClick="() => DescartarAsync(f)">@Textos["Descartar"]</Boton>
-            @BotonAsignar(Textos["Asignar"].Value, f.Situacion != SituacionAdjunto.Listo, AsignarEnFocoAsync)
+            @BotonAsignar(Textos["Asignar"].Value, f.Situacion != SituacionAdjunto.Listo, AsignarEnFocoAsync, VarianteBoton.Primario)
         </div>
     </div>;
 
     // Un único primario de la superficie: el del pie de la lista o el de la revisión uno a uno, que nunca conviven.
-    private RenderFragment BotonAsignar(string texto, bool sinNada, Func<Task> alPulsar) => @<Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+    private RenderFragment BotonAsignar(string texto, bool sinNada, Func<Task> alPulsar, VarianteBoton variante) => @<Boton Variante="variante" Tamano="TamanoBoton.Pequeno"
                                                                                                    title="@Textos["AsignarAyuda"]"
                                                                                                    Deshabilitado="@(Bloqueado || sinNada)"
                                                                                                    OnClick="alPulsar">@texto</Boton>;
