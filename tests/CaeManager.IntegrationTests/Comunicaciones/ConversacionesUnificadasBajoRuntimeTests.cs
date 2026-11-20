@@ -157,14 +157,19 @@ public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(tenantDeLaPeticion);
         servicios.AddSingleton<IUnitOfWork>(_runtime);
         servicios.AddSingleton<ITenantsQueryContext>(_runtime);
+        // La guarda por servicio pregunta al criterio de Outbound si el Tenant de origen es solo Inbound
+        // (GuardaPorServicioBehavior, AmbitoComunicacionesSoloInbound), y el criterio lo lee en ProductosContratados.
+        servicios.AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(_runtime);
         servicios.AddSingleton<ICurrentUserService>(_usuarioReal);
         // Una sola instancia para todo el fan-out, como el ámbito scoped real: la memoización entre vueltas es lo
-        // que tiene que resolver bien.
-        servicios.AddSingleton<IAlcanceDatosService>(
-            new AlcanceDatosService(_runtime, _usuarioReal, tenantDeLaPeticion, new SesionPrivilegiadaAusente()));
+        // que tiene que resolver bien. Con el criterio de Outbound, como lo compone el contenedor de producción
+        // (InfrastructureServiceCollectionExtensions): sin él, el alcance no aplicaría el cierre por solo Inbound.
+        servicios.AddSingleton<IAlcanceDatosService>(sp => new AlcanceDatosService(
+            _runtime, _usuarioReal, tenantDeLaPeticion, new SesionPrivilegiadaAusente(),
+            criterioDeOutbound: sp.GetRequiredService<ICriterioDeOutbound>()));
         _servicios = servicios.BuildServiceProvider();
     }
 
@@ -371,6 +376,9 @@ public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Las_sentencias_por_pagina_no_crecen_con_las_conversaciones()
     {
+        // Calentamiento, como en ObtenerActividadBuzonesQueryBajoRuntimeTests: la primera petición paga lo que el alcance
+        // y el criterio de Outbound memoizan para las siguientes, y las dos medidas tienen que partir del mismo estado.
+        await EnviarAsync(new ObtenerConversacionesUnificadasQuery());
         _contador.Reiniciar();
         await EnviarAsync(new ObtenerConversacionesUnificadasQuery());
         var conUna = _contador.Lecturas;
