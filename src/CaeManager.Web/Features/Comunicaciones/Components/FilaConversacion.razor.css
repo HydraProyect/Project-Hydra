@@ -38,7 +38,64 @@ li.fila-conversacion .fila-linea-meta {
 }
 
 .fila-ticket {
-    margin-left: auto;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Clip de adjuntos (lienzo L-12, `.marca-p`): al final de la línea del asunto, apagado, solo el icono (el número va en el nombre accesible). */
+.fila-adjuntos {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+}
+
+/* Insignia «Acción por aprobar»: la pastilla de sistema del lienzo (`.badge-sistema` de su bundle del design system; el Badge de la app aún no tiene tono Sistema,
+   incremento propio): tinte y texto del indicador de sistema, borde al 35 %, métrica del Badge pequeño.
+   shortcut: el tinte es translúcido, y sobre la fila activa u hover el texto bajaría de 4,5:1 (≈4,4:1). Se pinta sobre la superficie, opaco, y da 4,79:1 en cualquier fila; cuando el Badge tenga el tono Sistema se usa ese.
+   El contraste (≥ 4,5:1 en claro y oscuro) lo mide `ContrasteDeComponentesPorTemaTests.La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco`. */
+.fila-por-aprobar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 calc(var(--space-2) - 1px);
+    border: 1px solid color-mix(in srgb, var(--color-system-text) 35%, transparent);
+    border-radius: var(--radius-full);
+    background: linear-gradient(var(--color-system-tint), var(--color-system-tint)), var(--color-surface);
+    color: var(--color-system-text);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1rem;
+    white-space: nowrap;
+}
+
+.fila-por-aprobar ::deep .icono {
+    width: 12px;
+    height: 12px;
+}
+
+/* Grupo derecho de la tercera línea: buzón corto, persona asignada y Nº de ticket, pegados a la derecha. `Bandeja.razor.css` fija `flex-shrink: 0` a toda pieza de
+   la línea y esa regla (0,4,0) gana a esta: el grupo no encoge, así que lo que evita que un buzón largo desborde la fila es `max-width: 100%` aquí y `min-width: 0`
+   con elipsis en `.fila-buzon`. No quites ninguno (los fija `FilaConversacionDatosLienzoTests.La_hoja_de_estilos_acota_el_grupo_derecho_…`). Plazo, insignia, prioridad y estado caen en filas nuevas por `flex-wrap`.
+   shortcut: el lienzo oculta el buzón bajo 399 px de contenedor, el Nº bajo 380 y el texto de la insignia bajo 300; aquí no se oculta nada, la línea envuelve, cuando la lista fije su ancho (PR-C2). */
+li.fila-conversacion .fila-linea-derecha {
+    min-width: 0;
+    max-width: 100%;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.fila-buzon {
+    min-width: 0;
+    max-width: var(--space-24);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fila-asignada {
+    flex: none;
     white-space: nowrap;
 }

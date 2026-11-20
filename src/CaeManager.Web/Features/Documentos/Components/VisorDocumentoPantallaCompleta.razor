@@ -4,8 +4,9 @@
     resuelta de adjuntos y recibe el cierre por VisibleChanged. No sustituye a VisorDocumento (un solo archivo en un Modal
     grande, que usan otras pantallas); es la variante de pantalla completa.
 
-    Con el parámetro Revision se pinta además el panel de revisión de la derecha (PanelRevisionAdjunto, A3): asignar, rechazar y dejar
-    para después. Sin él el visor es el de A2, solo de lectura.
+    Con el parámetro Panel se pinta además, a la derecha, el panel que ponga quien abre el visor (el de revisión de adjuntos de
+    Comunicaciones, A3) y el botón de la cabecera que lo muestra u oculta. El visor es del Núcleo y no conoce Comunicaciones: solo le
+    da al panel el adjunto actual, cuántos quedan y las salidas (resolver, dejar para después, teclas). Sin Panel es el de A2, de lectura.
 
     Fuera de esta PR, a propósito: el enlace desde el Reparto de adjuntos (A4) y la
     división de PDF en pantalla (A5). Las hojas pintan la imagen del adjunto si lo es; de un PDF el servidor solo da hoy la
@@ -23,7 +24,6 @@
     var actual = Actual;
     var total = TotalPaginas;
     var pendientes = Pendientes;
-    var actualConEstado = actual with { Estado = EstadoDe(actual) };
     <div class="vz-ov" @onmousedown="() => _mouseDownEnFondo = true" @onclick="ClicFondoAsync">
         <div class="vz-pn" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_panel"
              @onmousedown="() => _mouseDownEnFondo = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" @onkeydown="ManejarTeclaAsync">
@@ -40,7 +40,7 @@
                 </div>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Girar"]" title="@Textos["Girar"]" OnClick="Girar"><Icono Nombre="girar" Tamano="TamanoIcono.Pequeno" /></Boton>
                 <Boton Variante="VarianteBoton.Secundario" Href="@(EsUrlRelativaSegura(actual.Url) ? actual.Url : null)" Deshabilitado="@(!EsUrlRelativaSegura(actual.Url))" download="@actual.NombreArchivo"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" />@Textos["Descargar"]</Boton>
-                @if (Revision is not null)
+                @if (Panel is not null)
                 {
                     <Boton Variante="VarianteBoton.Secundario" aria-expanded="@(_panelAbierto ? "true" : "false")" aria-controls="vz-revision" OnClick="() => _panelAbierto = !_panelAbierto"><Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />@(_panelAbierto ? Textos["Revision_Ocultar"] : Textos["Revision_Ver"])</Boton>
                 }
@@ -129,10 +129,9 @@
                         </div>
                     }
                 </div>
-                @if (Revision is not null && _panelAbierto)
+                @if (Panel is not null && _panelAbierto)
                 {
-                    <PanelRevisionAdjunto Adjunto="actualConEstado" Revision="Revision" Pendientes="pendientes" Total="_lista.Count"
-                                          OnResuelto="ResolverAsync" OnDejar="DejarParaDespues" OnTecla="ManejarTeclaPanelAsync" />
+                    @Panel(ContextoDelPanel(actual, pendientes))
                 }
             </div>
         </div>
@@ -165,8 +164,8 @@
     // Como el Drawer: solo cierra el clic cuyo pulsado empezó en el fondo; un arrastre que nace dentro del panel (seleccionar texto de una hoja) y acaba fuera no.
     private bool _mouseDownEnFondo;
 
-    // Lo resuelto dentro del visor (asignar, rechazar, revisar de nuevo) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque
-    // la lista: el estado vigente es el de aquí hasta que la lista llegue con el mismo.
+    // Lo resuelto dentro del visor (por el panel) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque la lista: el estado
+    // vigente es el de aquí hasta que la lista llegue con el mismo.
     private readonly Dictionary<Guid, EstadoAdjuntoVisor> _estados = [];
     private bool _panelAbierto = true;
 
@@ -198,12 +197,12 @@
     [Parameter] public RenderFragment<HojaVisor>? Hoja { get; set; }
 
     /// <summary>
-    /// Datos del panel de revisión (conversación, lo guardado de cada adjunto, destinos y tipos). Sin valor no hay panel ni botón
-    /// «Ver la revisión»: el visor es de solo lectura.
+    /// Panel de la derecha (el de revisión de adjuntos, que pone Comunicaciones), con el adjunto actual y las salidas del visor en
+    /// <see cref="ContextoPanelVisor"/>. Sin valor no hay panel ni botón de mostrarlo: el visor es de lectura.
     /// </summary>
-    [Parameter] public RevisionAdjuntos? Revision { get; set; }
+    [Parameter] public RenderFragment<ContextoPanelVisor>? Panel { get; set; }
 
-    /// <summary>Se invoca cuando el panel asigna, rechaza o reabre un adjunto, para que quien abrió el visor refresque su lista.</summary>
+    /// <summary>Se invoca cuando el panel resuelve un adjunto (asignado, rechazado o vuelto a pendiente), para que quien abrió el visor refresque su lista.</summary>
     [Parameter] public EventCallback<ResolucionAdjuntoVisor> AdjuntoResuelto { get; set; }
 
     private bool Abierto => Visible && _lista.Count > 0;
@@ -298,7 +297,7 @@
         if ((e.CtrlKey || e.MetaKey) && !e.AltKey)
             return;
 
-        // En el panel de revisión (desplazable) y en el lienzo ampliado las flechas desplazan: no se capturan para cambiar de adjunto.
+        // En el panel (desplazable) y en el lienzo ampliado las flechas desplazan: no se capturan para cambiar de adjunto.
         var desplaza = enPanel || (enLienzo && _zoom > ZoomInicial);
 
         switch (e.Key)
@@ -355,6 +354,12 @@
             DejarParaDespues();
         await AdjuntoResuelto.InvokeAsync(resolucion);
     }
+
+    private ContextoPanelVisor ContextoDelPanel(AdjuntoVisor actual, int pendientes) =>
+        new(actual with { Estado = EstadoDe(actual) }, pendientes, _lista.Count,
+            EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, ResolverAsync),
+            EventCallback.Factory.Create(this, DejarParaDespues),
+            EventCallback.Factory.Create<KeyboardEventArgs>(this, ManejarTeclaPanelAsync));
 
     private void IrAAdjunto(int destino)
     {

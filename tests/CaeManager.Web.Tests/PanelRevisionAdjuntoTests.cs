@@ -5,6 +5,7 @@ using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
@@ -110,13 +111,11 @@ public class PanelRevisionAdjuntoTests : BunitContext
     {
         var avisos = new Resultado([], []);
         var cut = Render<PanelRevisionAdjunto>(p => p
-            .Add(x => x.Adjunto, adjunto)
-            .Add(x => x.Revision, revision)
-            .Add(x => x.Pendientes, pendientes)
-            .Add(x => x.Total, total)
-            .Add(x => x.OnResuelto, EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, r => avisos.Resueltos.Add(r)))
-            .Add(x => x.OnDejar, EventCallback.Factory.Create(this, () => avisos.Dejados.Add(1)))
-            .Add(x => x.OnTecla, EventCallback.Factory.Create<KeyboardEventArgs>(this, e => teclas?.Add(e.Key))));
+            .Add(x => x.Contexto, new ContextoPanelVisor(adjunto, pendientes, total,
+                EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, r => avisos.Resueltos.Add(r)),
+                EventCallback.Factory.Create(this, () => avisos.Dejados.Add(1)),
+                EventCallback.Factory.Create<KeyboardEventArgs>(this, e => teclas?.Add(e.Key))))
+            .Add(x => x.Revision, revision));
         return (cut, avisos);
     }
 
@@ -151,7 +150,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         cut.Markup.Should().Contain("Falta elegir a quién corresponde").And.Contain("Sin lectura de Vega").And.Contain("Único posible");
         cut.Find("label[for]").TextContent.Should().Be("Tipo de documento");
         cut.FindAll(".vz-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal("Asignar el documento", "Rechazar y reclamar el documento", "Dejar el documento para después");
+            .Should().Equal("Asignar el documento", "Rechazar documento", "Dejar el documento para después");
         cut.FindAll(".boton-primario").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Asignar el documento");
         cut.FindAll(".boton-destructivo").Should().BeEmpty();
     }
@@ -410,11 +409,11 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var adjunto = Adjunto();
         var (cut, avisos) = Pintar(adjunto, Revision(adjunto));
 
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+        await Pulsar(cut, "Rechazar documento");
 
         cut.Find("textarea").Should().NotBeNull();
         cut.Markup.Should().Contain("Motivo del rechazo").And.Contain("Escribe el motivo para rechazar el documento.");
-        cut.FindAll(".vz-acciones button").Select(b => b.TextContent.Trim()).Should().Equal("Rechazar y reclamar el documento", "Cancelar el rechazo");
+        cut.FindAll(".vz-acciones button").Select(b => b.TextContent.Trim()).Should().Equal("Rechazar documento", "Cancelar el rechazo");
         cut.FindAll(".boton-primario").Should().BeEmpty();
         var rechazar = cut.Find(".boton-destructivo");
         rechazar.GetAttribute("aria-disabled").Should().Be("true");
@@ -431,7 +430,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var mediador = Preparar();
         var adjunto = Adjunto();
         var (cut, avisos) = Pintar(adjunto, Revision(adjunto), pendientes: 3, total: 3);
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+        await Pulsar(cut, "Rechazar documento");
         await EscribirAsync(cut.Find("textarea"), "  Falta la firma  ");
         cut.WaitForAssertion(() => cut.Find(".boton-destructivo").HasAttribute("aria-disabled").Should().BeFalse());
 
@@ -450,7 +449,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         mediador.Resolver = _ => Result.Fallo<Guid>(Error.Crear("estado", "El adjunto ya no está pendiente."));
         var adjunto = Adjunto();
         var (cut, avisos) = Pintar(adjunto, Revision(adjunto));
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+        await Pulsar(cut, "Rechazar documento");
         await EscribirAsync(cut.Find("textarea"), "Falta la firma");
         cut.WaitForAssertion(() => cut.Find(".boton-destructivo").HasAttribute("aria-disabled").Should().BeFalse());
 
@@ -468,15 +467,15 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var mediador = Preparar();
         var adjunto = Adjunto();
         var (cut, avisos) = Pintar(adjunto, Revision(adjunto));
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+        await Pulsar(cut, "Rechazar documento");
         await EscribirAsync(cut.Find("textarea"), "Falta la firma");
 
         await Pulsar(cut, "Cancelar el rechazo");
 
         cut.FindAll("textarea").Should().BeEmpty();
         cut.FindAll(".vz-acciones button").Select(b => b.TextContent.Trim())
-            .Should().Equal("Asignar el documento", "Rechazar y reclamar el documento", "Dejar el documento para después");
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+            .Should().Equal("Asignar el documento", "Rechazar documento", "Dejar el documento para después");
+        await Pulsar(cut, "Rechazar documento");
         cut.Find("textarea").TextContent.Should().BeEmpty();
         mediador.Enviados.Should().BeEmpty();
         avisos.Resueltos.Should().BeEmpty();
@@ -600,7 +599,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         await cut.Find("select").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowRight" });
         await Pulsar(cut, "Buscar a otra persona o Empresa");
         await cut.Find("input[type=search]").KeyDownAsync(new KeyboardEventArgs { Key = "]" });
-        await Pulsar(cut, "Rechazar y reclamar el documento");
+        await Pulsar(cut, "Rechazar documento");
         await cut.Find("textarea").KeyDownAsync(new KeyboardEventArgs { Key = "-" });
 
         teclas.Should().BeEmpty();
@@ -709,7 +708,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
         await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Ir al adjunto siguiente").ClickAsync(new MouseEventArgs());
         Posicion(cut).Should().Be("Documento 2 de 2");
 
-        await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Rechazar y reclamar el documento").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Rechazar documento").ClickAsync(new MouseEventArgs());
         await EscribirAsync(cut.Find("textarea"), "Falta la firma");
         cut.WaitForAssertion(() => cut.Find(".boton-destructivo").HasAttribute("aria-disabled").Should().BeFalse());
         await cut.Find(".boton-destructivo").ClickAsync(new MouseEventArgs());

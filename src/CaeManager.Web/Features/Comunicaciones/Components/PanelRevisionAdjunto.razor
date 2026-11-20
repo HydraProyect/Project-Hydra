@@ -1,5 +1,6 @@
 @*
-    Panel de revisión del visor de documento a pantalla completa (tablero «Visor-Documento» del lienzo de Comunicaciones, estados
+    Panel de revisión de adjuntos del visor de documento a pantalla completa. Vive en Comunicaciones y entra en el visor del Núcleo por su
+    hueco Panel (ContextoPanelVisor): el visor no referencia Outbound, el panel sí (tablero «Visor-Documento» del lienzo de Comunicaciones, estados
     L-66 y L-67, PR-A3): «¿Es el documento correcto?», «Asignar a», tipo de documento y las acciones asignar, rechazar y dejar para
     después. Reutiliza los Commands del reparto de adjuntos (FijarDestinoAdjunto, AsignarAdjuntosLote, ResolverAdjunto): el rol y el
     alcance de cartera los deciden ellos en el servidor y no se repiten aquí; el panel solo ofrece lo que el servidor va a aceptar
@@ -9,19 +10,23 @@
     los datos detectados en el documento con su semáforo, el veredicto «Todo coincide…» y el aviso de datos que no coinciden. Sin
     lectura el lienzo define su propio estado («Sin lectura de Vega»: nadie viene preseleccionado y se elige o se busca), que es el que
     se pinta. Tampoco hay «Cambiar la asignación»: ningún Command deshace un Documento ya dado de alta.
+
+    Dos atajos deliberados, marcados donde están (shortcut:): la fecha de emisión (el lienzo no tiene el campo; la aporta quien abre
+    el visor) y el rótulo «Rechazar documento» (el del lienzo promete reclamar al remitente, y ResolverAdjunto no envía nada).
 *@
 @using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote
 @using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto
 @using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto
 @using CaeManager.Domain.Comunicaciones
-@using CaeManager.Web.Features.Documentos.Recursos
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using CaeManager.Web.Features.Documentos.Components
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
-@inject IStringLocalizer<TextosVisorDocumento> Textos
+@inject IStringLocalizer<TextosRevisionAdjunto> Textos
 @inject ILogger<PanelRevisionAdjunto> Logger
 
 @{
@@ -30,7 +35,7 @@
     var editable = pendiente && _puedeEscribir;
     var candidatos = Candidatos(b);
 }
-<aside class="vz-aside" id="vz-revision" aria-label="@Textos["Rev_Aria"]" tabindex="-1" @ref="_aside" @onkeydown="e => OnTecla.InvokeAsync(e)" @onkeydown:stopPropagation="true">
+<aside class="vz-aside" id="vz-revision" aria-label="@Textos["Rev_Aria"]" tabindex="-1" @ref="_aside" @onkeydown="e => Contexto.Tecla.InvokeAsync(e)" @onkeydown:stopPropagation="true">
     <div class="vz-sec">
         <span class="vz-etq">@Textos["Rev_Pregunta"]</span>
         <span class="vz-badges">
@@ -129,6 +134,7 @@
             var motivoAsignar = MotivoSinAsignar(b);
             <div class="vz-acciones">
                 <Boton Variante="VarianteBoton.Primario" class="vz-acc vz-asignar" aria-disabled="@(motivoAsignar is null ? null : "true")" aria-describedby="@(motivoAsignar is null ? null : "vz-ayuda-asignar")" OnClick="() => AsignarAsync(b)">@Textos["Rev_Asignar"]</Boton>
+                @* shortcut: el rótulo del lienzo («Rechazar y reclamar el documento») promete reclamar al remitente, que no existe (ResolverAdjunto solo marca el adjunto como rechazado); volver al rótulo del lienzo cuando exista el envío al remitente. *@
                 <Boton Variante="VarianteBoton.Secundario" class="vz-acc" Deshabilitado="_ocupado" OnClick="() => b.Rechazando = true">@Textos["Rev_Rechazar"]</Boton>
                 <Boton Variante="VarianteBoton.Fantasma" class="vz-acc" Deshabilitado="_ocupado" OnClick="DejarAsync">@Textos["Rev_Dejar"]</Boton>
             </div>
@@ -186,28 +192,17 @@
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
-    /// <summary>El adjunto que se revisa, con su estado vigente (el visor se lo da ya mezclado con lo que se resolvió dentro de él).</summary>
-    [Parameter, EditorRequired] public AdjuntoVisor Adjunto { get; set; } = default!;
+    /// <summary>El adjunto que se revisa, con su estado vigente, y las salidas del visor (el hueco Panel de VisorDocumentoPantallaCompleta se las da ya mezcladas con lo que se resolvió dentro de él).</summary>
+    [Parameter, EditorRequired] public ContextoPanelVisor Contexto { get; set; } = default!;
 
     [Parameter, EditorRequired] public RevisionAdjuntos Revision { get; set; } = default!;
 
+    private AdjuntoVisor Adjunto => Contexto.Adjunto;
+
     /// <summary>Adjuntos sin resolver de la cola, contando el actual: con ellos el aviso dice cuántos quedan.</summary>
-    [Parameter] public int Pendientes { get; set; }
+    private int Pendientes => Contexto.Pendientes;
 
-    [Parameter] public int Total { get; set; }
-
-    /// <summary>Se invoca al asignar, rechazar o volver a revisar un adjunto; el visor mueve la cola y quien lo abrió refresca lo suyo.</summary>
-    [Parameter] public EventCallback<ResolucionAdjuntoVisor> OnResuelto { get; set; }
-
-    /// <summary>«Dejar el documento para después»: sin Command, solo pasa al siguiente pendiente. Solo se invoca si hay otro.</summary>
-    [Parameter] public EventCallback OnDejar { get; set; }
-
-    /// <summary>
-    /// Las teclas que llegan del panel fuera de un campo (un botón, el propio panel): el visor las trata como de un panel desplazable
-    /// (las flechas desplazan; Escape, « [ », « ] », « + », « = » y « - » siguen valiendo). Las de un campo no llegan aquí.
-    /// </summary>
-    [Parameter] public EventCallback<KeyboardEventArgs> OnTecla { get; set; }
-
+    private int Total => Contexto.Total;
     private readonly Dictionary<Guid, BorradorRevision> _borradores = [];
     private ElementReference _aside;
     private bool _puedeEscribir;
@@ -304,6 +299,7 @@
         b.Aviso = null;
     }
 
+    // shortcut: el lienzo no tiene campo de fecha de emisión, así que el panel no la pide: la aporta quien abre el visor en PropuestaRevision.FechaEmision (la conectará A4). Sin ella «Asignar el documento» queda deshabilitado con su ayuda; cuando A4 la lea del adjunto (o el lienzo añada el campo), esta ayuda desaparece.
     private string? MotivoSinAsignar(BorradorRevision b) =>
         b.Destino is null ? Textos["Rev_Ayuda_Asignar_Destino"].Value
         : TipoVigente(b) is null ? Textos["Rev_Ayuda_Asignar_Tipo"].Value
@@ -373,7 +369,7 @@
         }
 
         ToastService.Mostrar(Textos["Rev_Toast_Dejado"].Value);
-        await OnDejar.InvokeAsync();
+        await Contexto.Dejar.InvokeAsync();
     }
 
     /// <summary>Lanza la acción; si devuelve un texto, es el motivo del fallo y el adjunto no cambia; si no, se avisa del nuevo estado.</summary>
@@ -411,7 +407,7 @@
             : quedan > 1 ? Textos["Rev_Toast_Quedan_N", texto, quedan].Value
             : quedan == 1 ? Textos["Rev_Toast_Quedan_1", texto].Value
             : Textos["Rev_Toast_Revisados", texto, Total].Value, TonoToast.Exito);
-        await OnResuelto.InvokeAsync(new ResolucionAdjuntoVisor(Adjunto.Id, nuevo));
+        await Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Adjunto.Id, nuevo));
     }
 
     private string NombreTipo(Guid? id) => Revision.Tipos.FirstOrDefault(t => t.Id == id)?.Nombre ?? string.Empty;

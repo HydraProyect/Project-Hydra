@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+    <data name="Rev_Aria" xml:space="preserve">
+    <value>Revisió del document</value>
+  </data>
+  <data name="Rev_Pregunta" xml:space="preserve">
+    <value>És el document correcte?</value>
+  </data>
+  <data name="Rev_FaltaElegir" xml:space="preserve">
+    <value>Falta triar a qui correspon</value>
+  </data>
+  <data name="Rev_SinVega" xml:space="preserve">
+    <value>Sense lectura de Vega</value>
+  </data>
+  <data name="Rev_AsignarA" xml:space="preserve">
+    <value>Assignar a</value>
+  </data>
+  <data name="Rev_Ayuda_Varios" xml:space="preserve">
+    <value>{0} possibles amb un nom semblant</value>
+  </data>
+  <data name="Rev_Ayuda_Unico" xml:space="preserve">
+    <value>Únic possible</value>
+  </data>
+  <data name="Rev_Ayuda_Ninguno" xml:space="preserve">
+    <value>Sense proposta: cerca la persona o Empresa</value>
+  </data>
+  <data name="Rev_Bloqueo_Asignado" xml:space="preserve">
+    <value>Ja està assignat.</value>
+  </data>
+  <data name="Rev_Bloqueo_Rechazado" xml:space="preserve">
+    <value>Ja està rebutjat. Per canviar-ho, fes servir «Tornar a revisar el document».</value>
+  </data>
+  <data name="Rev_Buscar" xml:space="preserve">
+    <value>Cercar una altra persona o Empresa</value>
+  </data>
+  <data name="Rev_Buscar_Aria" xml:space="preserve">
+    <value>Cercar pel nom</value>
+  </data>
+  <data name="Rev_Buscar_Placeholder" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Rev_Buscar_Minimo" xml:space="preserve">
+    <value>Escriu almenys dues lletres del nom.</value>
+  </data>
+  <data name="Rev_Buscar_Ninguno" xml:space="preserve">
+    <value>Sense resultats.</value>
+  </data>
+  <data name="Rev_Buscar_Resultados_1" xml:space="preserve">
+    <value>1 resultat</value>
+  </data>
+  <data name="Rev_Buscar_Resultados_N" xml:space="preserve">
+    <value>{0} resultats</value>
+  </data>
+  <data name="Rev_Elegir_A" xml:space="preserve">
+    <value>Triar {0}</value>
+  </data>
+  <data name="Rev_Tipo" xml:space="preserve">
+    <value>Tipus de document</value>
+  </data>
+  <data name="Rev_Tipo_Elegir" xml:space="preserve">
+    <value>Tria un tipus</value>
+  </data>
+  <data name="Rev_Asignar" xml:space="preserve">
+    <value>Assignar el document</value>
+  </data>
+  <data name="Rev_Rechazar" xml:space="preserve">
+    <value>Rebutjar document</value>
+  </data>
+  <data name="Rev_Dejar" xml:space="preserve">
+    <value>Deixar el document per després</value>
+  </data>
+  <data name="Rev_Ayuda_Asignar_Destino" xml:space="preserve">
+    <value>Tria a qui correspon el document per assignar-lo.</value>
+  </data>
+  <data name="Rev_Ayuda_Asignar_Tipo" xml:space="preserve">
+    <value>Tria el tipus de document per assignar-lo.</value>
+  </data>
+  <data name="Rev_Ayuda_Asignar_Fecha" xml:space="preserve">
+    <value>Falta la data d&apos;emissió del document per assignar-lo.</value>
+  </data>
+  <data name="Rev_Motivo" xml:space="preserve">
+    <value>Motiu del rebuig</value>
+  </data>
+  <data name="Rev_Motivo_Placeholder" xml:space="preserve">
+    <value>Què falla: nom, data, signatura, tipus…</value>
+  </data>
+  <data name="Rev_Motivo_Ayuda" xml:space="preserve">
+    <value>Escriu el motiu per rebutjar el document.</value>
+  </data>
+  <data name="Rev_Rechazo_Cancelar" xml:space="preserve">
+    <value>Cancel·lar el rebuig</value>
+  </data>
+  <data name="Rev_Resuelto_Asignado" xml:space="preserve">
+    <value>Assignat</value>
+  </data>
+  <data name="Rev_Resuelto_Rechazado" xml:space="preserve">
+    <value>Rebutjat</value>
+  </data>
+  <data name="Rev_Resuelto_AsignadoTxt" xml:space="preserve">
+    <value>A {0} com a «{1}».</value>
+  </data>
+  <data name="Rev_Revisar_Nuevo" xml:space="preserve">
+    <value>Tornar a revisar el document</value>
+  </data>
+  <data name="Rev_Toast_Asignado" xml:space="preserve">
+    <value>Assignat a {0} com a «{1}»</value>
+  </data>
+  <data name="Rev_Toast_Rechazado" xml:space="preserve">
+    <value>Rebutjat · el document queda sense assignar</value>
+  </data>
+  <data name="Rev_Toast_Reabierto" xml:space="preserve">
+    <value>El document torna a estar pendent</value>
+  </data>
+  <data name="Rev_Toast_Quedan_1" xml:space="preserve">
+    <value>{0} · en queda 1 per revisar</value>
+  </data>
+  <data name="Rev_Toast_Quedan_N" xml:space="preserve">
+    <value>{0} · en queden {1} per revisar</value>
+  </data>
+  <data name="Rev_Toast_Revisados" xml:space="preserve">
+    <value>{0} · has revisat els {1} adjunts</value>
+  </data>
+  <data name="Rev_Toast_Dejado" xml:space="preserve">
+    <value>El deixes per després</value>
+  </data>
+  <data name="Rev_Toast_SinOtro" xml:space="preserve">
+    <value>No hi ha cap altre adjunt pendent</value>
+  </data>
+  <data name="Rev_SoloConsulta" xml:space="preserve">
+    <value>Amb el rol Consulta pots veure la revisió, però no canviar-la.</value>
+  </data>
+  <data name="Rev_Error" xml:space="preserve">
+    <value>No s&apos;ha pogut completar. Comprova l&apos;estat de l&apos;adjunt.</value>
+  </data>
+</root>

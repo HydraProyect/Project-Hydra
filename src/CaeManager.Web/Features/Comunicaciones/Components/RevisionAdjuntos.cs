@@ -1,4 +1,4 @@
-namespace CaeManager.Web.Features.Documentos.Components;
+namespace CaeManager.Web.Features.Comunicaciones.Components;
 
 /// <summary>
 /// A quién puede asignarse un adjunto en el panel de revisión del visor: un Trabajador o una Empresa que quien abre el visor ya leyó
@@ -19,7 +19,7 @@ public sealed record PropuestaRevision(
     DateOnly? FechaEmision = null, DateOnly? FechaVencimiento = null, bool NoCaduca = false, string? MotivoRechazo = null);
 
 /// <summary>
-/// Los datos del panel de revisión del visor, ya resueltos por quien abre el visor (el visor no lee nada del servidor):
+/// Los datos del panel de revisión del visor, ya resueltos por quien abre el visor (el panel no lee nada del servidor para pintarse):
 /// la conversación a la que pertenecen los adjuntos, lo guardado de cada uno por su Id y los destinos y tipos que se ofrecen.
 /// </summary>
 public sealed record RevisionAdjuntos(
@@ -27,6 +27,3 @@ public sealed record RevisionAdjuntos(
     IReadOnlyDictionary<Guid, PropuestaRevision> Propuestas,
     IReadOnlyList<DestinoRevision> Destinos,
     IReadOnlyList<TipoRevision> Tipos);
-
-/// <summary>Lo que el panel avisa a quien abrió el visor al resolver un adjunto: queda asignado, rechazado o (al revisarlo de nuevo) pendiente.</summary>
-public sealed record ResolucionAdjuntoVisor(Guid AdjuntoId, EstadoAdjuntoVisor Estado);

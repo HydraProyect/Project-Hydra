@@ -27,4 +27,9 @@
   <data name="NumeroTicket" xml:space="preserve"><value>Núm. {0}</value></data>
   <data name="TituloTicket" xml:space="preserve"><value>Número de tiquet</value></data>
   <data name="NotaPlazos" xml:space="preserve"><value>Terminis en horari laboral de l'Operador CAE: de dilluns a divendres, de 8:00 a 10:00 i de 10:30 a 15:00, i de 16:00 a 17:00 excepte els divendres, al juliol i a l'agost i la vigília d'un festiu. Els festius els fixa cada Operador CAE. Crítica, 1 h. Urgent, 4 h. Normal, 1 dia laborable. En ambre, quan queden menys de 2 h.</value></data>
+  <data name="ConAdjuntos" xml:space="preserve"><value>Amb adjunts: {0}</value></data>
+  <data name="AccionPorAprobar" xml:space="preserve"><value>Acció per aprovar</value></data>
+  <data name="AccionPorAprobarTitulo" xml:space="preserve"><value>Acció per aprovar: hi ha una acció proposada per Vega pendent d'aprovar</value></data>
+  <data name="BuzonPersonal" xml:space="preserve"><value>La meva bústia personal</value></data>
+  <data name="AsignadaA" xml:space="preserve"><value>Assignada a {0}</value></data>
 </root>
