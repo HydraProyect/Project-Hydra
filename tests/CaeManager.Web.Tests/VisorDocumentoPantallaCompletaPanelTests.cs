@@ -27,6 +27,9 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
 
         protected override void OnInitialized() => AlCrearse?.Invoke();
 
+        /// <summary>Un panel bien hecho detiene las teclas; con false se comprueba que el contenedor del visor las corta de todos modos.</summary>
+        [Parameter] public bool DetieneTeclas { get; set; } = true;
+
         protected override void BuildRenderTree(RenderTreeBuilder b)
         {
             b.OpenElement(0, "aside");
@@ -36,7 +39,8 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
             b.AddAttribute(4, "data-pendientes", Contexto.Pendientes);
             b.AddAttribute(5, "data-total", Contexto.Total);
             b.AddAttribute(6, "onkeydown", Contexto.Tecla);
-            b.AddEventStopPropagationAttribute(7, "onkeydown", true);
+            if (DetieneTeclas)
+                b.AddEventStopPropagationAttribute(7, "onkeydown", true);
             Boton(b, "asignar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Asignado)));
             Boton(b, "rechazar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Rechazado)));
             Boton(b, "reabrir", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Pendiente)));
@@ -64,7 +68,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
 
     private IRenderedComponent<VisorDocumentoPantallaCompleta> Pintar(
         IReadOnlyList<AdjuntoVisor> lista, bool conPanel = true, int indice = 0,
-        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null)
+        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null, bool detieneTeclas = true)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
@@ -84,6 +88,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
                         b.OpenComponent<PanelDePega>(0);
                         b.AddComponentParameter(1, nameof(PanelDePega.Contexto), ctx);
                         b.AddComponentParameter(2, nameof(PanelDePega.AlCrearse), (Action)(() => _instancias++));
+                        b.AddComponentParameter(3, nameof(PanelDePega.DetieneTeclas), detieneTeclas);
                         b.CloseComponent();
                     };
                 });
@@ -409,13 +414,50 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     }
 
     [Fact]
+    public async Task Un_panel_que_no_detiene_las_teclas_no_las_hace_llegar_al_dialogo_del_visor()
+    {
+        var cierres = new List<bool>();
+        var cut = Pintar([Adj("A.pdf", paginas: 3), Adj("B.pdf")], alCambiar: cierres.Add, detieneTeclas: false);
+
+        // La tecla se despacha al aside del panel (que sí tiene manejador) y sube hasta el contenedor del visor, que solo declara
+        // stopPropagation: si no cortara, el diálogo la atendería otra vez y la hoja avanzaría dos veces.
+        await TeclaPanelAsync(cut, "]");
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+        cut.FindAll(".vz-pag")[2].GetAttribute("aria-current").Should().Be("false");
+
+        await TeclaPanelAsync(cut, "ArrowRight");
+        Posicion(cut).Should().Be("Documento 1 de 2");
+
+        await TeclaPanelAsync(cut, "Escape");
+        cierres.Should().Equal(false);
+    }
+
+    [Fact]
     public void El_contenedor_del_visor_declara_que_las_teclas_del_panel_no_suben_al_dialogo()
     {
         var cut = Pintar([Adj("A.pdf")]);
 
-        // bUnit no despacha una tecla a un elemento que solo lleva stopPropagation y ningún manejador, y un manejador vacío costaría un viaje
-        // por pulsación en producción: aquí solo se fija que el contenedor lo declara; que de verdad corta la propagación lo prueba el navegador, no bUnit.
         Contenedor(cut).Attributes.Select(a => a.Name).Should()
             .Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("keydown", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void La_hoja_de_estilos_oculta_el_contenedor_aunque_su_display_contents_se_imponga_a_hidden()
+    {
+        var css = File.ReadAllText(RutaDelVisor("VisorDocumentoPantallaCompleta.razor.css"));
+
+        // Control positivo: la regla que da la maquetación existe.
+        css.Should().MatchRegex(@"(?m)^\.vz-revision\s*\{[^}]*display\s*:\s*contents");
+        // Sin esta regla «Ocultar la revisión» cambiaría el texto y aria-expanded, pero el panel seguiría visible.
+        css.Should().MatchRegex(@"(?m)^\.vz-revision\[hidden\]\s*\{[^}]*display\s*:\s*none");
+    }
+
+    private static string RutaDelVisor(string fichero)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer la hoja de estilos");
+        return Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Documentos", "Components", fichero);
     }
 }

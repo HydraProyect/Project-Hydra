@@ -131,7 +131,7 @@
                 </div>
                 @if (Panel is not null)
                 {
-                    @* El contenedor es del visor, no del panel: es el destino de aria-controls y corta las teclas del panel antes del diálogo (el navegador respeta stopPropagation sin manejador; bUnit no, ver los tests), para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. «Ocultar la revisión» solo lo marca hidden: el panel sigue montado y conserva lo que se haya escrito en él. Con display:contents no cambia la maquetación del cuerpo. *@
+                    @* El contenedor es del visor, no del panel: es el destino de aria-controls y corta las teclas del panel antes del diálogo (stopPropagation sin manejador: no cuesta un viaje por pulsación), para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. «Ocultar la revisión» solo lo marca hidden: el panel sigue montado y conserva lo que se haya escrito en él. Con display:contents no cambia la maquetación del cuerpo. *@
                     <div id="vz-revision" class="vz-revision" hidden="@(!_panelAbierto)" @onkeydown:stopPropagation="true">
                         @Panel(ContextoDelPanel(actual, pendientes))
                     </div>
