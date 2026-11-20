@@ -2,6 +2,7 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Web.Features.Comunicaciones.Recursos
+@using System.Security.Claims
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
 @inject IStringLocalizer<TextosPlazosConversacion> TextosPrioridades
@@ -98,19 +99,50 @@
         : string.IsNullOrWhiteSpace(Conversacion.BuzonNombre) ? null
         : Conversacion.BuzonNombre.Trim();
 
+    /// <summary>Estado de autenticación en cascada (el mismo que usa Bandeja). Sin él (una fila suelta, sin sesión) no se sabe quién es el usuario y no se oculta nada.</summary>
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>Id del usuario actual: el claim <c>NameIdentifier</c>, el mismo que lee <c>ICurrentUserService.ObtenerUsuarioActualIdAsync</c>, que la consulta de la lista usa para «Mías».</summary>
+    private Guid? _usuarioActualId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is null) return;
+
+        var valor = (await EstadoAutenticacion).User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _usuarioActualId = Guid.TryParse(valor, out var id) ? id : null;
+    }
+
     /// <summary>
-    /// Persona asignada, con sus iniciales. El DTO la nombra «Ejecutivo» (deuda terminológica: es el Gestor CAE asignado; el renombrado es otro incremento).
-    /// Null si el nombre no llega (el directorio no deja verla desde el Tenant activo) o no tiene ninguna letra.
+    /// Persona asignada, con sus iniciales, como el lienzo (<c>otraAsig</c>): solo si la asignada <b>no</b> es el usuario actual. El DTO la nombra «Ejecutivo» (deuda
+    /// terminológica: es el Gestor CAE asignado; el renombrado es otro incremento). Null si el nombre no llega (el directorio no deja verla desde el Tenant activo),
+    /// no tiene ninguna letra o la asignada es el propio usuario.
     /// </summary>
-    // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
     private (string Nombre, string Iniciales)? Asignada =>
         string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
-        // Mismas iniciales que el respaldo de AvatarUsuario (InicialesDeUsuario.De): la inicial de cada palabra, cortando también en guion, punto y arroba, y
-        // «?» si no hay ninguna letra (entonces la fila no enseña persona). No AvatarTenant.Iniciales, que es el de una Empresa o un Tenant y parte solo
-        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR.
-        // shortcut: la fila pinta las iniciales de respaldo de AvatarUsuario, no el avatar elegido, porque ConversacionListaDto no trae la clave de avatar; mejorarlo en un incremento propio que añada esa clave al DTO de lista y use AvatarUsuario
-        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
+        : _usuarioActualId is { } yo && Conversacion.EjecutivoAsignadoId == yo ? null
+        : InicialesDeTodasLasPalabras(Conversacion.EjecutivoAsignadoNombre) is { Length: > 0 } iniciales ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
         : null;
+
+    private static readonly char[] SeparadoresDeNombre = [' ', '.', '_', '-', '@', '+'];
+
+    /// <summary>
+    /// La primera letra, en mayúscula, de cada palabra del nombre, sin tope (el lienzo: <c>nombre.split(' ').map(p => p[0]).join('')</c>, «Marta Gil Ríos» da «MGR»).
+    /// <c>InicialesDeUsuario.De</c> hace lo mismo pero corta a dos letras para el círculo del avatar y la usan otros llamadores, así que no se toca: este es el cálculo de la
+    /// fila. Conserva sus reglas de los casos raros (parte también en guion, punto, guion bajo, arroba y más; una palabra sin ninguna letra no aporta; un correo sin
+    /// espacios se corta en la arroba) y devuelve vacío si no queda ninguna, con lo que la fila no enseña persona.
+    /// </summary>
+    private static string InicialesDeTodasLasPalabras(string nombre)
+    {
+        var local = nombre.Contains(' ') ? nombre : nombre.Split('@')[0];
+        var letras = local
+            .Split(SeparadoresDeNombre, StringSplitOptions.RemoveEmptyEntries)
+            .Select(parte => parte.FirstOrDefault(char.IsLetter))
+            .Where(letra => letra != default)
+            .Select(char.ToUpperInvariant)
+            .ToArray();
+        return new string(letras);
+    }
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)
