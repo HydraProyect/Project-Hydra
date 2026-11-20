@@ -45,6 +45,12 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// <c>TextoDeBusqueda.Contiene</c> sería un incremento propio), mismo nivel que las búsquedas heredadas de este
 /// repositorio — no se introduce tsvector/GIN de Postgres para esto (YAGNI). El vínculo estructurado
 /// Conversación-Centro, cuando exista, es un incremento propio.
+///
+/// <see cref="GrupoEstado"/> reúne varios estados en un solo filtro (DN-O, 2026-11-20): «Abiertas» = Abierta, Esperando respuesta
+/// del Interlocutor y Pendiente de tercero (más el estado histórico Pendiente, vivo para la máquina de estados); «Archivadas» =
+/// Resuelta y Cerrada (<see cref="GruposEstadoConversacion"/>). Convive con <see cref="Estado"/> (un estado concreto): si vienen los
+/// dos se suman con AND, y sin <see cref="GrupoEstado"/> el filtro por <see cref="Estado"/> se comporta como siempre. Como el resto, es un
+/// filtro de servidor sumado con AND a la visibilidad, y los recuentos de vista de la pantalla reutilizan esta misma consulta.
 /// </summary>
 [AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesQuery(
@@ -60,7 +66,8 @@ public record ObtenerConversacionesQuery(
     int Pagina = 1,
     int TamanoPagina = 20,
     IntencionCae? Intencion = null,
-    bool SoloFueraDeSla = false)
+    bool SoloFueraDeSla = false,
+    GrupoEstadoConversacion? GrupoEstado = null)
     : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
@@ -95,7 +102,8 @@ public record ConversacionListaDto(
     //  - AccionPorAprobar: hay una propuesta de Vega sin resolver sobre el hilo (sugerencia de Visita pendiente o detalle de
     //    sugerencia de Gestión pendiente) que no sea ruido sin confirmar a mano; el detalle, en cambio, sigue mostrando esas
     //    propuestas como pendientes (agrupadas aparte como ruido). Siempre false para el Tenant solo Inbound (D6=a), que no
-    //    recibe sugerencias de Outbound. No mira el estado de la conversación (decisión abierta, ver la PR).
+    //    recibe sugerencias de Outbound. Solo puede ser true en una conversación abierta (DN-L, 2026-11-20): una Resuelta o Cerrada
+    //    nunca la enciende, aunque conserve una propuesta sin resolver.
     //  - TotalAdjuntos cuenta también las imágenes en línea (la firma): AdjuntoMensaje no distingue «en línea» y la ingesta
     //    de Graph no pide isInline. Hueco conocido, ver la PR.
     //  - BuzonNombre / BuzonEsPersonal: nombre de la conexión por la que entró el hilo y si es el buzón personal de un
@@ -172,6 +180,12 @@ public class ObtenerConversacionesQueryHandler(
 
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);
+
+        if (request.GrupoEstado is { } grupoEstado)
+        {
+            var estadosDelGrupo = GruposEstadoConversacion.Estados(grupoEstado);
+            consulta = consulta.Where(c => estadosDelGrupo.Contains(c.Estado));
+        }
 
         if (request.Canal is not null)
             consulta = consulta.Where(c => c.Canal == request.Canal);
@@ -343,7 +357,11 @@ public class ObtenerConversacionesQueryHandler(
         // por los mismos contextos de lectura (mismo filtro de Tenant y misma RLS): no amplían el conjunto de filas, solo
         // rellenan columnas de las que ya salieron de la visibilidad R-3a.
         var adjuntosPorConversacion = await ContarAdjuntosPorConversacionAsync(conversacionPorMensaje, cancellationToken);
-        var conversacionesConAccionPorAprobar = await ConversacionesConAccionPorAprobarAsync(conversacionPorMensaje, cancellationToken);
+        // DN-L: «acción por aprobar» solo cuenta en conversaciones abiertas (DN-O). Las Resueltas y Cerradas no entran siquiera en la
+        // lectura de propuestas, así que una propuesta sin resolver en un hilo archivado no enciende el indicador ni cuesta SQL.
+        var idsAbiertas = conversaciones.Where(c => GruposEstadoConversacion.EsAbierta(c.Estado)).Select(c => c.Id).ToHashSet();
+        var conversacionesConAccionPorAprobar = await ConversacionesConAccionPorAprobarAsync(
+            conversacionPorMensaje.Where(m => idsAbiertas.Contains(m.Value)).ToDictionary(m => m.Key, m => m.Value), cancellationToken);
         var nombresAsignados = await ObtenerNombresAsignadosAsync(
             conversaciones.Where(c => c.EjecutivoAsignadoId != null).Select(c => c.EjecutivoAsignadoId!.Value).Distinct().ToList(),
             cancellationToken);
@@ -489,8 +507,9 @@ public class ObtenerConversacionesQueryHandler(
     /// Es la regla de <see cref="ContarMensajesRuidoPorConversacionAsync"/> para que una fila no salga a la vez con ruido y con
     /// acción por aprobar POR LO MISMO. Distinto del detalle, que sigue proyectando esas propuestas como pendientes y las
     /// agrupa aparte como ruido. Salvedad conocida: un mensaje cuyos detalles de Gestión son todos repetición cuenta como
-    /// ruido en la fila aunque lleve además una sugerencia de Visita pendiente sin clasificar, que sí cuenta aquí. No depende del estado de la
-    /// conversación (decisión abierta, ver la PR). Con el marco de Comunicaciones del Tenant solo Inbound (D6=a) no se
+    /// ruido en la fila aunque lleve además una sugerencia de Visita pendiente sin clasificar, que sí cuenta aquí. Solo se le pasan los
+    /// mensajes de conversaciones abiertas (DN-L, 2026-11-20: ni Resuelta ni Cerrada, <see cref="GruposEstadoConversacion"/>); el
+    /// detalle, en cambio, sigue proyectando las propuestas de un hilo archivado. Con el marco de Comunicaciones del Tenant solo Inbound (D6=a) no se
     /// cuentan, como tampoco se proyectan en el detalle ni cuentan como ruido: el indicador revelaría que existen. Es el único
     /// sitio donde se decide qué es «acción por aprobar» para la fila. Una sola sentencia (UNION), por el presupuesto de SQL.
     /// </summary>

@@ -169,6 +169,52 @@ public class ObtenerConversacionesDatosDeFilaTests
             (await banda.Lista()).Single().AccionPorAprobar.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(EstadoConversacion.Abierta, true)]
+    [InlineData(EstadoConversacion.Pendiente, true)]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, true)]
+    [InlineData(EstadoConversacion.EnEsperaDeTercero, true)]
+    [InlineData(EstadoConversacion.Resuelta, false)]
+    [InlineData(EstadoConversacion.Cerrada, false)]
+    public async Task AccionPorAprobar_solo_puede_ser_true_en_una_conversacion_abierta_aunque_haya_propuestas_sin_resolver(
+        EstadoConversacion estado, bool esperada)
+    {
+        // DN-L (Chris, 2026-11-20): el indicador cuenta solo las conversaciones abiertas (DN-O: ni Resuelta ni Cerrada). Una propuesta
+        // sin resolver en un hilo archivado no lo enciende, ni la de Visita ni la de Gestión; la fila sigue saliendo en la lista.
+        var banda = new Banda();
+        var conVisita = banda.Hilo("Con una sugerencia de Visita");
+        var conGestion = banda.Hilo("Con un detalle de Gestión");
+        banda.SugerenciaVisita(conVisita);
+        banda.DetalleDeGestion(conGestion);
+        foreach (var hilo in new[] { conVisita, conGestion })
+            if (estado != EstadoConversacion.Abierta)
+                banda.Conversacion(hilo).CambiarEstado(estado).EsExitoso.Should().BeTrue();
+
+        var resultado = await banda.Lista();
+
+        resultado.Single(c => c.Id == conVisita.ConversacionId).AccionPorAprobar.Should().Be(esperada);
+        resultado.Single(c => c.Id == conGestion.ConversacionId).AccionPorAprobar.Should().Be(esperada);
+        resultado.Should().OnlyContain(c => c.Estado == estado, "pasar a archivada no saca la fila de la lista, solo apaga el indicador");
+    }
+
+    [Fact]
+    public async Task AccionPorAprobar_de_una_Cerrada_con_propuesta_sin_resolver_no_apaga_la_de_una_abierta_de_la_misma_pagina()
+    {
+        var banda = new Banda();
+        var abierta = banda.Hilo("Abierta con propuesta");
+        var cerrada = banda.Hilo("Cerrada con propuesta");
+        banda.SugerenciaVisita(abierta);
+        banda.SugerenciaVisita(cerrada);
+        banda.Conversacion(cerrada).CambiarEstado(EstadoConversacion.Cerrada).EsExitoso.Should().BeTrue();
+
+        var resultado = await banda.Lista();
+
+        resultado.Single(c => c.Id == abierta.ConversacionId).AccionPorAprobar.Should().BeTrue();
+        var filaCerrada = resultado.Single(c => c.Id == cerrada.ConversacionId);
+        filaCerrada.Estado.Should().Be(EstadoConversacion.Cerrada);
+        filaCerrada.AccionPorAprobar.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Buzon_trae_el_nombre_de_la_conexion_y_si_es_el_buzon_personal_del_usuario()
     {
