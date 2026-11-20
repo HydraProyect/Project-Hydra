@@ -1,11 +1,11 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Encargo;
-using CaeManager.Application.Usuarios;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -20,10 +20,12 @@ namespace CaeManager.Application.Comunicaciones.VistaUnificada;
 /// vista no ejecuta ningún comando (§ 4.4, DN-6 (a)) y no redacta (DN-7).
 ///
 /// <para>
-/// Recorrido, con la estructura de Mi trabajo: conjunto de la vista (<see cref="PredicadoVistaUnificada.ConjuntoAsync"/>)
-/// ∩ <see cref="TenantIds"/> → por Tenant, secuencial, re-comprobación y <see cref="AmbitoTenantAutorizado"/> → la regla de
-/// visibilidad de la bandeja de un Tenant (<see cref="ConversacionesVisibles.FiltrarAsync"/>, R-3a) bajo la RLS de ese
-/// Tenant → cierre del ámbito → fusión en memoria. Ninguna fila sale de su Tenant propietario ni se guarda.
+/// Recorrido, con la estructura de Mi trabajo: exclusiones de plano y conjunto de la vista ∩ <see cref="TenantIds"/>
+/// (<see cref="EntradaVistaUnificada.AbrirAsync"/>, la misma entrada que el selector) → por Tenant, secuencial,
+/// re-comprobación y <see cref="AmbitoTenantAutorizado"/> → la regla de visibilidad de la bandeja de un Tenant
+/// (<see cref="ConversacionesVisibles.FiltrarAsync"/>, R-3a) bajo la RLS de ese Tenant
+/// (<see cref="EntradaVistaUnificada.ConversacionesDelTenantAsync"/>) → cierre del ámbito → fusión en memoria. Ninguna
+/// fila sale de su Tenant propietario ni se guarda.
 /// </para>
 ///
 /// <para>
@@ -39,13 +41,21 @@ namespace CaeManager.Application.Comunicaciones.VistaUnificada;
 /// <c>OFFSET</c>. Una conversación que recibe un mensaje durante el recorrido sube por encima de <c>T0</c> y sale de él.
 /// </para>
 /// </summary>
-/// <param name="TenantIds">Filtro por Empresa gestionada; <c>null</c> o vacío, todas las del conjunto de la vista.</param>
+/// <param name="TenantIds">
+/// Filtro por Tenant beneficiario (rótulo «Empresa gestionada»); <c>null</c> o vacío, todos los del conjunto de la vista.
+/// Se interseca con el conjunto (<see cref="EntradaVistaUnificada.Intersecar"/>).
+/// </param>
 /// <param name="Cursor"><c>null</c> en la primera página; después, <see cref="PaginaConversacionesUnificadasDto.Siguiente"/>.</param>
+/// <param name="GrupoEstado">
+/// Grupo de estados de la vista (DN-O), sumado con AND; <c>null</c>, todos. Con <see cref="GrupoEstadoConversacion.Abiertas"/>
+/// la lista de un Tenant cuenta lo mismo que su recuento en <see cref="ObtenerTenantsBeneficiariosVistaUnificadaQuery"/>.
+/// </param>
 [AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesUnificadasQuery(
     IReadOnlyList<Guid>? TenantIds = null,
     CursorConversacionesUnificadas? Cursor = null,
-    int TamanoPagina = 20)
+    int TamanoPagina = 20,
+    GrupoEstadoConversacion? GrupoEstado = null)
     : IRequest<PaginaConversacionesUnificadasDto>;
 
 /// <param name="CotaSuperiorUtc"><c>T0</c>: la fecha tope de todo el recorrido, tomada en la primera página.</param>
@@ -127,23 +137,13 @@ public class ObtenerConversacionesUnificadasQueryHandler(
     public async Task<PaginaConversacionesUnificadasDto> Handle(
         ObtenerConversacionesUnificadasQuery request, CancellationToken cancellationToken)
     {
-        var identidad = await RechazarPlanosExcluidosAsync(cancellationToken);
+        var (identidad, conjunto) = await EntradaVistaUnificada.AbrirAsync(
+            request.TenantIds, currentUserService, operaciones, tenants, coordenadaSesionPrivilegiada, vistaDemo,
+            cancellationToken);
         var tamano = Math.Clamp(request.TamanoPagina, 1, TamanoPaginaMaximo);
         var cota = request.Cursor?.CotaSuperiorUtc
                    ?? OrdenConversacionesUnificadas.TruncarAMicrosegundos(DateTime.UtcNow);
-
-        var conjunto = await PredicadoVistaUnificada.ConjuntoAsync(
-            identidad, operaciones, tenants, DateTime.UtcNow, cancellationToken);
-        conjunto = await SoloLosDeLaLenteDeDemoAsync(conjunto, identidad, cancellationToken);
-        if (request.TenantIds is { Count: > 0 } filtro)
-            conjunto = conjunto.Where(filtro.Contains).ToList();
-
-        var nombres = conjunto.Count == 0
-            ? new Dictionary<Guid, string>()
-            : await tenants.Tenants
-                .Where(t => conjunto.Contains(t.Id))
-                .Select(t => new { t.Id, t.Nombre })
-                .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+        var nombres = await EntradaVistaUnificada.NombresAsync(tenants, conjunto, cancellationToken);
 
         var filas = new List<ConversacionUnificadaDto>();
         var noConsultados = new List<TenantNoConsultadoDto>();
@@ -155,7 +155,8 @@ public class ObtenerConversacionesUnificadasQueryHandler(
             {
                 var (autorizado, delTenant) = await AmbitoTenantAutorizado.EjecutarAsync(
                     identidad, operaciones, tenants, tenantId,
-                    ambito => LeerTenantAsync(ambito, nombre, esOrigen, cota, request.Cursor, tamano, cancellationToken),
+                    ambito => LeerTenantAsync(
+                        ambito, nombre, esOrigen, cota, request.Cursor, tamano, request.GrupoEstado, cancellationToken),
                     cancellationToken);
                 if (autorizado && delTenant is not null)
                     filas.AddRange(delTenant);
@@ -178,61 +179,22 @@ public class ObtenerConversacionesUnificadasQueryHandler(
     }
 
     /// <summary>
-    /// Exclusiones de plano (§ 4.2), en el propio handler: la vista no existe con Sesión Privilegiada seleccionada, con
-    /// papel Inbound (DN-1 (a): no se sirve una mezcla), para el Usuario de Cliente ni para el Soporte TALVEG (Tenant de
-    /// origen de plataforma). Sin usuario o sin Tenant de origen, tampoco. El Usuario simulado no existe hoy: su guarda es
-    /// futura y no está aquí.
-    /// </summary>
-    private async Task<IdentidadVistaUnificada> RechazarPlanosExcluidosAsync(CancellationToken cancellationToken)
-    {
-        if (coordenadaSesionPrivilegiada.HaySeleccionada)
-            throw new UnauthorizedAccessException("La vista unificada de Comunicaciones no se abre con una Sesión Privilegiada.");
-        if (await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
-            throw new UnauthorizedAccessException("La vista unificada de Comunicaciones es solo de Outbound.");
-
-        var identidad = await IdentidadVistaUnificada.ResolverAsync(currentUserService)
-                        ?? throw new UnauthorizedAccessException("La vista unificada de Comunicaciones necesita una sesión de usuario.");
-        if (identidad.RolDeOrigen == AutoridadSobreCuentas.RolCliente)
-            throw new UnauthorizedAccessException("La vista unificada de Comunicaciones no es del Usuario de Cliente.");
-        if (await tenants.Tenants.AnyAsync(t => t.Id == identidad.TenantOrigenId && t.EsPlataforma, cancellationToken))
-            throw new UnauthorizedAccessException("La vista unificada de Comunicaciones no es del Soporte TALVEG.");
-        return identidad;
-    }
-
-    /// <summary>
-    /// Con la lente de demo Gestor (<see cref="IVistaDemoActual"/>), solo el origen y los Tenants donde el Gestor CAE
-    /// simulado tiene cartera: la lente solo estrecha, igual que en el selector.
-    /// </summary>
-    private async Task<IReadOnlyList<Guid>> SoloLosDeLaLenteDeDemoAsync(
-        IReadOnlyList<Guid> conjunto, IdentidadVistaUnificada identidad, CancellationToken cancellationToken)
-    {
-        var acotados = vistaDemo is null ? null : await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken);
-        return acotados is null
-            ? conjunto
-            : conjunto.Where(t => t == identidad.TenantOrigenId || acotados.Contains(t)).ToList();
-    }
-
-    /// <summary>
-    /// La página de un Tenant, dentro de su <see cref="AmbitoTenantAutorizado"/>. Segunda línea (§ 4.3, M1): fuera del
-    /// Tenant de origen, solo se lee si la persona entra por una Asignación de Operación; en el de origen, solo con rol
-    /// efectivo. Si no, el Tenant queda como no consultado (<c>null</c>), nunca como vacío. Sentencias fijas por Tenant,
-    /// sin depender de cuántas filas trae: el alcance, las conexiones excluidas, la página y los nombres de sus buzones.
+    /// La página de un Tenant, dentro de su <see cref="AmbitoTenantAutorizado"/>, sobre las conversaciones que la vista lee
+    /// de él (<see cref="EntradaVistaUnificada.ConversacionesDelTenantAsync"/>, con su segunda línea): <c>null</c> deja al
+    /// Tenant como no consultado, nunca como vacío. Sentencias fijas por Tenant, sin depender de cuántas filas trae: el
+    /// alcance, las conexiones excluidas, la página y los nombres de sus buzones.
     /// </summary>
     private async Task<List<ConversacionUnificadaDto>?> LeerTenantAsync(
         AmbitoTenantAutorizado ambito, string tenantNombre, bool esOrigen, DateTime cota,
-        CursorConversacionesUnificadas? cursor, int tamano, CancellationToken cancellationToken)
+        CursorConversacionesUnificadas? cursor, int tamano, GrupoEstadoConversacion? grupoEstado,
+        CancellationToken cancellationToken)
     {
-        ambito.ExigirAbierto();
-        var autorizaDentro = esOrigen
-            ? await currentUserService.ObtenerRolEfectivoAsync() is not null
-            : currentUserService is IEncargoDeAdministracionActual senal && await senal.OperaPorAsignacionDeOperacionAsync();
-        if (!autorizaDentro)
+        var consulta = await EntradaVistaUnificada.ConversacionesDelTenantAsync(
+            ambito, esOrigen, cota, grupoEstado, comunicacionesContext, integracionesContext, alcanceDatos,
+            currentUserService, tenantActual, cancellationToken);
+        if (consulta is null)
             return null;
 
-        var consulta = await ConversacionesVisibles.FiltrarAsync(
-            comunicacionesContext.Conversaciones, alcanceDatos, currentUserService, integracionesContext, tenantActual,
-            cancellationToken);
-        consulta = consulta.Where(c => c.FechaUltimoMensajeUtc <= cota);
         if (cursor is not null)
         {
             var fecha = cursor.FechaUltimoMensajeUtc;

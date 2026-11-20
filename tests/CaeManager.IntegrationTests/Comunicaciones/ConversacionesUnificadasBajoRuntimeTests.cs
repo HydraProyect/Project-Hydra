@@ -46,8 +46,12 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// <item><b>Fuera</b>: ningún vínculo con el Operador CAE.</item>
 /// </list>
 /// </para>
+/// <para>
+/// El selector de Tenants beneficiarios con sus recuentos (R-4) se prueba sobre este mismo escenario en
+/// <c>ConversacionesUnificadasBajoRuntimeTests.Selector.cs</c>.
+/// </para>
 /// </summary>
-public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
+public partial class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _usuario = Guid.NewGuid();

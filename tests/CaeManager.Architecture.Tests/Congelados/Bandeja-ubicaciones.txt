@@ -30,6 +30,7 @@ src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTra
 src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs :: TipoItemBandeja = 8
 src/CaeManager.Application/Common/PeticionDeOutbound.cs :: Bandeja = 1
 src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerConversacionesUnificadasQuery.cs :: Bandeja = 1
+src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerTenantsBeneficiariosVistaUnificadaQuery.cs :: Bandeja = 1
 src/CaeManager.Application/Operaciones/ApoyoCartera/AvisoDeApoyoDeCartera.cs :: Bandeja = 2
 src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/AceptarSolicitudIncorporacionCarteraCommand.cs :: Bandeja = 1
 src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RechazarSolicitudIncorporacionCarteraCommand.cs :: Bandeja = 1

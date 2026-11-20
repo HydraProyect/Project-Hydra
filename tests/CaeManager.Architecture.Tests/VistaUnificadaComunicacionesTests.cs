@@ -104,6 +104,46 @@ public class VistaUnificadaComunicacionesTests
             .Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Toda consulta de la vista (la lista y el selector con sus recuentos, R-4) entra por la misma puerta,
+    /// <see cref="EntradaVistaUnificada.AbrirAsync"/>, y lee cada Tenant por la misma lectura,
+    /// <see cref="EntradaVistaUnificada.ConversacionesDelTenantAsync"/>: así el selector no ofrece un Tenant que la lista
+    /// no leería ni cuenta con otra regla. Nadie más calcula el conjunto ni aplica la visibilidad por su cuenta.
+    /// </summary>
+    [Fact]
+    public void Toda_consulta_de_la_vista_entra_y_lee_por_EntradaVistaUnificada()
+    {
+        var handlers = typeof(EntradaVistaUnificada).Assembly.GetTypes()
+            .Where(t => t.Namespace == typeof(EntradaVistaUnificada).Namespace && !t.IsAbstract
+                        && t.GetInterfaces().Any(i => i.IsGenericType
+                                                      && i.GetGenericTypeDefinition() == typeof(MediatR.IRequestHandler<,>)))
+            .Select(t => t.Name)
+            .ToList();
+        handlers.Should().Contain(new[] { "ObtenerConversacionesUnificadasQueryHandler", "ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler" },
+            "control del instrumento: tiene que ver los dos handlers de la vista");
+
+        var carpeta = Path.Combine(
+            RaizDelRepositorio(), "src", "CaeManager.Application", "Comunicaciones", "VistaUnificada");
+        foreach (var handler in handlers)
+        {
+            var fichero = Path.Combine(carpeta, handler[..^"Handler".Length] + ".cs");
+            File.Exists(fichero).Should().BeTrue($"{handler} vive en el fichero de su consulta");
+            var codigo = SinComentarios(File.ReadAllText(fichero));
+            codigo.Should().Contain("EntradaVistaUnificada.AbrirAsync(", $"{handler} entra por la puerta común");
+            codigo.Should().Contain("EntradaVistaUnificada.ConversacionesDelTenantAsync(", $"{handler} lee con la regla común");
+        }
+
+        foreach (var fichero in Directory.GetFiles(carpeta, "*.cs", SearchOption.AllDirectories))
+        {
+            var nombre = Path.GetFileName(fichero);
+            if (nombre is "EntradaVistaUnificada.cs" or "AmbitoTenantAutorizado.cs") continue;
+            var codigo = SinComentarios(File.ReadAllText(fichero));
+            codigo.Should().NotContain("PredicadoVistaUnificada.ConjuntoAsync", $"{nombre} no calcula el conjunto por su cuenta");
+            codigo.Should().NotContain("ConversacionesVisibles.FiltrarAsync", $"{nombre} no aplica la visibilidad por su cuenta");
+            codigo.Should().NotContain("EsPlataforma", $"{nombre} no repite las exclusiones de plano");
+        }
+    }
+
     /// <summary>Los puntos de entrada que suman la vía heredada (<c>TenantsBeneficiariosAutorizados</c> y Mi trabajo).</summary>
     private static readonly string[] ViaHeredada =
     [
