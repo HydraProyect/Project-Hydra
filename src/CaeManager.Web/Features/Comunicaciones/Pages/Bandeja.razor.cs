@@ -272,7 +272,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }].Value;
 
     /// <summary>Lo que dice el disparador del selector «Vista»: «Mías · 12» (nombre de la vista y total de la lista).</summary>
-    private string TextoVistaActual => $"{TituloLista} · {_totalConversaciones}";
+    private string TextoVistaActual => _cargandoLista || _errorCargaLista ? TituloLista : $"{TituloLista} · {_totalConversaciones}";
 
     /// <summary>La tabla de conversaciones es un modo secundario (maqueta 2026-11-01): solo se ve si se ha pedido con «Tabla».</summary>
     private bool _modoTabla;
@@ -353,6 +353,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// escribir sobre un componente que ya no está en el árbol.
     /// </summary>
     private readonly CancellationTokenSource _ciclo = new();
+
+    // Puerta de los recuentos (de canal y de vista): uno por vez, sin solaparse entre ellos. La lista no la usa: sus cargas
+    // concurrentes ya se resuelven con la guarda de carga vigente y no deben esperar a un recuento.
+    private readonly SemaphoreSlim _puertaConsultas = new(1, 1);
 
     /// <summary>
     /// Guarda de carga vigente para la lista (lista de clientes o buzón
@@ -781,7 +785,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga != _cargaListaVigente) return;
 
             // El canal es un filtro opcional de la lista (lienzo, chips de canal, L-10): con «Todos» —lo de siempre, § 10.2 de
-            // Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md— el gestor ve conversaciones sin separar «correo» y «WhatsApp».
+            // Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md— el Gestor CAE ve conversaciones sin separar «correo» y «WhatsApp».
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
             _cargaListaAplicada = carga;
@@ -850,15 +854,19 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// una fila cada uno.
     /// </summary>
     // shortcut: los recuentos son consultas de una fila sobre ObtenerConversacionesQuery, una tras otra porque el DbContext no admite
-    // consultas concurrentes (dos más por carga de lista y cinco más cada vez que se abre el selector de vistas); un recuento por
+    // consultas concurrentes (dos más por carga de lista y cuatro más cada vez que se abre el selector de vistas); un recuento por
     // canal y por vista en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
     private async Task CargarRecuentosCanalAsync(int carga)
     {
+        var puertaTomada = false;
         try
         {
+            await _puertaConsultas.WaitAsync(_ciclo.Token);
+            puertaTomada = true;
             var nuevos = new int?[3];
             foreach (var canal in CanalesDeLista)
             {
+                if (carga != _cargaListaVigente) return;
                 if (canal == _canalFiltro)
                 {
                     nuevos[IndiceCanal(canal)] = _totalConversaciones;
@@ -885,6 +893,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 StateHasChanged();
             }
         }
+        finally
+        {
+            if (puertaTomada) _puertaConsultas.Release();
+        }
     }
 
     /// <summary>Cifra de cada vista del selector, con los demás filtros y sin el canal; la vista y el canal activos ya los tiene la lista.</summary>
@@ -893,16 +905,25 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Las cifras de una apertura anterior (otros filtros, otra búsqueda) no se anuncian mientras llegan las nuevas.
         _recuentosVista = [];
         var carga = _cargaListaVigente;
+        var puertaTomada = false;
         try
         {
+            await _puertaConsultas.WaitAsync(_ciclo.Token);
+            puertaTomada = true;
             var nuevos = new Dictionary<VistaLista, int>();
             foreach (var vista in VistasPrincipales.Concat(VistasMasVistas))
             {
-                if (vista == _vistaLista && _canalFiltro is null)
+                if (carga != _cargaListaVigente || !_vistasAbiertas) return;
+                if (vista == _vistaLista && _canalFiltro is null && !_cargandoLista && !_errorCargaLista)
                 {
                     nuevos[vista] = _totalConversaciones;
                     continue;
                 }
+
+                // shortcut: sin cifra para «Fuera de plazo» salvo que sea la vista vigente: su filtro calcula el plazo de todas las
+                // conversaciones vivas (una consulta de contexto por conversación) y no compensa pagarlo en cada apertura del selector;
+                // un recuento barato de plazos vencidos en la propia query (PR-F1 o posterior) cuando se quiera la cifra del lienzo.
+                if (vista == VistaLista.FueraDePlazo) continue;
 
                 var resultado = await Mediator.Send(ConsultaLista(vista, null, 1, 1), _ciclo.Token);
                 if (carga != _cargaListaVigente) return;
@@ -917,6 +938,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "No se pudieron contar las conversaciones por vista.");
+        }
+        finally
+        {
+            if (puertaTomada) _puertaConsultas.Release();
         }
     }
 

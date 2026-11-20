@@ -381,7 +381,7 @@
     outline-offset: -2px;
 }
 
-/* Vista vigente: la señal de «opción elegida» de los desplegables de la aplicación (primario suave y punto a la derecha del texto). */
+/* Vista vigente: la señal de «opción elegida» de los desplegables de la aplicación (fondo primario suave y texto en negrita). */
 .bandeja-vista-fila-activa {
     background-color: var(--color-primary-50);
     color: var(--color-primary-700);

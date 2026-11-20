@@ -121,18 +121,24 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public async Task Cada_vista_con_conversaciones_muestra_su_cifra_y_Fuera_de_plazo_en_tono_de_alerta()
+    public async Task Cada_vista_con_conversaciones_muestra_su_cifra_y_Fuera_de_plazo_solo_cuando_es_la_vigente_en_tono_de_alerta()
     {
-        var (cut, _) = RenderizarConCanalesYVistas();
+        var (cut, mediador) = RenderizarConCanalesYVistas();
         await AbrirPanelDeVistasAsync(cut);
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         CifraDeVista(cut, "Todas").Should().Be("3");
         CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().Be("1");
         CifraDeVista(cut, "Sin asignar").Should().Be("1");
+        FilaDeVista(cut, "Todas").QuerySelector(".bandeja-vista-alerta").Should().BeNull("solo «Fuera de plazo» va en tono de alerta");
+        CifraDeVista(cut, "Fuera de plazo").Should().BeNull("su recuento calcula el plazo de todas las conversaciones vivas y no se pide al abrir el selector");
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should().NotContain(q => q.SoloFueraDeSla);
+
+        await FilaDeVista(cut, "Fuera de plazo").ClickAsync(new MouseEventArgs());
+        await AbrirPanelDeVistasAsync(cut);
+
         CifraDeVista(cut, "Fuera de plazo").Should().Be("1");
         FilaDeVista(cut, "Fuera de plazo").QuerySelector(".bandeja-vista-alerta").Should().NotBeNull();
-        FilaDeVista(cut, "Todas").QuerySelector(".bandeja-vista-alerta").Should().BeNull("solo «Fuera de plazo» va en tono de alerta");
     }
 
     [Fact]
@@ -172,6 +178,7 @@ public partial class ComunicacionesGen2Tests
 
         cut.FindAll(".bandeja-vista-panel").Should().BeEmpty();
         DisparadorDeVista(cut).GetAttribute("aria-expanded").Should().Be("false");
+        JSInterop.VerifyFocusAsyncInvoke(1);
     }
 
     [Fact]
@@ -436,6 +443,101 @@ public partial class ComunicacionesGen2Tests
 
         NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
         cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador, .bandeja-vista-panel .bandeja-vista-alerta").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Al_reabrir_el_selector_las_cifras_de_la_apertura_anterior_no_se_anuncian_mientras_llegan_las_nuevas()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([Conversacion("Uno", ClienteRefrielectric), Conversacion("Dos", ClienteRefrielectric)]);
+        var (cut, _) = Renderizar(escenario);
+        await AbrirPanelDeVistasAsync(cut);
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().NotBeEmpty();
+        await cut.Find(".bandeja-vista-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } ? lenta.Task : null;
+
+        var apertura = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1));
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().BeEmpty();
+        await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
+        await apertura;
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().NotBeEmpty());
+    }
+
+    [Fact]
+    public async Task Un_recuento_de_vistas_que_queda_obsoleto_al_pedirse_otra_lista_no_se_aplica()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Certificado de correo", ClienteRefrielectric),
+            Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp }]);
+        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } ? lenta.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        var apertura = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1));
+
+        var eleccion = ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().Contain(q => q.Canal == CanalConversacion.Correo));
+        await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
+        await apertura;
+        await eleccion;
+
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().BeEmpty("el recuento quedó obsoleto al pedirse otra lista");
+    }
+
+    [Fact]
+    public async Task Reabrir_el_selector_con_un_recuento_en_vuelo_no_lanza_otro_a_la_vez()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([Conversacion("Uno", ClienteRefrielectric), Conversacion("Dos", ClienteRefrielectric)]);
+        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } ? lenta.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        var primera = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1));
+        await cut.Find(".bandeja-vista-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        var segunda = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi)
+            .Should().Be(1, "el segundo recuento espera a que acabe el primero: el DbContext del circuito no admite dos consultas a la vez");
+        await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
+        await primera;
+        await segunda;
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().NotBeEmpty());
+    }
+    [Fact]
+    public async Task Mientras_carga_otra_vista_el_disparador_dice_solo_su_nombre_y_despues_la_cifra()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([Conversacion("Uno", ClienteRefrielectric), Conversacion("Dos", ClienteRefrielectric)]);
+        var (cut, _) = Renderizar(escenario);
+        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: > 1, SoloAsignadasAMi: true } ? lenta.Task : null;
+        await AbrirPanelDeVistasAsync(cut);
+
+        var eleccion = FilaDeVista(cut, "Mías").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Mías"));
+        var lista = escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 20));
+        await cut.InvokeAsync(() => lenta.SetResult(lista));
+        await eleccion;
+        cut.WaitForAssertion(() => DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim()
+            .Should().Be($"Mías · {lista.TotalElementos}"));
+    }
+
+    [Fact]
+    public async Task Elegir_una_vista_devuelve_el_foco_al_disparador_de_Vista()
+    {
+        var (cut, _) = RenderizarConCanalesYVistas();
+
+        await ElegirVistaAsync(cut, "Mías");
+
+        JSInterop.VerifyFocusAsyncInvoke(1);
     }
 
     [Fact]
