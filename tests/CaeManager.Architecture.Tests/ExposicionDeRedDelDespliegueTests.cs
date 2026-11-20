@@ -107,16 +107,22 @@ public class ExposicionDeRedDelDespliegueTests
             "una instrumentación HTTP de trazas sin el filtro exportaría url.full con el CIF o el NIF");
 
         program.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista)");
+        // El único SetBeforeSend es el de PrivacidadDeSentry.Configurar, que encadena el filtro de Program.cs (este) y
+        // después quita la ruta; uno en Program.cs sustituiría a los dos.
+        var privacidad = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Web", "PrivacidadDeSentry.cs"));
         System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeSend\(").Count
+            .Should().Be(0, "un SetBeforeSend en Program.cs sustituiría al de PrivacidadDeSentry, que lleva este filtro");
+        System.Text.RegularExpressions.Regex.Matches(privacidad, @"\bSetBeforeSend\(").Count
             .Should().Be(1, "un segundo SetBeforeSend sustituiría al que filtra");
     }
 
     /// <summary>
     /// <c>UseSentry</c> aplica <c>PrivacidadDeSentry.Configurar</c>: sin <c>sentry-trace</c> ni <c>baggage</c> hacia ningún
-    /// host y migas de pan sin la ruta de una petición marcada ni URLs ni correos en su mensaje. El comportamiento con el
-    /// SDK real lo prueba <c>PrivacidadDeSentryTests</c> (Web.Tests) sobre ese mismo método; esto fija que Program.cs lo
-    /// llama y que nada en Program.cs lo deshace (otro filtro de migas lo sustituiría, y añadir un destino a la lista de
-    /// propagación volvería a mandar la traza a un tercero).
+    /// host, migas de pan y eventos con solo el origen de la URL de su petición y sin URLs ni correos en el mensaje de
+    /// las migas. El comportamiento con el SDK real lo prueba <c>PrivacidadDeSentryTests</c> (Web.Tests) sobre ese mismo
+    /// método; esto fija que Program.cs lo llama, con su filtro de eventos dentro, y que nada en Program.cs lo deshace
+    /// (otro filtro de migas o de eventos lo sustituiría, y añadir un destino a la lista de propagación volvería a
+    /// mandar la traza a un tercero).
     /// </summary>
     [Fact]
     public void Sentry_aplica_la_configuracion_de_privacidad_y_program_no_la_deshace()
@@ -129,8 +135,15 @@ public class ExposicionDeRedDelDespliegueTests
         inicio.Should().BeGreaterThan(0);
         var fin = program.IndexOf("\n});", inicio, StringComparison.Ordinal);
         fin.Should().BeGreaterThan(inicio);
-        program[inicio..fin].TrimEnd().Should().EndWith("PrivacidadDeSentry.Configurar(options);",
-            "es lo último del bloque UseSentry: nada posterior en él lo sustituye");
+        var bloque = program[inicio..fin].TrimEnd();
+        var configurar = bloque.LastIndexOf("PrivacidadDeSentry.Configurar(options, (sentryEvent, pista) =>", StringComparison.Ordinal);
+        configurar.Should().BeGreaterThan(0, "UseSentry pasa su filtro de eventos a Configurar");
+        var ultima = bloque[configurar..];
+        ultima.Should().EndWith(");").And.Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista)")
+            .And.Contain("cortacircuitoSeq?.DebeDescartar(evento)", "el filtro de Program.cs va dentro de Configurar");
+        ultima.Count(c => c == ';').Should().Be(1, "es lo último del bloque UseSentry: nada posterior en él lo sustituye");
+        privacidad.Should().Contain("filtroDeEventos(evento, pista) is { } filtrado ? FiltrarEvento(filtrado) : null",
+            "el SetBeforeSend de Configurar aplica el filtro de Program.cs antes de quitar la ruta");
 
         System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count
             .Should().Be(0, "un SetBeforeBreadcrumb en Program.cs sustituiría al de PrivacidadDeSentry");
