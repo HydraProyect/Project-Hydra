@@ -22,16 +22,25 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     {
         [Parameter, EditorRequired] public ContextoPanelVisor Contexto { get; set; } = default!;
 
+        /// <summary>Se invoca al crearse la instancia: permite contar cuántas instancias monta el visor.</summary>
+        [Parameter] public Action? AlCrearse { get; set; }
+
+        protected override void OnInitialized() => AlCrearse?.Invoke();
+
+        /// <summary>Un panel bien hecho detiene las teclas; con false se comprueba que el contenedor del visor las corta de todos modos.</summary>
+        [Parameter] public bool DetieneTeclas { get; set; } = true;
+
         protected override void BuildRenderTree(RenderTreeBuilder b)
         {
             b.OpenElement(0, "aside");
-            b.AddAttribute(1, "id", "vz-revision");
+            b.AddAttribute(1, "class", "pega");
             b.AddAttribute(2, "data-nombre", Contexto.Adjunto.NombreArchivo);
             b.AddAttribute(3, "data-estado", Contexto.Adjunto.Estado.ToString());
             b.AddAttribute(4, "data-pendientes", Contexto.Pendientes);
             b.AddAttribute(5, "data-total", Contexto.Total);
             b.AddAttribute(6, "onkeydown", Contexto.Tecla);
-            b.AddEventStopPropagationAttribute(7, "onkeydown", true);
+            if (DetieneTeclas)
+                b.AddEventStopPropagationAttribute(7, "onkeydown", true);
             Boton(b, "asignar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Asignado)));
             Boton(b, "rechazar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Rechazado)));
             Boton(b, "reabrir", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Pendiente)));
@@ -52,9 +61,14 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     private static AdjuntoVisor Adj(string nombre, EstadoAdjuntoVisor estado = EstadoAdjuntoVisor.Pendiente, int paginas = 1) =>
         new(Guid.NewGuid(), nombre, $"/comunicaciones/adjuntos/{Guid.NewGuid()}/archivo", paginas, "312 KB", estado);
 
+    // El contexto que el visor entregó la última vez: permite simular una respuesta tardía o un doble clic sobre un adjunto que ya no es el actual.
+    private ContextoPanelVisor? _ultimoContexto;
+
+    private int _instancias;
+
     private IRenderedComponent<VisorDocumentoPantallaCompleta> Pintar(
         IReadOnlyList<AdjuntoVisor> lista, bool conPanel = true, int indice = 0,
-        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null)
+        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null, bool detieneTeclas = true)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
@@ -66,18 +80,26 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
              .Add(x => x.VisibleChanged, EventCallback.Factory.Create<bool>(this, v => alCambiar?.Invoke(v)))
              .Add(x => x.AdjuntoResuelto, EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, r => resueltos?.Add(r)));
             if (conPanel)
-                p.Add(x => x.Panel, ctx => b =>
+                p.Add(x => x.Panel, ctx =>
                 {
-                    b.OpenComponent<PanelDePega>(0);
-                    b.AddComponentParameter(1, nameof(PanelDePega.Contexto), ctx);
-                    b.CloseComponent();
+                    _ultimoContexto = ctx;
+                    return b =>
+                    {
+                        b.OpenComponent<PanelDePega>(0);
+                        b.AddComponentParameter(1, nameof(PanelDePega.Contexto), ctx);
+                        b.AddComponentParameter(2, nameof(PanelDePega.AlCrearse), (Action)(() => _instancias++));
+                        b.AddComponentParameter(3, nameof(PanelDePega.DetieneTeclas), detieneTeclas);
+                        b.CloseComponent();
+                    };
                 });
         });
     }
 
     private static string Posicion(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find(".vz-cola-n").TextContent.Trim();
 
-    private static AngleSharp.Dom.IElement Panel(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find("aside#vz-revision");
+    private static AngleSharp.Dom.IElement Panel(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find("#vz-revision aside.pega");
+
+    private static AngleSharp.Dom.IElement Contenedor(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find("#vz-revision");
 
     private static AngleSharp.Dom.IElement BotonRevision(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) =>
         cut.Find("button[aria-controls='vz-revision']");
@@ -90,8 +112,9 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     {
         var cut = Pintar([Adj("A.pdf")], conPanel: false);
 
-        cut.FindAll("aside#vz-revision").Should().BeEmpty();
+        cut.FindAll("#vz-revision aside.pega").Should().BeEmpty();
         cut.FindAll("button[aria-controls='vz-revision']").Should().BeEmpty();
+        cut.FindAll("#vz-revision").Should().BeEmpty();
         cut.Markup.Should().NotContain("revisión");
     }
 
@@ -106,15 +129,21 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         BotonRevision(cut).GetAttribute("aria-expanded").Should().Be("true");
         cut.Find("header.vz-cab").QuerySelector("button[aria-controls='vz-revision']").Should().NotBeNull();
 
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
+
         BotonRevision(cut).Click();
 
-        cut.FindAll("aside#vz-revision").Should().BeEmpty();
+        // El destino de aria-controls sigue en el árbol, es del visor y queda oculto; el panel sigue montado (no pierde lo que se haya escrito en él).
+        cut.FindAll("#vz-revision").Should().HaveCount(1);
+        Contenedor(cut).HasAttribute("hidden").Should().BeTrue();
+        _instancias.Should().Be(1);
         BotonRevision(cut).TextContent.Trim().Should().Be("Ver la revisión");
         BotonRevision(cut).GetAttribute("aria-expanded").Should().Be("false");
 
         BotonRevision(cut).Click();
 
-        Panel(cut).Should().NotBeNull();
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
+        _instancias.Should().Be(1);
         BotonRevision(cut).TextContent.Trim().Should().Be("Ocultar la revisión");
     }
 
@@ -271,7 +300,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         Panel(cut).QuerySelector("button.asignar")!.Click();
         cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-asignado");
         BotonRevision(cut).Click();
-        cut.FindAll("aside#vz-revision").Should().BeEmpty();
+        Contenedor(cut).HasAttribute("hidden").Should().BeTrue();
 
         cut.Render(p => p.Add(x => x.Visible, false));
         cut.Render(p => p.Add(x => x.Visible, true));
@@ -280,5 +309,155 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         Posicion(cut).Should().Be("Documento 1 de 2");
         Panel(cut).GetAttribute("data-estado").Should().Be("Pendiente");
         BotonRevision(cut).TextContent.Trim().Should().Be("Ocultar la revisión");
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Resolver_un_adjunto_que_no_es_el_actual_lo_marca_pero_no_mueve_la_cola()
+    {
+        var a = Adj("A.pdf");
+        var c = Adj("C.pdf");
+        var resueltos = new List<ResolucionAdjuntoVisor>();
+        var cut = Pintar([a, Adj("B.pdf"), c], resueltos: resueltos);
+
+        // Una respuesta tardía del panel sobre C mientras se mira A: el visor sigue en A.
+        await cut.InvokeAsync(() => _ultimoContexto!.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(c.Id, EstadoAdjuntoVisor.Asignado)));
+
+        resueltos.Should().Equal(new ResolucionAdjuntoVisor(c.Id, EstadoAdjuntoVisor.Asignado));
+        cut.FindAll(".vz-marca")[2].ClassList.Should().Contain("vz-marca-asignado");
+        Posicion(cut).Should().Be("Documento 1 de 3");
+        Panel(cut).GetAttribute("data-nombre").Should().Be("A.pdf");
+        Panel(cut).GetAttribute("data-pendientes").Should().Be("2");
+    }
+
+    [Fact]
+    public async Task Resolver_un_adjunto_que_ya_no_esta_en_la_lista_avisa_pero_no_mueve_la_cola_ni_deja_estado()
+    {
+        var resueltos = new List<ResolucionAdjuntoVisor>();
+        var ausente = Guid.NewGuid();
+        var cut = Pintar([Adj("A.pdf"), Adj("B.pdf")], resueltos: resueltos);
+
+        await cut.InvokeAsync(() => _ultimoContexto!.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(ausente, EstadoAdjuntoVisor.Asignado)));
+
+        resueltos.Should().Equal(new ResolucionAdjuntoVisor(ausente, EstadoAdjuntoVisor.Asignado));
+        Posicion(cut).Should().Be("Documento 1 de 2");
+        Panel(cut).GetAttribute("data-pendientes").Should().Be("2");
+    }
+
+    [Fact]
+    public async Task Una_resolucion_repetida_o_tardia_del_mismo_adjunto_no_vuelve_a_mover_la_cola()
+    {
+        var a = Adj("A.pdf");
+        var cut = Pintar([a, Adj("B.pdf"), Adj("C.pdf")]);
+        var contextoDeA = _ultimoContexto!;
+
+        await cut.InvokeAsync(() => contextoDeA.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Asignado)));
+        Posicion(cut).Should().Be("Documento 2 de 3");
+
+        // Doble clic de otra acción sobre A (rechazar tras asignar): llega con el contexto de A cuando ya se está en B. El estado de A cambia,
+        // así que solo «no es el actual» evita que la cola salte.
+        await cut.InvokeAsync(() => contextoDeA.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Rechazado)));
+        Posicion(cut).Should().Be("Documento 2 de 3");
+        cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-rechazado");
+    }
+
+    [Fact]
+    public void Resolver_al_estado_que_el_adjunto_ya_tiene_no_mueve_la_cola()
+    {
+        var cut = Pintar([Adj("A.pdf", EstadoAdjuntoVisor.Asignado), Adj("B.pdf")]);
+
+        Panel(cut).QuerySelector("button.asignar")!.Click();
+
+        Posicion(cut).Should().Be("Documento 1 de 2");
+    }
+
+    [Fact]
+    public void Con_un_solo_adjunto_resolverlo_se_queda_en_el_y_dice_que_todo_esta_revisado()
+    {
+        var cut = Pintar([Adj("A.pdf")]);
+
+        Panel(cut).QuerySelector("button.asignar")!.Click();
+
+        Posicion(cut).Should().Be("Documento 1 de 1");
+        Panel(cut).GetAttribute("data-estado").Should().Be("Asignado");
+        cut.Find(".vz-cola").TextContent.Should().Contain("Todos los adjuntos revisados");
+    }
+
+    [Fact]
+    public void Si_la_lista_llega_con_otro_estado_que_el_del_visor_manda_la_lista()
+    {
+        var a = Adj("A.pdf");
+        var b = Adj("B.pdf");
+        var cut = Pintar([a, b]);
+        Panel(cut).QuerySelector("button.asignar")!.Click();
+
+        // Quien abrió el visor refresca con un estado distinto del que se resolvió aquí (otra persona lo rechazó entre tanto).
+        cut.Render(p => p.Add(x => x.Adjuntos, [a with { Estado = EstadoAdjuntoVisor.Rechazado }, b]));
+
+        cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-rechazado");
+        cut.FindAll(".vz-marca")[0].ClassList.Should().NotContain("vz-marca-asignado");
+    }
+
+    [Fact]
+    public void Un_adjunto_que_sale_de_la_lista_no_deja_su_estado_para_cuando_vuelva()
+    {
+        var a = Adj("A.pdf");
+        var b = Adj("B.pdf");
+        var cut = Pintar([a, b]);
+        Panel(cut).QuerySelector("button.asignar")!.Click();
+
+        cut.Render(p => p.Add(x => x.Adjuntos, [b]));
+        cut.Render(p => p.Add(x => x.Adjuntos, [a, b]));
+
+        cut.FindAll(".vz-marca").Should().HaveCount(2);
+        cut.FindAll(".vz-marca")[0].ClassList.Should().NotContain("vz-marca-asignado");
+    }
+
+    [Fact]
+    public async Task Un_panel_que_no_detiene_las_teclas_no_las_hace_llegar_al_dialogo_del_visor()
+    {
+        var cierres = new List<bool>();
+        var cut = Pintar([Adj("A.pdf", paginas: 3), Adj("B.pdf")], alCambiar: cierres.Add, detieneTeclas: false);
+
+        // La tecla se despacha al aside del panel (que sí tiene manejador) y sube hasta el contenedor del visor, que solo declara
+        // stopPropagation: si no cortara, el diálogo la atendería otra vez y la hoja avanzaría dos veces.
+        await TeclaPanelAsync(cut, "]");
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+        cut.FindAll(".vz-pag")[2].GetAttribute("aria-current").Should().Be("false");
+
+        await TeclaPanelAsync(cut, "ArrowRight");
+        Posicion(cut).Should().Be("Documento 1 de 2");
+
+        await TeclaPanelAsync(cut, "Escape");
+        cierres.Should().Equal(false);
+    }
+
+    [Fact]
+    public void El_contenedor_del_visor_declara_que_las_teclas_del_panel_no_suben_al_dialogo()
+    {
+        var cut = Pintar([Adj("A.pdf")]);
+
+        Contenedor(cut).Attributes.Select(a => a.Name).Should()
+            .Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("keydown", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void La_hoja_de_estilos_oculta_el_contenedor_aunque_su_display_contents_se_imponga_a_hidden()
+    {
+        var css = File.ReadAllText(RutaDelVisor("VisorDocumentoPantallaCompleta.razor.css"));
+
+        // Control positivo: la regla que da la maquetación existe.
+        css.Should().MatchRegex(@"(?m)^\.vz-revision\s*\{[^}]*display\s*:\s*contents");
+        // Sin esta regla «Ocultar la revisión» cambiaría el texto y aria-expanded, pero el panel seguiría visible.
+        css.Should().MatchRegex(@"(?m)^\.vz-revision\[hidden\]\s*\{[^}]*display\s*:\s*none");
+    }
+
+    private static string RutaDelVisor(string fichero)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer la hoja de estilos");
+        return Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Documentos", "Components", fichero);
     }
 }

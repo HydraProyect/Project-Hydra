@@ -129,9 +129,12 @@
                         </div>
                     }
                 </div>
-                @if (Panel is not null && _panelAbierto)
+                @if (Panel is not null)
                 {
-                    @Panel(ContextoDelPanel(actual, pendientes))
+                    @* El contenedor es del visor, no del panel: es el destino de aria-controls y corta las teclas del panel antes del diálogo (stopPropagation sin manejador: no cuesta un viaje por pulsación), para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. «Ocultar la revisión» solo lo marca hidden: el panel sigue montado y conserva lo que se haya escrito en él. Con display:contents no cambia la maquetación del cuerpo. *@
+                    <div id="vz-revision" class="vz-revision" hidden="@(!_panelAbierto)" @onkeydown:stopPropagation="true">
+                        @PanelDe(actual, pendientes)
+                    </div>
                 }
             </div>
         </div>
@@ -164,14 +167,19 @@
     // Como el Drawer: solo cierra el clic cuyo pulsado empezó en el fondo; un arrastre que nace dentro del panel (seleccionar texto de una hoja) y acaba fuera no.
     private bool _mouseDownEnFondo;
 
-    // Lo resuelto dentro del visor (por el panel) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque la lista: el estado
-    // vigente es el de aquí hasta que la lista llegue con el mismo.
-    private readonly Dictionary<Guid, EstadoAdjuntoVisor> _estados = [];
+    // Lo resuelto dentro del visor (por el panel) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque la lista. Cada entrada
+    // guarda también el estado que la lista tenía al resolver (Base): el estado local vale mientras la lista siga con ese estado de partida,
+    // y en cuanto la lista llega con otro (el resuelto aquí u otro distinto) manda la lista. Límite: una lista que vuelve exactamente al
+    // estado de partida (otra persona deshace entre tanto) no se distingue de «aún no ha refrescado».
+    private readonly Dictionary<Guid, (EstadoAdjuntoVisor Vigente, EstadoAdjuntoVisor Base)> _estados = [];
     private bool _panelAbierto = true;
 
     private int Pendientes => _lista.Count(a => EstadoDe(a) == EstadoAdjuntoVisor.Pendiente);
 
-    private EstadoAdjuntoVisor EstadoDe(AdjuntoVisor adjunto) => _estados.GetValueOrDefault(adjunto.Id, adjunto.Estado);
+    // Un método y no la llamada anidada en el marcado: el medidor de textos sin localizar tomaba «(ContextoDelPanel(actual, pendientes))» por texto.
+    private RenderFragment? PanelDe(AdjuntoVisor actual, int pendientes) => Panel?.Invoke(ContextoDelPanel(actual, pendientes));
+
+    private EstadoAdjuntoVisor EstadoDe(AdjuntoVisor adjunto) => _estados.TryGetValue(adjunto.Id, out var e) ? e.Vigente : adjunto.Estado;
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -190,19 +198,28 @@
 
     /// <summary>
     /// Contenido de cada hoja. Sin valor, la imagen del adjunto si lo es, o el aviso de que no hay vista previa. Ojo: el manejador de
-    /// teclado del visor no distingue campos editables: atiende siempre Escape (cierra el visor), las flechas izquierda y derecha
-    /// (cambian de adjunto), « [ » y « ] » (cambian de hoja) y « + », « = » y « - » (zoom); quien ponga un <c>input</c> o
-    /// <c>textarea</c> aquí o junto al visor debe detener esas teclas antes, como hace el panel de revisión.
+    /// teclado del visor no distingue campos editables. Salvo con Ctrl o Meta (sin Alt), atiende Escape (cierra el visor), las flechas
+    /// izquierda y derecha (cambian de adjunto; con Alt no, y con el lienzo ampliado o desde el panel desplazan en vez de cambiar), « [ » y
+    /// « ] » (cambian de hoja) y « + », « = » y « - » (zoom); quien ponga un <c>input</c> o <c>textarea</c> aquí debe detener esas
+    /// teclas antes (el panel va dentro de un contenedor del visor que ya las corta antes del diálogo).
     /// </summary>
     [Parameter] public RenderFragment<HojaVisor>? Hoja { get; set; }
 
     /// <summary>
     /// Panel de la derecha (el de revisión de adjuntos, que pone Comunicaciones), con el adjunto actual y las salidas del visor en
-    /// <see cref="ContextoPanelVisor"/>. Sin valor no hay panel ni botón de mostrarlo: el visor es de lectura.
+    /// <see cref="ContextoPanelVisor"/>. Sin valor no hay panel ni botón de mostrarlo: el visor es de lectura. El visor lo envuelve en un
+    /// contenedor con <c>id="vz-revision"</c> (el destino de <c>aria-controls</c> del botón): el panel no debe repetir ese id. La misma
+    /// instancia se reutiliza al cambiar de adjunto y al ocultar el panel (queda montado y oculto), así que el panel debe guardar su estado
+    /// por <see cref="AdjuntoVisor.Id"/>.
     /// </summary>
     [Parameter] public RenderFragment<ContextoPanelVisor>? Panel { get; set; }
 
-    /// <summary>Se invoca cuando el panel resuelve un adjunto (asignado, rechazado o vuelto a pendiente), para que quien abrió el visor refresque su lista.</summary>
+    /// <summary>
+    /// Se invoca cuando el panel resuelve un adjunto (asignado, rechazado o vuelto a pendiente), para que quien abrió el visor refresque su
+    /// lista. Mientras no la refresque, el visor muestra lo resuelto aquí; al refrescar con el estado resuelto (o con cualquier estado distinto
+    /// del de partida) manda la lista. Límite conocido: si la lista vuelve exactamente al estado de partida, el visor sigue mostrando lo resuelto
+    /// aquí hasta cerrarse.
+    /// </summary>
     [Parameter] public EventCallback<ResolucionAdjuntoVisor> AdjuntoResuelto { get; set; }
 
     private bool Abierto => Visible && _lista.Count > 0;
@@ -232,6 +249,15 @@
             _irA = null;
             _estados.Clear();
             _panelAbierto = true;
+        }
+
+        // Lo resuelto aquí manda hasta que la lista cambia ese adjunto respecto de lo que era al resolverlo (llegue con lo mismo o con otra cosa);
+        // los que ya no están en la lista se purgan, para que un Id que vuelva más tarde no herede un estado viejo.
+        foreach (var id in _estados.Keys.ToList())
+        {
+            var enLista = _lista.FirstOrDefault(a => a.Id == id);
+            if (enLista is null || enLista.Estado != _estados[id].Base)
+                _estados.Remove(id);
         }
 
         foreach (var a in _lista.Where(a => _estados.GetValueOrDefault(a.Id, a.Estado) == a.Estado))
@@ -347,13 +373,19 @@
     }
 
     // Al resolver un adjunto se pasa al siguiente pendiente (al volver a revisarlo se queda); quien abrió el visor se entera para refrescar su lista.
+    // Solo se mueve la cola si lo resuelto es el adjunto que se está viendo y su estado cambia de verdad: la respuesta tardía de otro adjunto o un doble clic no la desplazan.
     private async Task ResolverAsync(ResolucionAdjuntoVisor resolucion)
     {
-        _estados[resolucion.AdjuntoId] = resolucion.Estado;
-        if (resolucion.Estado != EstadoAdjuntoVisor.Pendiente)
+        var enLista = _lista.FirstOrDefault(a => a.Id == resolucion.AdjuntoId);
+        var cambia = enLista is not null && EstadoDe(enLista) != resolucion.Estado;
+        var esElActual = _lista.Count > 0 && Actual.Id == resolucion.AdjuntoId;
+        if (enLista is not null)
+            _estados[resolucion.AdjuntoId] = (resolucion.Estado, enLista.Estado);
+        if (cambia && esElActual && resolucion.Estado != EstadoAdjuntoVisor.Pendiente)
             DejarParaDespues();
         await AdjuntoResuelto.InvokeAsync(resolucion);
     }
+
 
     private ContextoPanelVisor ContextoDelPanel(AdjuntoVisor actual, int pendientes) =>
         new(actual with { Estado = EstadoDe(actual) }, pendientes, _lista.Count,

@@ -31,5 +31,5 @@ public interface IActividadBuzones
 }
 
 /// <param name="UltimoCorreoUtc">Instante del último correo recibido que quien pregunta puede ver; nulo si no hay ninguno.</param>
-/// <param name="ConversacionesAbiertas">Conversaciones del buzón en estado «Abierta» que quien pregunta puede ver.</param>
+/// <param name="ConversacionesAbiertas">Conversaciones del buzón en los estados del grupo «Abiertas» de la bandeja (DN-O) que quien pregunta puede ver.</param>
 public record ActividadBuzonDto(DateTime? UltimoCorreoUtc, int ConversacionesAbiertas);

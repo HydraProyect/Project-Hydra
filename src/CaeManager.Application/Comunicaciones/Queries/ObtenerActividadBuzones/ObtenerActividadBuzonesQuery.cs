@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
@@ -28,9 +29,11 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 /// </para>
 ///
 /// <para>
-/// <b>«Abiertas»</b> son las conversaciones del buzón cuyo estado es <see cref="EstadoConversacion.Abierta"/>: el estado
-/// «Abierta» que la bandeja enseña y filtra (<c>ObtenerConversacionesQuery.Estado</c>). No cuentan las que esperan respuesta
-/// externa o a un tercero, ni las resueltas ni las cerradas. <b>«Último correo»</b> es la fecha del último mensaje
+/// <b>«Abiertas»</b> son las conversaciones del buzón cuyo estado pertenece al grupo
+/// <see cref="GruposEstadoConversacion.Abiertas"/>: la misma definición (DN-O) que la vista «Abiertas» de la bandeja
+/// (<c>ObtenerConversacionesQuery.GrupoEstado</c>), es decir, abierta, esperando respuesta externa, en espera de tercero y el
+/// estado histórico pendiente. No cuentan las resueltas ni las cerradas, y si el grupo cambia el recuento le sigue.
+/// <b>«Último correo»</b> es la fecha del último mensaje
 /// <see cref="DireccionMensaje.Entrante"/> de esas conversaciones visibles, por la conexión por la que entran
 /// (<c>Conversacion.ConexionIntegracionId</c>); un acuse o una respuesta nuestra no son un correo recibido.
 /// </para>
@@ -78,8 +81,10 @@ public class ObtenerActividadBuzonesQueryHandler(
             cancellationToken);
         var deLosBuzones = visibles.Where(c => c.ConexionIntegracionId != null && ids.Contains(c.ConexionIntegracionId.Value));
 
+        // «Abiertas» es el grupo de la bandeja, no un estado: la misma lista que usa su vista «Abiertas» (DN-O).
+        var estadosAbiertas = GruposEstadoConversacion.Estados(GrupoEstadoConversacion.Abiertas);
         var abiertas = await deLosBuzones
-            .Where(c => c.Estado == EstadoConversacion.Abierta)
+            .Where(c => estadosAbiertas.Contains(c.Estado))
             .GroupBy(c => c.ConexionIntegracionId!.Value)
             .Select(g => new { ConexionId = g.Key, Total = g.Count() })
             .ToListAsync(cancellationToken);

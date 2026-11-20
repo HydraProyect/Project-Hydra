@@ -22,7 +22,7 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 
 /// <summary>
 /// Las columnas «Último correo» y «Abiertas» de la tabla de Buzones (PR-B1): una sola petición para todos los buzones, con
-/// la regla de visibilidad de la bandeja y la misma definición de «abierta» que su filtro de estado.
+/// la regla de visibilidad de la bandeja y la misma definición de «abierta» que su vista «Abiertas» (<see cref="GruposEstadoConversacion"/>).
 /// </summary>
 public class ObtenerActividadBuzonesQueryTests
 {
@@ -152,7 +152,7 @@ public class ObtenerActividadBuzonesQueryTests
     }
 
     [Fact]
-    public async Task Abiertas_cuenta_solo_las_conversaciones_en_estado_Abierta_de_ese_buzon()
+    public async Task Abiertas_cuenta_las_conversaciones_de_los_estados_del_grupo_Abiertas_de_ese_buzon()
     {
         var escenario = new Escenario();
         var buzon = escenario.Buzon();
@@ -160,13 +160,36 @@ public class ObtenerActividadBuzonesQueryTests
         escenario.Hilo(buzon, "Abierta 1");
         escenario.Hilo(buzon, "Abierta 2");
         escenario.Hilo(buzon, "Esperando", EstadoConversacion.EsperandoRespuestaExterna);
+        escenario.Hilo(buzon, "Tercero", EstadoConversacion.EnEsperaDeTercero);
+        escenario.Hilo(buzon, "Pendiente", EstadoConversacion.Pendiente);
         escenario.Hilo(buzon, "Resuelta", EstadoConversacion.Resuelta);
+        escenario.Hilo(buzon, "Cerrada", EstadoConversacion.Cerrada);
         escenario.Hilo(otro, "De otro buzon");
 
         var actividad = await escenario.Actividad(buzon, otro);
 
-        actividad[buzon].ConversacionesAbiertas.Should().Be(2);
+        actividad[buzon].ConversacionesAbiertas.Should().Be(5, "cuentan Abierta (2), Esperando respuesta, En espera de tercero y Pendiente; no Resuelta ni Cerrada");
         actividad[otro].ConversacionesAbiertas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_estado_fuera_del_grupo_Abiertas_no_cuenta_y_uno_dentro_si_para_cada_estado_del_enum()
+    {
+        // Iterando el grupo, no una lista copiada aquí: si el grupo cambia, el recuento le sigue y este test no se rompe por ello;
+        // solo se rompe si Buzones deja de leer de GruposEstadoConversacion (y vuelve a una definición propia).
+        var escenario = new Escenario();
+        var buzonPorEstado = Enum.GetValues<EstadoConversacion>().ToDictionary(estado => estado, _ => escenario.Buzon());
+        foreach (var (estado, buzon) in buzonPorEstado)
+            escenario.Hilo(buzon, $"Hilo {estado}", estado);
+
+        var actividad = await escenario.Actividad(buzonPorEstado.Values.ToArray());
+
+        foreach (var (estado, buzon) in buzonPorEstado)
+            actividad[buzon].ConversacionesAbiertas.Should().Be(
+                GruposEstadoConversacion.Abiertas.Contains(estado) ? 1 : 0,
+                $"un hilo {estado} cuenta como abierto si y solo si {estado} está en GruposEstadoConversacion.Abiertas");
+        buzonPorEstado.Where(p => GruposEstadoConversacion.Abiertas.Contains(p.Key)).Should().NotBeEmpty();
+        buzonPorEstado.Where(p => !GruposEstadoConversacion.Abiertas.Contains(p.Key)).Should().NotBeEmpty();
     }
 
     [Fact]
@@ -227,7 +250,7 @@ public class ObtenerActividadBuzonesQueryTests
     }
 
     [Fact]
-    public async Task El_recuento_de_Abiertas_coincide_con_el_de_la_bandeja_filtrada_por_Abierta_para_el_mismo_buzon()
+    public async Task El_recuento_de_Abiertas_coincide_con_el_de_la_vista_Abiertas_de_la_bandeja_para_el_mismo_buzon()
     {
         // Mismo alcance acotado en la bandeja y aquí: hay hilos en cartera y fuera de ella, de varios estados y en dos
         // buzones. El ConversacionListaDto no trae el buzón: se distingue por el prefijo del asunto.
@@ -245,13 +268,13 @@ public class ObtenerActividadBuzonesQueryTests
         escenario.Hilo(b, "B-2", EstadoConversacion.EnEsperaDeTercero, empresaVisible);
 
         var bandeja = await escenario.Bandeja().Handle(
-            new ObtenerConversacionesQuery(Estado: EstadoConversacion.Abierta, TamanoPagina: 100), CancellationToken.None);
+            new ObtenerConversacionesQuery(GrupoEstado: GrupoEstadoConversacion.Abiertas, TamanoPagina: 100), CancellationToken.None);
         var actividad = await escenario.Actividad(a, b);
 
         actividad[a].ConversacionesAbiertas.Should().Be(bandeja.Elementos.Count(c => c.Asunto.StartsWith("A-")))
-            .And.Be(2);
+            .And.Be(3);
         actividad[b].ConversacionesAbiertas.Should().Be(bandeja.Elementos.Count(c => c.Asunto.StartsWith("B-")))
-            .And.Be(1);
+            .And.Be(2);
     }
 
     private sealed class Escenario(AlcanceDatosServiceFalso? alcance = null, Guid? usuarioId = null)
