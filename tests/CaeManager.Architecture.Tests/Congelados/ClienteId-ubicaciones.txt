@@ -200,6 +200,7 @@ src/CaeManager.Application/Integraciones/Commands/ReactivarConexion/ReactivarCon
 src/CaeManager.Application/Integraciones/IngestaWebhookService.cs :: ClienteId = 3
 src/CaeManager.Application/Integraciones/IngestaWebhookService.cs :: clienteId = 5
 src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs :: ClienteId = 5
+src/CaeManager.Application/Integraciones/Queries/ComprobarAccesoBuzon/ComprobarAccesoBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: clienteIdsVisibles = 3

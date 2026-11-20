@@ -22,9 +22,10 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Lo que NO observa</b> (huecos declarados): (1) una <c>*Query</c> cuyo handler escriba —un lector que acaba
-/// escribiendo— queda fuera, porque la reflexión sobre tipos no ve el cuerpo del handler. Hay dos conocidos hoy:
-/// <c>ObtenerEstructuraBuzonQuery</c> y <c>ObtenerMensajesCarpetaQuery</c> llaman a <c>SaveChangesAsync</c>; el trinquete
-/// que los acote (handlers de requests no-Command con <c>IUnitOfWork</c>, lista inicial de esos dos) es un incremento
+/// escribiendo— queda fuera, porque la reflexión sobre tipos no ve el cuerpo del handler. Hay tres conocidos hoy:
+/// <c>ObtenerEstructuraBuzonQuery</c>, <c>ObtenerMensajesCarpetaQuery</c> y <c>ComprobarAccesoBuzonQuery</c> (este, solo en
+/// un buzón personal) llaman a <c>SaveChangesAsync</c> para persistir el refresh token rotado; el trinquete
+/// que los acote (handlers de requests no-Command con <c>IUnitOfWork</c>, lista inicial de esos tres) es un incremento
 /// aparte; (1b) <c>IStreamRequest&lt;&gt;</c> no es <c>IBaseRequest</c> y no se escanea; (2) no mide que el
 /// <c>ICommand</c> haga además su propia comprobación de alcance (eso es de <c>AlcanceDeCarteraEnEscrituraTests</c> y
 /// afines); (3) un <c>INotification</c> con handler que escriba no pasa por este pipeline.

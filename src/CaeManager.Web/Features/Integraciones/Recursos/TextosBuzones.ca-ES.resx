@@ -204,4 +204,25 @@
   <data name="CajonErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les Empreses sense rol CAE ni els Gestors CAE. Pots continuar amb una bústia de l&apos;organització pròpia o compartida.</value>
   </data>
+  <data name="ColAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="ComprobarAcceso" xml:space="preserve">
+    <value>Comprova l&apos;accés</value>
+  </data>
+  <data name="AriaComprobarAcceso" xml:space="preserve">
+    <value>Comprova l&apos;accés: {0}</value>
+  </data>
+  <data name="ComprobacionOk" xml:space="preserve">
+    <value>TALVEG pot llegir aquesta bústia.</value>
+  </data>
+  <data name="ComprobacionSinAcceso" xml:space="preserve">
+    <value>TALVEG no té accés a aquesta bústia. Demana al teu equip d&apos;IT que la inclogui.</value>
+  </data>
+  <data name="ComprobacionOcupado" xml:space="preserve">
+    <value>Aquesta bústia ja està connectada en aquesta Empresa gestionada.</value>
+  </data>
+  <data name="ErrorComprobarAcceso" xml:space="preserve">
+    <value>No hem pogut comprovar l&apos;accés a la bústia. Torna-ho a provar.</value>
+  </data>
 </root>

@@ -6,6 +6,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
+using CaeManager.Application.Integraciones.Queries.ComprobarAccesoBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Common;
@@ -92,6 +93,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
                 ObtenerResponsablesElegiblesBuzonesQuery q => Evaluar(q),
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Clientes.ToList(),
                 ReactivarConexionCommand c => Reactivar(c),
+                ComprobarAccesoBuzonQuery q => Comprobar(q),
                 FijarAcuseAutomaticoBuzonCommand c => Aplicar(c),
                 FijarResponsableBuzonCommand c => Aplicar(c),
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -114,6 +116,19 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             return consulta.ConexionIds.ToDictionary(
                 id => id,
                 id => (IReadOnlySet<Guid>)consulta.CandidatoIds.Where(c => Elegibles is null || Elegibles.Contains(c)).ToHashSet());
+        }
+
+        public List<ComprobarAccesoBuzonQuery> ConsultasComprobar { get; } = [];
+
+        /// <summary>Lo que responde «Comprobar acceso»; un fallo si se pone <see cref="FalloDelComando"/>.</summary>
+        public ResultadoComprobacionAccesoBuzon ResultadoComprobacion { get; set; } = ResultadoComprobacionAccesoBuzon.Ok;
+
+        private Result<ResultadoComprobacionAccesoBuzon> Comprobar(ComprobarAccesoBuzonQuery consulta)
+        {
+            ConsultasComprobar.Add(consulta);
+            return FalloDelComando is { } fallo
+                ? Result.Fallo<ResultadoComprobacionAccesoBuzon>(fallo)
+                : Result.Exito(ResultadoComprobacion);
         }
 
         private Result Reactivar(ReactivarConexionCommand comando)
@@ -763,14 +778,14 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     }
 
     [Fact]
-    public void La_franja_de_error_ocupa_las_ocho_columnas_de_la_tabla()
+    public void La_franja_de_error_ocupa_las_nueve_columnas_de_la_tabla()
     {
         var cut = Renderizar(new MediadorBuzones
         {
             Conexiones = [Buzon("roto", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado")]
         });
 
-        cut.Find(".fila-franja-error > td").GetAttribute("colspan").Should().Be("8");
+        cut.Find(".fila-franja-error > td").GetAttribute("colspan").Should().Be("9", "las ocho de datos y la de acciones (L-57)");
     }
 
     // ---- Añadir buzón (cajón), franja de error con «Reconectar» y punto de estado ----
@@ -909,6 +924,76 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         mediador.ComandosReactivar.Should().ContainSingle();
         cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
             .Which.Tono.Should().Be(TonoToast.Error));
+    }
+
+    // ---- Comprobar acceso (L-57) ----
+
+    /// <summary>
+    /// Cada fila sin franja de error trae «Comprobar acceso» (fantasma, pequeño, con el nombre del buzón en el aria-label); la
+    /// que ya ofrece «Reconectar» en su franja no, como en el lienzo. La columna no tiene rótulo visible.
+    /// </summary>
+    [Fact]
+    public void Comprobar_acceso_sale_en_las_filas_sin_franja_de_error_y_no_en_la_que_ofrece_Reconectar()
+    {
+        var cut = Renderizar(new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae"), Buzon("roto", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado."),
+                Buzon("parado", estado: EstadoConexionIntegracion.Deshabilitada)]
+        });
+
+        var botones = cut.FindAll("[data-testid=comprobar-acceso-buzon]");
+        botones.Should().HaveCount(2, "cae y parado sí; roto ya tiene «Reconectar»");
+        botones.Should().OnlyContain(b => b.TextContent.Trim() == "Comprobar acceso" && b.ClassList.Contains("boton-fantasma"));
+        botones[0].GetAttribute("aria-label").Should().Be("Comprobar acceso: cae");
+        cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains("roto@"))
+            .QuerySelector("[data-testid=comprobar-acceso-buzon]").Should().BeNull();
+        cut.Find("th .sr-solo").TextContent.Trim().Should().Be("Acciones");
+    }
+
+    /// <summary>Quien no es Administrador ve el listado y no la acción: la guarda real es la de la consulta en el servidor.</summary>
+    [Fact]
+    public void Sin_rol_Administrador_no_hay_Comprobar_acceso()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, rol: Roles.GestorCae);
+
+        cut.FindAll("[data-testid=fila-buzon]").Should().ContainSingle("control positivo: el listado sigue");
+        cut.FindAll("[data-testid=comprobar-acceso-buzon]").Should().BeEmpty();
+    }
+
+    /// <summary>Los tres resultados con los textos del lienzo; la comprobación pide la consulta de esa conexión y no recarga la tabla.</summary>
+    [Theory]
+    [InlineData(ResultadoComprobacionAccesoBuzon.Ok, "TALVEG puede leer este buzón.", TonoToast.Exito)]
+    [InlineData(ResultadoComprobacionAccesoBuzon.SinAcceso, "TALVEG no tiene acceso a este buzón. Pide a tu equipo de IT que lo incluya.", TonoToast.Error)]
+    [InlineData(ResultadoComprobacionAccesoBuzon.Ocupado, "Este buzón ya está conectado en esta Empresa gestionada.", TonoToast.Error)]
+    public void Comprobar_acceso_avisa_del_resultado_con_el_texto_del_lienzo(
+        ResultadoComprobacionAccesoBuzon resultado, string texto, TonoToast tono)
+    {
+        var buzon = Buzon("cae");
+        var mediador = new MediadorBuzones { Conexiones = [buzon, Buzon("proyectos")], ResultadoComprobacion = resultado };
+        var cut = Renderizar(mediador);
+
+        cut.FindAll("[data-testid=comprobar-acceso-buzon]")[0].Click();
+
+        mediador.ConsultasComprobar.Should().ContainSingle().Which.Should().Be(new ComprobarAccesoBuzonQuery(buzon.Id));
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Should().Match<ToastMensaje>(m => m.Mensaje == texto && m.Tono == tono));
+        mediador.ComandosReactivar.Should().BeEmpty("comprobar no reactiva ni cambia nada");
+    }
+
+    [Fact]
+    public void Si_no_se_puede_comprobar_se_avisa_con_el_error_del_servidor()
+    {
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae")],
+            FalloDelComando = Error.Crear("Integraciones.Microsoft365.BuzonSinComprobar", "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo."),
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find("[data-testid=comprobar-acceso-buzon]").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Should().Match<ToastMensaje>(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("No pudimos comprobar el buzón")));
     }
 
     /// <summary>
