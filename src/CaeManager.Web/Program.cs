@@ -168,8 +168,9 @@ builder.WebHost.UseSentry(options =>
 {
     options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
     options.Environment = builder.Environment.EnvironmentName;
-    // SendDefaultPii, TracesSampleRate, TracesSampler y EnableLogs no se fijan aquí: los apaga PrivacidadDeSentry.Configurar,
-    // al final de este bloque, aunque la sección «Sentry» de la configuración los encienda.
+    // SendDefaultPii, TracesSampleRate, TracesSampler, EnableLogs, MaxRequestBodySize e IncludeActivityData no se fijan
+    // aquí, ni el filtro de transacciones: los apaga PrivacidadDeSentry.Configurar, al final de este bloque, aunque la
+    // sección «Sentry» de la configuración los encienda.
 
     // D-2: CaptureFailedRequests viene a true por defecto en Sentry.AspNetCore
     // (FailedRequestTargets = [".*"], FailedRequestStatusCodes = 500-599),

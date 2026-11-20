@@ -131,7 +131,7 @@ public class PrivacidadDeSentryTests
                 ["method"] = "GET",
                 ["status_code"] = "200",
             }
-            : null;
+            : new Dictionary<string, string> { ["dato"] = Correo };
         var original = new Breadcrumb(mensaje, categoria ?? "default", datos, categoria, BreadcrumbLevel.Info);
 
         var filtrada = PrivacidadDeSentry.FiltrarMigaDePan(original, new SentryHint());
@@ -149,7 +149,30 @@ public class PrivacidadDeSentryTests
                 ["status_code"] = "200",
             }, "la miga HTTP sin marcar se queda con el origen, el método y el código");
         else
-            filtrada.Data.Should().BeSameAs(original.Data, "fuera de una miga HTTP, los datos no se tocan");
+            filtrada.Data.Should().BeNullOrEmpty("fuera de una miga HTTP, los datos no salen: nadie ha revisado qué llevan");
+    }
+
+    [Fact]
+    public void La_miga_de_navegacion_sale_sin_datos_y_con_el_mensaje_saneado()
+    {
+        var original = new Breadcrumb("Navegación a /buzones/" + Correo, "navigation", new Dictionary<string, string>
+        {
+            ["from"] = "/empresas/" + Guid,
+            ["to"] = "/buzones/" + Correo + "/mensajes",
+        }, "navigation", BreadcrumbLevel.Info);
+
+        var filtrada = PrivacidadDeSentry.FiltrarMigaDePan(original, new SentryHint());
+
+        filtrada.Should().NotBeNull();
+        filtrada!.Data.Should().BeNullOrEmpty("la miga que no es HTTP sale sin Data (lista blanca)");
+        filtrada.Message.Should().Be("Navegación a /buzones/[correo]", "el mensaje se sigue saneando");
+        filtrada.Category.Should().Be("navigation");
+        filtrada.Type.Should().Be("navigation");
+        filtrada.Level.Should().Be(BreadcrumbLevel.Info);
+
+        var sinMensajeQueSanear = new Breadcrumb("Navegación", "navigation", new Dictionary<string, string> { ["to"] = "/buzones/" + Correo }, "navigation");
+        PrivacidadDeSentry.FiltrarMigaDePan(sinMensajeQueSanear, new SentryHint())!.Data
+            .Should().BeNullOrEmpty("aunque el mensaje no cambie, los datos no salen");
     }
 
     [Theory]
@@ -262,6 +285,61 @@ public class PrivacidadDeSentryTests
     }
 
     [Fact]
+    public void El_evento_sale_sin_cuerpo_entorno_ni_otros_datos_de_la_peticion_ni_cuerpo_de_la_respuesta()
+    {
+        var evento = new SentryEvent();
+        evento.Request.Url = "https://app.talveg.test/empresas/" + Guid;
+        evento.Request.Method = "POST";
+        evento.Request.Data = new { correo = Correo, nif = "TEST0002B" };
+        evento.Request.Env["SERVER_NAME"] = "maquina-de-prueba";
+        evento.Request.Env["SERVER_PORT"] = "8443";
+        evento.Request.Other["dato"] = Correo;
+        evento.Contexts[Sentry.Protocol.Response.Type] = new Sentry.Protocol.Response { StatusCode = 500, BodySize = 42 };
+        evento.Contexts.Response.Data = new { correo = Correo };
+
+        var filtrado = PrivacidadDeSentry.FiltrarEvento(evento);
+
+        filtrado.Request.Data.Should().BeNull("el cuerpo de la petición no sale, venga de donde venga");
+        filtrado.Request.Env.Should().BeEmpty("el entorno del servidor no está revisado: no sale");
+        filtrado.Request.Other.Should().BeEmpty("los otros datos de la petición no están revisados: no salen");
+        filtrado.Request.Method.Should().Be("POST");
+        filtrado.Contexts.Response.Data.Should().BeNull("el cuerpo de la respuesta no sale");
+        filtrado.Contexts.Response.StatusCode.Should().Be(500);
+        filtrado.Contexts.Response.BodySize.Should().Be(42, "el tamaño del cuerpo se conserva para el diagnóstico");
+    }
+
+    [Fact]
+    public void El_referer_de_la_respuesta_se_queda_con_su_origen()
+    {
+        var evento = new SentryEvent();
+        evento.Contexts[Sentry.Protocol.Response.Type] = new Sentry.Protocol.Response { StatusCode = 502 };
+        evento.Contexts.Response.Headers["referer"] = "https://app.talveg.test:8443/buzones/" + Correo + "?q=" + Guid;
+        evento.Contexts.Response.Headers["Content-Type"] = "text/html";
+
+        var filtrado = PrivacidadDeSentry.FiltrarEvento(evento);
+
+        filtrado.Contexts.Response.Headers.Should().Equal(new Dictionary<string, string>
+        {
+            ["referer"] = "https://app.talveg.test:8443/",
+            ["Content-Type"] = "text/html",
+        });
+    }
+
+    [Fact]
+    public void Los_canales_de_la_peticion_y_de_la_respuesta_son_los_que_filtrar_evento_trata()
+    {
+        // Si el SDK añade un canal a la petición o a la respuesta, este test cae hasta que FiltrarEvento lo trate (lista
+        // blanca: un canal sin revisar no sale) y se añada aquí.
+        static string[] Propiedades(Type tipo) =>
+            [.. tipo.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Select(p => p.Name).Order(StringComparer.Ordinal)];
+
+        Propiedades(typeof(SentryRequest)).Should().Equal(
+            "ApiTarget", "Cookies", "Data", "Env", "Headers", "Method", "Other", "QueryString", "Url");
+        Propiedades(typeof(Sentry.Protocol.Response)).Should().Equal(
+            "BodySize", "Cookies", "Data", "Headers", "StatusCode");
+    }
+
+    [Fact]
     public async Task Con_la_configuracion_real_el_evento_de_la_peticion_del_ambito_sale_solo_con_la_lista_blanca_y_sin_ella_con_todo()
     {
         // Sentry.AspNetCore pone la petición entrante en el ámbito, y el ámbito la copia en cada evento: es la vía por la
@@ -297,6 +375,8 @@ public class PrivacidadDeSentryTests
             ["Sentry:TracesSampleRate"] = "1.0",
             ["Sentry:EnableLogs"] = "true",
             ["Sentry:SendDefaultPii"] = "true",
+            ["Sentry:MaxRequestBodySize"] = "Always",
+            ["Sentry:IncludeActivityData"] = "true",
         };
         static double? Muestrea(TransactionSamplingContext _) => 1.0;
 
@@ -305,6 +385,8 @@ public class PrivacidadDeSentryTests
         control.EnableLogs.Should().BeTrue("control: el enlace enciende los logs");
         control.SendDefaultPii.Should().BeTrue("control: el enlace enciende los datos personales por defecto");
         control.TracesSampler.Should().NotBeNull();
+        control.MaxRequestBodySize.Should().Be(Sentry.Extensibility.RequestSize.Always, "control: el enlace enciende la lectura del cuerpo");
+        control.IncludeActivityData.Should().BeTrue("control: el enlace enciende los datos de la Activity");
 
         var opciones = await OpcionesDelHostAsync(o =>
         {
@@ -316,6 +398,131 @@ public class PrivacidadDeSentryTests
         opciones.TracesSampler.Should().BeNull();
         opciones.EnableLogs.Should().BeFalse("sin logs, que no pasan por SetBeforeSend");
         opciones.SendDefaultPii.Should().BeFalse();
+        opciones.MaxRequestBodySize.Should().Be(Sentry.Extensibility.RequestSize.None, "el SDK no lee el cuerpo de la petición entrante");
+        opciones.IncludeActivityData.Should().BeFalse("el SDK no copia al evento los datos de la Activity");
+    }
+
+    [Fact]
+    public void Con_las_opciones_de_asp_net_core_encendidas_la_configuracion_apaga_cuerpo_y_activity()
+    {
+        var opciones = new SentryAspNetCoreOptions
+        {
+            MaxRequestBodySize = Sentry.Extensibility.RequestSize.Always,
+            IncludeActivityData = true,
+        };
+
+        PrivacidadDeSentry.Configurar(opciones);
+
+        opciones.MaxRequestBodySize.Should().Be(Sentry.Extensibility.RequestSize.None);
+        opciones.IncludeActivityData.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Con_un_host_real_la_peticion_entrante_con_sentry_trace_muestreada_no_envia_transaccion_y_sin_la_configuracion_si()
+    {
+        // La traza entrante con sampled=1 («-1» al final) hereda la decisión de muestreo aunque TracesSampleRate sea null.
+        var configurado = await TiposDeSobresDeUnaPeticionConTrazaAsync(PrivacidadDeSentry.Configurar);
+        var control = await TiposDeSobresDeUnaPeticionConTrazaAsync(_ => { });
+
+        control.Should().Contain("transaction", "control: sin la configuración, la petición entrante con sentry-trace muestreada envía su transacción");
+        configurado.Should().NotContain("transaction", "SetBeforeSendTransaction descarta toda transacción");
+    }
+
+    [Fact]
+    public async Task Con_la_configuracion_real_una_traza_continuada_y_muestreada_no_envia_transaccion_y_sin_ella_si()
+    {
+        static async Task<List<string>> TiposDeSobres(Action<SentryOptions> configurar)
+        {
+            var transporte = new TransporteQueAnota();
+            using (IniciarSdk(configurar, transporte))
+            {
+                var contexto = SentrySdk.ContinueTrace(TrazaEntranteMuestreada, null, "GET /empresas/" + Guid, "http.server");
+                SentrySdk.StartTransaction(contexto).Finish();
+                await SentrySdk.FlushAsync(TimeSpan.FromSeconds(10));
+            }
+
+            return await TiposDeElementosAsync(transporte);
+        }
+
+        var configurado = await TiposDeSobres(PrivacidadDeSentry.Configurar);
+        var control = await TiposDeSobres(_ => { });
+
+        control.Should().Contain("transaction", "control: sin la configuración, la traza continuada y muestreada envía su transacción");
+        configurado.Should().NotContain("transaction");
+    }
+
+    private const string TrazaEntranteMuestreada = "0123456789abcdef0123456789abcdef-0123456789abcdef-1";
+
+    /// <summary>
+    /// Un <c>WebApplication</c> real escuchando en un puerto libre de 127.0.0.1, con <c>UseSentry</c> como lo llama
+    /// Program.cs (el middleware de trazas lo registra <c>AutoRegisterTracing</c>, activo por defecto) y un transporte que
+    /// solo anota; recibe una petición con <c>sentry-trace</c> muestreada y devuelve el tipo de cada elemento enviado.
+    /// </summary>
+    private static async Task<List<string>> TiposDeSobresDeUnaPeticionConTrazaAsync(Action<SentryOptions> configurar)
+    {
+        var transporte = new TransporteQueAnota();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Testing",
+            ContentRootPath = AppContext.BaseDirectory,
+        });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Sentry:Dsn"] = "https://public@sentry.invalid/1" });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.WebHost.UseSentry(o =>
+        {
+            o.AutoSessionTracking = false;
+            o.SendClientReports = false;
+            o.Transport = transporte;
+            configurar(o);
+        });
+
+        await using var app = builder.Build();
+        app.MapGet("/empresas/{id}", () => "ok");
+        try
+        {
+            await app.StartAsync();
+            using var http = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
+            using var peticion = new HttpRequestMessage(HttpMethod.Get, "/empresas/" + Guid + "?q=" + Correo);
+            peticion.Headers.Add("sentry-trace", TrazaEntranteMuestreada);
+            (await http.SendAsync(peticion)).EnsureSuccessStatusCode().Dispose();
+            await app.StopAsync();
+            await SentrySdk.FlushAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            if (SentrySdk.IsEnabled)
+                SentrySdk.Close();
+        }
+
+        return await TiposDeElementosAsync(transporte);
+    }
+
+    // El «type» de cada línea JSON de los sobres: la cabecera de cada elemento lo lleva («event», «transaction»…).
+    private static async Task<List<string>> TiposDeElementosAsync(TransporteQueAnota transporte)
+    {
+        List<string> tipos = [];
+        foreach (var sobre in transporte.Sobres)
+        {
+            using var flujo = new MemoryStream();
+            await sobre.SerializeAsync(flujo, null);
+            foreach (var linea in System.Text.Encoding.UTF8.GetString(flujo.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                try
+                {
+                    using var json = System.Text.Json.JsonDocument.Parse(linea);
+                    if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && json.RootElement.TryGetProperty("type", out var tipo)
+                        && tipo.ValueKind == System.Text.Json.JsonValueKind.String)
+                        tipos.Add(tipo.GetString()!);
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Una carga que no es JSON no tiene tipo que anotar.
+                }
+            }
+        }
+
+        return tipos;
     }
 
     [Fact]
