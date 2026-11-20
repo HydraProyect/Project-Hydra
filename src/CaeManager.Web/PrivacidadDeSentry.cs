@@ -75,9 +75,9 @@ public static partial class PrivacidadDeSentry
 
     private static readonly Meter Medidor = new(Observabilidad.NombreOrigen);
 
-    private static readonly Counter<long> Descartes = Medidor.CreateCounter<long>(
-        NombreMetricaDescartes,
-        description: "Eventos y migas de pan de Sentry descartados porque su filtro de privacidad lanzó, por tipo y excepción.");
+    // Sin «description»: el texto de la métrica lo da el resumen de NombreMetricaDescartes, y una frase aquí contaría como
+    // texto sin localizar de Web (TextosSinLocalizarCongeladosTests).
+    private static readonly Counter<long> Descartes = Medidor.CreateCounter<long>(NombreMetricaDescartes);
 
     /// <summary>Para <c>UseSentry</c> sin más filtro de eventos que el de esta clase.</summary>
     public static void Configurar(SentryOptions opciones) => Configurar(opciones, static (evento, _) => evento);
