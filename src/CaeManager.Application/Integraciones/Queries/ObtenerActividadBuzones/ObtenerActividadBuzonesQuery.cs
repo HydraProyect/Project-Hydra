@@ -31,7 +31,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 /// una respuesta nuestra no son un correo recibido.
 /// </para>
 /// </summary>
-[AreaDelEncargo("Comunicaciones")]
+[AreaDelEncargo("Integraciones")]
 public record ObtenerActividadBuzonesQuery(IReadOnlyCollection<Guid> ConexionIds)
     : IRequest<IReadOnlyDictionary<Guid, ActividadBuzonDto>>;
 
