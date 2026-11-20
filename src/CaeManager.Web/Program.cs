@@ -168,7 +168,9 @@ builder.WebHost.UseSentry(options =>
 {
     options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
     options.Environment = builder.Environment.EnvironmentName;
-    options.SendDefaultPii = false;
+    // SendDefaultPii, TracesSampleRate, TracesSampler, EnableLogs, MaxRequestBodySize e IncludeActivityData no se fijan
+    // aquí, ni el filtro de transacciones: los apaga PrivacidadDeSentry.Configurar, al final de este bloque, aunque la
+    // sección «Sentry» de la configuración los encienda.
 
     // D-2: CaptureFailedRequests viene a true por defecto en Sentry.AspNetCore
     // (FailedRequestTargets = [".*"], FailedRequestStatusCodes = 500-599),
@@ -186,7 +188,8 @@ builder.WebHost.UseSentry(options =>
 
     // Ninguna petición saliente lleva sentry-trace ni baggage (el valor por defecto las manda a todo host, también a
     // las plataformas CAE externas); las migas de pan y los eventos salen con solo el origen de la URL de su petición
-    // HTTP, marcada o no, y sin URLs ni correos en el mensaje de las migas; el 5xx de una petición marcada con un CIF
+    // HTTP, marcada o no, solo con las cabeceras de su lista blanca y sin URLs ni correos en el mensaje de las migas; sin
+    // datos personales por defecto, sin transacciones ni logs de Sentry; el 5xx de una petición marcada con un CIF
     // o un NIF no se envía: ver PrivacidadDeSentry y TrazasSinIdentificadoresEnLaRuta. El filtro de eventos de aquí va
     // dentro del único SetBeforeSend, el de PrivacidadDeSentry, y corre antes de que el evento pierda la ruta. Va al
     // final para que nada de lo anterior lo sustituya.
