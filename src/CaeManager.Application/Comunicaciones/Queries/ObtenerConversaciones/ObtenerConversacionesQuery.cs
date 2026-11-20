@@ -93,9 +93,10 @@ public record ConversacionListaDto(
     bool AccionPorAprobar = false,
     string? BuzonNombre = null,
     bool BuzonEsPersonal = false,
-    string? EjecutivoAsignadoNombre = null)
+    string? EjecutivoAsignadoNombre = null,
+    string? EjecutivoAsignadoAvatar = null)
 {
-    // Los cinco últimos campos son datos de la fila del lienzo «Pulida: bandeja de la cartera» (L-12). Van al final y con
+    // Los seis últimos campos son datos de la fila del lienzo «Pulida: bandeja de la cartera» (L-12). Van al final y con
     // valor por defecto: quien construye el DTO sin ellos sigue compilando.
     //  - TotalAdjuntos: archivos adjuntos de todos los mensajes del hilo, de cualquier estado de reparto (el clip dice que
     //    el hilo trae archivos, no cuántos faltan por repartir).
@@ -111,6 +112,9 @@ public record ConversacionListaDto(
     //    atado a ninguna conexión (creado a mano o sembrado).
     //  - EjecutivoAsignadoNombre: nombre visible de la persona asignada, resuelto por el directorio con el mismo acotado
     //    que el resto de lecturas (quien no es visible desde el Tenant activo no aparece: null).
+    //  - EjecutivoAsignadoAvatar: clave del avatar elegido por esa persona (CatalogoAvatares), de la misma fuente que el resto de pantallas
+    //    (IDirectorioUsuariosService.ObtenerAvataresVisiblesAsync, con el mismo acotado). Null si no hay asignada, si no es visible desde el
+    //    Tenant activo o si no eligió avatar: la fila pinta entonces sus iniciales.
 
     /// <summary>
     /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
@@ -365,6 +369,9 @@ public class ObtenerConversacionesQueryHandler(
         var nombresAsignados = await ObtenerNombresAsignadosAsync(
             conversaciones.Where(c => c.EjecutivoAsignadoId != null).Select(c => c.EjecutivoAsignadoId!.Value).Distinct().ToList(),
             cancellationToken);
+        // Solo se piden los avatares de quien el directorio ya dejó ver por su nombre: quien no es visible no tiene avatar que enseñar, y sin
+        // asignadas visibles no se emite ninguna sentencia más.
+        var avataresAsignados = await ObtenerAvataresAsignadosAsync(nombresAsignados.Keys.ToList(), cancellationToken);
 
         var elementos = conversaciones.Select(c =>
         {
@@ -389,7 +396,8 @@ public class ObtenerConversacionesQueryHandler(
                 adjuntosPorConversacion.GetValueOrDefault(c.Id),
                 conversacionesConAccionPorAprobar.Contains(c.Id),
                 c.BuzonNombre, c.BuzonEsPersonal,
-                c.EjecutivoAsignadoId is { } ejecutivoId && nombresAsignados.TryGetValue(ejecutivoId, out var nombreAsignado) ? nombreAsignado : null);
+                c.EjecutivoAsignadoId is { } ejecutivoId && nombresAsignados.TryGetValue(ejecutivoId, out var nombreAsignado) ? nombreAsignado : null,
+                c.EjecutivoAsignadoId is { } avatarId && avataresAsignados.TryGetValue(avatarId, out var avatarAsignado) ? avatarAsignado : null);
         }).ToList();
 
         return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
@@ -550,6 +558,17 @@ public class ObtenerConversacionesQueryHandler(
     {
         if (directorioUsuarios is null || usuarioIds.Count == 0) return new Dictionary<Guid, string>();
         return await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
+    }
+
+    /// <summary>
+    /// Clave del avatar elegido por las personas asignadas de la página: la misma fuente que usan el resto de pantallas con <c>AvatarUsuario</c>,
+    /// con el mismo acotado por Tenant. Una sola llamada por página con los Ids ya resueltos, nunca una por fila.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresAsignadosAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (directorioUsuarios is null || usuarioIds.Count == 0) return new Dictionary<Guid, string>();
+        return await directorioUsuarios.ObtenerAvataresVisiblesAsync(usuarioIds, cancellationToken);
     }
 
     private static string TruncarParaPreview(string? cuerpoHtml)

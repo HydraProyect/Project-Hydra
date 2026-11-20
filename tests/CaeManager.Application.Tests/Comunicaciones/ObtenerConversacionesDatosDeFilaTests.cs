@@ -263,6 +263,58 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
+    public async Task EjecutivoAsignadoAvatar_llega_para_la_asignada_y_es_null_sin_asignacion_sin_avatar_o_sin_verla()
+    {
+        var banda = new Banda();
+        var marta = Guid.NewGuid();
+        var sinAvatarElegido = Guid.NewGuid();
+        var deOtroTenant = Guid.NewGuid();
+        var conAvatar = banda.Hilo("Asignada a Marta");
+        var sinAvatar = banda.Hilo("Asignada a quien no eligió avatar");
+        var ajena = banda.Hilo("Asignada a alguien que no se ve");
+        var sinAsignar = banda.Hilo("Sin asignar");
+        banda.Conversacion(conAvatar).Asignar(marta);
+        banda.Conversacion(sinAvatar).Asignar(sinAvatarElegido);
+        banda.Conversacion(ajena).Asignar(deOtroTenant);
+        // El avatar de quien el directorio no deja ver (otro Tenant) existe en el almacén, pero no se pide ni se enseña.
+        var directorio = new DirectorioConNombres(
+            new Dictionary<Guid, string> { [marta] = "Marta Vidal", [sinAvatarElegido] = "Pau Roca" },
+            new Dictionary<Guid, string> { [marta] = "buho-ambar", [deOtroTenant] = "zorro-fucsia" });
+
+        var resultado = await banda.Lista(directorio);
+
+        resultado.Single(c => c.Id == conAvatar.ConversacionId).EjecutivoAsignadoAvatar.Should().Be("buho-ambar");
+        resultado.Single(c => c.Id == sinAvatar.ConversacionId).EjecutivoAsignadoAvatar.Should().BeNull();
+        resultado.Single(c => c.Id == ajena.ConversacionId).EjecutivoAsignadoAvatar.Should().BeNull();
+        resultado.Single(c => c.Id == sinAsignar.ConversacionId).EjecutivoAsignadoAvatar.Should().BeNull();
+        directorio.AvataresPedidos.Should().BeEquivalentTo([marta, sinAvatarElegido], "solo los Ids que el directorio ya resolvió por su nombre, en una sola llamada");
+        directorio.LlamadasAvatares.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_asignadas_visibles_no_se_piden_avatares()
+    {
+        var banda = new Banda();
+        banda.Hilo("Sin asignar");
+        banda.Conversacion(banda.Hilo("Asignada a alguien que no se ve")).Asignar(Guid.NewGuid());
+        var directorio = new DirectorioConNombres(new Dictionary<Guid, string>());
+
+        var resultado = await banda.Lista(directorio);
+
+        resultado.Should().OnlyContain(c => c.EjecutivoAsignadoAvatar == null);
+        directorio.LlamadasAvatares.Should().Be(0, "sin nadie visible no hay avatar que resolver ni sentencia que gastar");
+    }
+
+    [Fact]
+    public async Task EjecutivoAsignadoAvatar_es_null_sin_directorio()
+    {
+        var banda = new Banda();
+        banda.Conversacion(banda.Hilo("Asignada")).Asignar(Guid.NewGuid());
+
+        (await banda.Lista()).Single().EjecutivoAsignadoAvatar.Should().BeNull();
+    }
+
+    [Fact]
     public async Task EjecutivoAsignadoNombre_es_null_sin_directorio()
     {
         var banda = new Banda();
@@ -338,6 +390,9 @@ public class ObtenerConversacionesDatosDeFilaTests
         pagina.TotalElementos.Should().Be(25);
         directorio.Llamadas.Should().Be(1);
         directorio.IdsPedidos.Should().BeEquivalentTo(pagina.Elementos.Select(c => c.EjecutivoAsignadoId!.Value));
+        // Lo mismo con los avatares: una llamada por página con los Ids de la página, no una por fila.
+        directorio.LlamadasAvatares.Should().Be(1);
+        directorio.AvataresPedidos.Should().BeEquivalentTo(pagina.Elementos.Select(c => c.EjecutivoAsignadoId!.Value));
     }
 
     private sealed class Banda
@@ -427,10 +482,22 @@ public class ObtenerConversacionesDatosDeFilaTests
             directorioUsuarios: directorio);
     }
 
-    private sealed class DirectorioConNombres(IReadOnlyDictionary<Guid, string> nombres) : IDirectorioUsuariosService
+    private sealed class DirectorioConNombres(
+        IReadOnlyDictionary<Guid, string> nombres, IReadOnlyDictionary<Guid, string>? avatares = null) : IDirectorioUsuariosService
     {
         public int Llamadas { get; private set; }
         public List<Guid> IdsPedidos { get; } = [];
+        public int LlamadasAvatares { get; private set; }
+        public List<Guid> AvataresPedidos { get; } = [];
+
+        public Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresVisiblesAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default)
+        {
+            LlamadasAvatares++;
+            AvataresPedidos.AddRange(usuarioIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+                usuarioIds.Where(id => avatares?.ContainsKey(id) == true).ToDictionary(id => id, id => avatares![id]));
+        }
 
         public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default)

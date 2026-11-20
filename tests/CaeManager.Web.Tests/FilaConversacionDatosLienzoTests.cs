@@ -123,6 +123,49 @@ public class FilaConversacionDatosLienzoTests : BunitContext
         asignada.TextContent.Trim().Should().Be(iniciales);
         asignada.GetAttribute("title").Should().Be($"Asignada a {nombre.Trim()}");
         asignada.GetAttribute("aria-label").Should().Be($"Asignada a {nombre.Trim()}");
+        asignada.QuerySelector("span.avatar-usuario").Should().NotBeNull("la persona la pinta el componente AvatarUsuario, no un texto suelto de la fila");
+    }
+
+    [Fact]
+    public void La_persona_asignada_con_avatar_elegido_pinta_su_emoji_con_AvatarUsuario_pequeno_y_no_las_iniciales()
+    {
+        var asignada = Render(Crear() with { EjecutivoAsignadoNombre = "Marta Gil", EjecutivoAsignadoAvatar = "buho-ambar" }).Find(".bandeja-fila-linea3 .fila-asignada");
+
+        var avatar = asignada.QuerySelector("span.avatar-usuario")!;
+        avatar.ClassList.Should().Contain(["avatar-usuario-pequeno", "avatar-usuario-emoji", "avatar-usuario-tono-ambar"]);
+        avatar.GetAttribute("aria-hidden").Should().Be("true", "el avatar es decorativo: el nombre lo lleva el envoltorio");
+        avatar.QuerySelector(".avatar-usuario-glifo")!.TextContent.Should().Be("🦉");
+        asignada.TextContent.Trim().Should().Be("🦉").And.NotContain("MG");
+        asignada.GetAttribute("role").Should().Be("img");
+        asignada.GetAttribute("aria-label").Should().Be("Asignada a Marta Gil");
+        asignada.GetAttribute("title").Should().Be("Asignada a Marta Gil");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("dragon-verde")] // una clave fuera del catálogo (motivo retirado, dato corrupto) cae a las iniciales, no a un hueco
+    public void La_persona_asignada_sin_avatar_elegido_pinta_las_iniciales_del_propio_componente(string? clave)
+    {
+        var asignada = Render(Crear() with { EjecutivoAsignadoNombre = "Marta Gil", EjecutivoAsignadoAvatar = clave }).Find(".bandeja-fila-linea3 .fila-asignada");
+
+        var avatar = asignada.QuerySelector("span.avatar-usuario")!;
+        avatar.ClassList.Should().Contain("avatar-usuario-pequeno").And.NotContain(c => c.StartsWith("avatar-usuario-tono-") || c == "avatar-usuario-emoji");
+        avatar.TextContent.Trim().Should().Be("MG");
+        asignada.QuerySelector(".avatar-usuario-glifo").Should().BeNull();
+        asignada.GetAttribute("title").Should().Be("Asignada a Marta Gil");
+    }
+
+    [Fact]
+    public void La_fila_sin_asignar_no_pinta_avatar_aunque_llegue_una_clave()
+    {
+        // Sin persona asignada visible no hay avatar: ni vacío, ni el de otra persona, ni «Sin asignar».
+        var fila = Render(Crear() with { EjecutivoAsignadoId = null, EjecutivoAsignadoNombre = null, EjecutivoAsignadoAvatar = "buho-ambar" });
+
+        fila.FindAll(".fila-asignada").Should().BeEmpty();
+        fila.FindAll(".bandeja-fila-linea3 .avatar-usuario").Should().BeEmpty();
+        fila.FindAll(".avatar-usuario-glifo").Should().BeEmpty();
+        fila.Markup.Should().NotContain("🦉").And.NotContain("Sin asignar");
     }
 
     [Theory]

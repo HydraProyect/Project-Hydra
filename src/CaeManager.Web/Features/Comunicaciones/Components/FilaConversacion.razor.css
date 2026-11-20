@@ -95,7 +95,10 @@ li.fila-conversacion .fila-linea-derecha {
     white-space: nowrap;
 }
 
+/* Envoltorio del AvatarUsuario pequeño (24 px): se ajusta a él en vez de dejar la holgura de línea de un texto en línea. */
 .fila-asignada {
     flex: none;
+    display: inline-flex;
+    align-items: center;
     white-space: nowrap;
 }

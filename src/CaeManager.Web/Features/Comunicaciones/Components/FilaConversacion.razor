@@ -65,8 +65,11 @@
                     @* Solo si el directorio dejó ver el nombre: sin nombre no se enseña a nadie (ni siquiera «Sin asignar»: la fila no distingue «nadie» de «no visible»). *@
                     @if (Asignada is { } asignada)
                     {
-                        var asignadaA = TextosPlazo["AsignadaA", asignada.Nombre].Value;
-                        <span class="fila-asignada" role="img" aria-label="@asignadaA" title="@asignadaA">@asignada.Iniciales</span>
+                        var asignadaA = TextosPlazo["AsignadaA", asignada].Value;
+                        @* El avatar de la persona (el que eligió, o sus iniciales) es el componente de usuario, decorativo: el nombre lo lleva este envoltorio. *@
+                        <span class="fila-asignada" role="img" aria-label="@asignadaA" title="@asignadaA">
+                            <AvatarUsuario Nombre="@asignada" Avatar="@Conversacion.EjecutivoAsignadoAvatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                        </span>
                     }
                     @* NumeroTicket 0 es «sin número» (conversación anterior a la numeración): no se pinta. Sin prefijo del Tenant hasta que exista su origen. *@
                     @if (Conversacion.NumeroTicket > 0)
@@ -99,18 +102,17 @@
         : Conversacion.BuzonNombre.Trim();
 
     /// <summary>
-    /// Persona asignada, con sus iniciales. El DTO la nombra «Ejecutivo» (deuda terminológica: es el Gestor CAE asignado; el renombrado es otro incremento).
+    /// Nombre de la persona asignada, para su avatar. El DTO la nombra «Ejecutivo» (deuda terminológica: es el Gestor CAE asignado; el renombrado es otro incremento).
     /// Null si el nombre no llega (el directorio no deja verla desde el Tenant activo) o no tiene ninguna letra.
     /// </summary>
     // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
-    private (string Nombre, string Iniciales)? Asignada =>
+    private string? Asignada =>
         string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
-        // Mismas iniciales que el respaldo de AvatarUsuario (InicialesDeUsuario.De): la inicial de cada palabra, cortando también en guion, punto y arroba, y
-        // «?» si no hay ninguna letra (entonces la fila no enseña persona). No AvatarTenant.Iniciales, que es el de una Empresa o un Tenant y parte solo
-        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR.
-        // shortcut: la fila pinta las iniciales de respaldo de AvatarUsuario, no el avatar elegido, porque ConversacionListaDto no trae la clave de avatar; mejorarlo en un incremento propio que añada esa clave al DTO de lista y use AvatarUsuario
-        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
-        : null;
+        // «?» es lo que da InicialesDeUsuario.De (las del respaldo de AvatarUsuario) si el nombre no tiene ninguna letra: entonces la fila no enseña persona.
+        // El avatar elegido (emoji) o, si no eligió, esas iniciales las pinta AvatarUsuario con la clave que trae el DTO. El lienzo pinta tres letras («MGR»):
+        // desviación declarada en la PR.
+        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is "?" ? null
+        : Conversacion.EjecutivoAsignadoNombre.Trim();
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)

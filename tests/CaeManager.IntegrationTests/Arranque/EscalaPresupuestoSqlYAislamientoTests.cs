@@ -587,7 +587,8 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         // Antes medido: 16 (techo 18). L-12 añade a la fila adjuntos (+1, agrupado por mensaje), «acción por aprobar» (+1, Visita y
         // Gestión en un solo UNION) y el buzón (+0, left join de la consulta principal). El nombre de la persona asignada (directorio
         // de usuarios, una llamada por página) NO se mide con esta siembra: PilotoOutboundSeeder no asigna conversaciones, así que ese
-        // camino no emite sentencias aquí. La cifra sale de la salida del test, que el log de CI no imprime al pasar pero sí el .trx
+        // camino no emite sentencias aquí. Lo mismo vale para el avatar de esa persona (una llamada más al directorio por página, solo si
+        // hay asignadas visibles; el techo no se toca porque esta siembra no la ejerce). La cifra sale de la salida del test, que el log de CI no imprime al pasar pero sí el .trx
         // (artefacto cobertura-integracion-N, línea «Conversaciones: X sentencias»): 18 medidas en la cabeza b1cd633e3 de la #2394, con
         // el techo anterior (18) sin margen. Techo = medido + 2, como el resto de la tabla.
         { "Conversaciones", 20, true }, // medido: 18 (CI 44754178254)
