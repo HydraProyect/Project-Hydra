@@ -645,7 +645,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         cut.FindAll("table").Should().BeEmpty();
     }
 
-    // ---- PR-B1: columnas «Último correo» y «Abiertas» (lienzo «Pulida: buzones de correo de una Empresa gestionada») ----
+    // ---- PR-B1: columnas «Último correo» y «Abiertas» (lienzo «Comunicaciones multi-buzón», tablero Pulida-Buzones) ----
 
     [Fact]
     public void Las_cabeceras_siguen_el_orden_del_lienzo_con_Ultimo_correo_tras_Estado_y_Abiertas_tras_Responsable()
@@ -686,10 +686,11 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     [Fact]
     public void Ultimo_correo_se_escribe_Hoy_Ayer_o_la_fecha_en_hora_peninsular_y_Sin_correos_aun_si_no_hay_ninguno()
     {
-        var ahora = DateTime.UtcNow;
-        var ayerAMediodia = TimeZoneInfo.ConvertTimeToUtc(
-            DateTime.SpecifyKind(DiaDeNegocio.Hoy().AddDays(-1).ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Unspecified),
-            DiaDeNegocio.Zona);
+        // Reloj fijado a las 22:30 UTC del 15/06/2026, que en Madrid (UTC+2) ya es el 16 a las 0:30: el día de negocio es el
+        // peninsular, no el UTC. Un correo de las 22:10 UTC (0:10 del 16) es «Hoy»; uno de las 10:00 UTC del 15 es «Ayer».
+        using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijoBuzones(new DateTimeOffset(2026, 6, 15, 22, 30, 0, TimeSpan.Zero)));
+        var ahora = new DateTime(2026, 6, 15, 22, 10, 0, DateTimeKind.Utc);
+        var ayerAMediodia = new DateTime(2026, 6, 15, 10, 0, 0, DateTimeKind.Utc);
         var antiguo = new DateTime(2026, 1, 15, 9, 5, 0, DateTimeKind.Utc);
         var hoy = Buzon("hoy");
         var ayer = Buzon("ayer");
@@ -705,10 +706,15 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         string Celda(string nombre) => cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains($"{nombre}@"))
             .QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim();
-        Celda("hoy").Should().Be($"Hoy, {ahora.EnHoraPeninsular():H:mm}");
+        Celda("hoy").Should().Be("Hoy, 0:10");
         Celda("ayer").Should().Be("Ayer, 12:00");
         Celda("viejo").Should().Be("15/01/2026, 10:05");
         Celda("vacio").Should().Be("Sin correos aún");
+    }
+
+    private sealed class RelojFijoBuzones(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
     }
 
     [Fact]

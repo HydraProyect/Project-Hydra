@@ -112,7 +112,7 @@
     <value>Encara no hi ha cap bústia connectada.</value>
   </data>
   <data name="VacioTexto" xml:space="preserve">
-    <value>Afegeix el primer amb la seva adreça.</value>
+    <value>Afegeix la primera amb la seva adreça.</value>
   </data>
   <data name="AvisoCargaFallida" xml:space="preserve">
     <value>No hem pogut carregar les bústies. Torna-ho a provar d&apos;aquí a uns minuts.</value>

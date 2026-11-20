@@ -41,6 +41,21 @@ public class ObtenerActividadBuzonesQueryTests
     }
 
     [Fact]
+    public async Task El_ultimo_correo_se_agrupa_por_buzon_y_no_mezcla_los_de_otro()
+    {
+        var escenario = new Escenario();
+        var uno = escenario.Buzon();
+        var dos = escenario.Buzon();
+        escenario.Mensaje(escenario.Hilo(uno, "Hilo uno"), DireccionMensaje.Entrante, Base.AddHours(1));
+        escenario.Mensaje(escenario.Hilo(dos, "Hilo dos"), DireccionMensaje.Entrante, Base.AddHours(7));
+
+        var actividad = await escenario.Actividad(uno, dos);
+
+        actividad[uno].UltimoCorreoUtc.Should().Be(Base.AddHours(1));
+        actividad[dos].UltimoCorreoUtc.Should().Be(Base.AddHours(7));
+    }
+
+    [Fact]
     public async Task Un_buzon_sin_ningun_correo_devuelve_fecha_nula_y_cero_abiertas()
     {
         var escenario = new Escenario();
