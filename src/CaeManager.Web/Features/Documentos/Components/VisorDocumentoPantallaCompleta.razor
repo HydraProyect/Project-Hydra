@@ -211,6 +211,7 @@
                 {
                     _pagina = 0;
                     _giro = 0;
+                    _irA = 0;
                 }
             }
 
@@ -447,7 +448,7 @@
             await trampa.InvokeVoidAsync("dispose");
             await trampa.DisposeAsync();
         }
-        catch (JSDisconnectedException)
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or OperationCanceledException)
         {
         }
     }
@@ -462,7 +463,7 @@
         {
             await _modulo.DisposeAsync();
         }
-        catch (JSDisconnectedException)
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or OperationCanceledException)
         {
         }
     }

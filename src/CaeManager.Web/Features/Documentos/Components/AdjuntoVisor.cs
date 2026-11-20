@@ -11,7 +11,7 @@ public enum EstadoAdjuntoVisor
 /// <summary>
 /// Un adjunto tal como lo pinta <c>VisorDocumentoPantallaCompleta</c>. El visor no lee nada del servidor: quien lo abre le da la
 /// lista ya resuelta. <paramref name="Url"/> es la dirección desde la que se descarga el archivo; <paramref name="Peso"/> llega ya
-/// formateado («312 KB») porque el visor solo lo rotula.
+/// formateado («312 KB») porque el visor solo lo rotula. <paramref name="Id"/> ha de ser único dentro de la lista (el visor lo usa como clave y para seguir al adjunto si la lista cambia).
 /// </summary>
 public sealed record AdjuntoVisor(
     Guid Id,

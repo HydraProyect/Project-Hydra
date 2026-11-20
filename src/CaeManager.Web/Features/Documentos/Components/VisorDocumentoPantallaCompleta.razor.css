@@ -376,6 +376,12 @@
     }
 }
 
+/* Girada un cuarto de vuelta, la hoja ocupa a lo ancho lo que mide a lo alto (1,414 veces su ancho) pero la caja de maquetación no cambia: sin este margen (~0,207 veces el ancho a cada lado) el borde izquierdo quedaría fuera del origen del desplazamiento. */
+.vz-giro-90,
+.vz-giro-270 {
+    margin-inline: calc(var(--vz-zoom, 100) * 6.2px * 0.207);
+}
+
 .vz-giro-90 {
     transform: rotate(90deg);
 }

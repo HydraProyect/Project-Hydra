@@ -565,6 +565,24 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     }
 
     [Fact]
+    public async Task Si_quien_abre_el_visor_retira_el_adjunto_actual_se_muestra_otro_desde_su_primera_hoja()
+    {
+        var modulo = JSInterop.SetupModule("./js/visor-documento.js");
+        var a = Adj("A.pdf");
+        var b = Adj("B.pdf", paginas: 3);
+        var c = Adj("C.pdf", paginas: 2);
+        var cut = Pintar([a, b, c], indice: 1);
+        await TeclaAsync(cut.Find("[role=dialog]"), "]");
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+
+        cut.Render(p => p.Add(x => x.Adjuntos, [a, c]));
+
+        cut.Find(".vz-tit-h").TextContent.Should().Be("C.pdf");
+        cut.FindAll(".vz-pag")[0].GetAttribute("aria-current").Should().Be("true");
+        await cut.WaitForAssertionAsync(() => modulo.Invocations["irAPagina"].Last().Arguments[1].Should().Be(0), Plazo);
+    }
+
+    [Fact]
     public void Si_la_lista_cambia_con_el_visor_abierto_se_actualizan_las_marcas_sin_perder_el_adjunto()
     {
         var a = Adj("A.pdf");
