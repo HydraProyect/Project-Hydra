@@ -30,7 +30,7 @@ public class TenantSoloInboundTests
     /// <summary>
     /// Contrata una fila del Tenant. La línea Inbound lleva por defecto la declaración «solo Inbound» marcada, para que cada
     /// test cambie una sola de las tres condiciones de la opción A'; <paramref name="declara"/> = false es el Tenant
-    /// histórico. <paramref name="contratadaEn"/> permite un inicio posterior al reloj del servicio (línea programada).
+    /// histórico. <paramref name="contratadaEn"/> permite un inicio posterior al reloj del servicio (inicio aún no alcanzado).
     /// </summary>
     private ProductoContratado Contratar(
         LineaProductoContratado linea, Guid? tenant = null, DateTime? desde = null, bool? declara = null,
@@ -118,13 +118,13 @@ public class TenantSoloInboundTests
     }
 
     /// <summary>
-    /// Una línea Outbound programada (su inicio aún no ha llegado) también es una línea Outbound: el Tenant no es solo
+    /// Una línea Outbound vigente con el inicio aún no alcanzado también es una línea Outbound: el Tenant no es solo
     /// Inbound. Mata el mutante que exigiría a la línea Outbound el inicio ya alcanzado, como a la Inbound. Como
     /// <c>ProductoContratado.Contratar</c> rechaza un inicio futuro, la fila solo llega así con un desfase de reloj
     /// entre quien la escribe y quien la lee, o escrita fuera del dominio: el test la fabrica con un <c>ahoraUtc</c> posterior.
     /// </summary>
     [Fact]
-    public async Task Una_linea_Outbound_programada_sigue_siendo_una_linea_Outbound()
+    public async Task Una_linea_Outbound_cuyo_inicio_no_ha_llegado_sigue_siendo_una_linea_Outbound()
     {
         Contratar(LineaProductoContratado.Inbound, declara: true);
         Contratar(LineaProductoContratado.OutboundGestionPropia, desde: Ahora.AddDays(1), contratadaEn: Ahora.AddDays(2));

@@ -72,7 +72,7 @@ public sealed class TenantSoloInboundService(
             .ToListAsync(cancellationToken);
 
         // Las tres condiciones de la opción A' (DECISION_LOG e496f33). La declaración cuenta en la misma fila de la línea
-        // Inbound vigente: la de una fila finalizada o programada no vale.
+        // Inbound vigente: la de una fila finalizada o con el inicio aún no alcanzado no vale.
         var inboundVigenteDeclarada = filas.Any(f => f.Linea == LineaProductoContratado.Inbound
             && f.Estado == EstadoProductoContratado.Vigente
             && f.VigenteDesdeUtc <= ahora
