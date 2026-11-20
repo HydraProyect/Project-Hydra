@@ -75,7 +75,7 @@ public class LimiteTenantTecBehaviorTests
 
     /// <summary>
     /// Lo que D3 deja abierto aunque Outbound esté cerrado: las bajas (DN-7), la edición de la identidad de un Centro, las
-    /// Subcontratas (D5) y las Comunicaciones (DN-5), que esperan su decisión, y el propio comando de plataforma.
+    /// Subcontratas (abiertas por D5), las Comunicaciones (DN-5), que esperan su decisión, y el propio comando de plataforma.
     /// </summary>
     public static readonly TheoryData<string> Abiertos =
     [
@@ -213,7 +213,7 @@ public class LimiteTenantTecBehaviorTests
         foreach (var clave in RegistroLimiteTenantTec.CerradasSinLinea)
             comandos.Should().Contain(c => RegistroLimiteTenantTec.Casa(c, clave),
                 $"la clave «{clave}» tiene que seguir nombrando un Command: un renombrado no puede abrir en silencio");
-        foreach (var clave in RegistroLimiteTenantTec.PendientesDeDecision.Keys)
+        foreach (var clave in RegistroLimiteTenantTec.PendientesDeDecision.Keys.Concat(RegistroLimiteTenantTec.AbiertasAlTenantTec.Keys))
             comandos.Should().Contain(c => RegistroLimiteTenantTec.Casa(c, clave));
     }
 
@@ -222,15 +222,67 @@ public class LimiteTenantTecBehaviorTests
     {
         RegistroLimiteTenantTec.CerradasSinLinea
             .Where(c => RegistroLimiteTenantTec.PendientesDeDecision.Keys.Any(p => RegistroLimiteTenantTec.Casa(c, p)))
-            .Should().BeEmpty("Subcontratas (D5) y Comunicaciones (DN-5) no se cierran en D3");
+            .Should().BeEmpty("Comunicaciones (DN-5) no se cierra en D3");
     }
 
     [Fact]
-    public void Las_Subcontratas_son_el_punto_de_extension_de_D5()
+    public void Ninguna_clave_cerrada_cae_en_un_area_abierta_al_Tenant_TEC()
     {
-        RegistroLimiteTenantTec.EstaPendiente(Tipo("Subcontratas.Commands.CrearSubcontrata.CrearSubcontrataCommand"))
-            .Should().BeTrue();
-        RegistroLimiteTenantTec.PendientesDeDecision["Subcontratas"].Should().Contain("D5");
+        RegistroLimiteTenantTec.CerradasSinLinea
+            .Where(c => RegistroLimiteTenantTec.AbiertasAlTenantTec.Keys.Any(a =>
+                RegistroLimiteTenantTec.Casa(c, a) || RegistroLimiteTenantTec.Casa(a, c)))
+            .Should().BeEmpty("D5 abre las Subcontratas al Tenant TEC: ni una clave cerrada dentro, ni una que las englobe");
+        RegistroLimiteTenantTec.AbiertasAlTenantTec.Keys
+            .Where(a => RegistroLimiteTenantTec.PendientesDeDecision.Keys.Any(p => RegistroLimiteTenantTec.Casa(a, p) || RegistroLimiteTenantTec.Casa(p, a)))
+            .Should().BeEmpty("lo que una decisión ya abrió no sigue pendiente");
+    }
+
+    /// <summary>
+    /// D5 (DECISION_LOG del 2026-11-19): las Subcontratas se abren al Tenant TEC. Todos los Commands del área salen de lo
+    /// pendiente y el registro no cierra ninguno entero; la lista se escribe a mano para que retirar la entrada dé rojo. Lo que
+    /// D5 no abre (la Relación Empresarial con Clientes empresariales al crear, editar o restaurar una Subcontrata) se cierra
+    /// por datos o en el handler, no aquí (<c>SubcontratasAbiertasAlTenantTecTests</c>, <c>SubcontrataLimiteTenantTecTests</c>).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CommandsDeSubcontratas))]
+    public void Las_Subcontratas_estan_abiertas_al_Tenant_TEC_por_D5(string comando)
+    {
+        RegistroLimiteTenantTec.EstaAbiertaAlTenantTec(Tipo(comando)).Should().BeTrue();
+        RegistroLimiteTenantTec.EstaPendiente(Tipo(comando)).Should().BeFalse("D5 ya está decidida");
+        RegistroLimiteTenantTec.CierraSinLinea(Tipo(comando)).Should().BeFalse();
+        RegistroLimiteTenantTec.AbiertasAlTenantTec["Subcontratas"].Should().Contain("D5");
+    }
+
+    /// <summary>Los doce Commands de <c>Application/Subcontratas</c>, por nombre completo relativo.</summary>
+    private static readonly string[] NombresDeCommandsDeSubcontratas =
+    [
+        "Subcontratas.Commands.ActualizarVerificacionExterna.ActualizarVerificacionExternaSubcontrataCommand",
+        "Subcontratas.Commands.CambiarNivelServicioSubcontrata.CambiarNivelServicioSubcontrataCommand",
+        "Subcontratas.Commands.CrearSubcontrata.CrearSubcontrataCommand",
+        "Subcontratas.Commands.EditarSubcontrata.EditarSubcontrataCommand",
+        "Subcontratas.Commands.EliminarSubcontrata.EliminarSubcontrataCommand",
+        "Subcontratas.Commands.EliminarSubcontratas.EliminarSubcontratasCommand",
+        "Subcontratas.Commands.EliminarVerificacionExterna.EliminarVerificacionExternaSubcontrataCommand",
+        "Subcontratas.Commands.GuardarCredencialAccesoSubcontrata.GuardarCredencialAccesoSubcontrataCommand",
+        "Subcontratas.Commands.GuardarNotaInternaSubcontrata.GuardarNotaInternaSubcontrataCommand",
+        "Subcontratas.Commands.RegistrarVerificacionExterna.RegistrarVerificacionExternaSubcontrataCommand",
+        "Subcontratas.Commands.RestaurarSubcontrata.RestaurarSubcontrataCommand",
+        "Subcontratas.Commands.RestaurarVerificacionExterna.RestaurarVerificacionExternaSubcontrataCommand",
+    ];
+
+    public static readonly TheoryData<string> CommandsDeSubcontratas = new(NombresDeCommandsDeSubcontratas);
+
+    [Fact]
+    public void La_lista_de_Commands_de_Subcontratas_es_completa()
+    {
+        var delArea = typeof(ICommandBase).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(ICommandBase).IsAssignableFrom(t)
+                        && t.FullName!.StartsWith(Raiz + "Subcontratas.", StringComparison.Ordinal))
+            .Select(t => t.FullName![Raiz.Length..])
+            .ToList();
+
+        delArea.Should().BeEquivalentTo(NombresDeCommandsDeSubcontratas,
+            "un Command nuevo de Subcontratas entra en las pruebas de D5 en el mismo commit");
     }
 
     [Fact]

@@ -116,7 +116,8 @@ public class DuplicadosCifEmpresaTests
                 .Handle(new EditarEmpresaCommand(empresa.Id, "Nueva identidad", cif, [], Version: empresa.Version), default),
             "CrearSubcontrata" => await new CrearSubcontrataCommandHandler(repo, relaciones, contexto, alcance, uow)
                 .Handle(new CrearSubcontrataCommand("Nueva identidad", cif, [], []), default),
-            "EditarSubcontrata" => await new EditarSubcontrataCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
+            "EditarSubcontrata" => await new EditarSubcontrataCommandHandler(repo, relaciones, contexto, null!, alcance, uow,
+                    new Configuracion.TenantActualFijo(Guid.NewGuid()), Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new EditarSubcontrataCommand(empresa.Id, "Nueva identidad", cif, [], [], empresa.Version), default),
             _ => throw new ArgumentOutOfRangeException(nameof(comando))
         };

@@ -153,7 +153,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
 
     /// <summary>
     /// «Último correo» y «Abiertas» de cada buzón, en una sola petición para todos. Es un dato de lectura del listado: si falla,
-    /// la tabla sigue y esas dos celdas enseñan «—» (no «0» ni «Sin correos aún», que afirmarían algo que no se ha medido).
+    /// la tabla sigue y esas dos celdas enseñan «—» (no «0» ni «Sin correos visibles», que afirmarían algo que no se ha medido).
     /// </summary>
     private async Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> ObtenerActividadAsync(
         IReadOnlyList<ConexionIntegracionListaDto> conexiones, CancellationToken token)
@@ -173,13 +173,14 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     /// <summary>
     /// «Hoy, 08:31» / «Ayer, 17:40» (lienzo, con la hora en dos dígitos de D-19) y, para lo más antiguo, el formato único
     /// «15/11/2026 08:31» (D-19). Hora y día peninsulares
-    /// (<see cref="DiaDeNegocio"/>), nunca la zona del servidor. Sin ningún correo recibido: «Sin correos aún»; sin dato
+    /// (<see cref="DiaDeNegocio"/>), nunca la zona del servidor. Sin ningún correo visible para quien mira: «Sin correos
+    /// visibles» (DN-M, 2026-11-20), nunca «aún» ni «ninguno», para no revelar si hay correo fuera de su alcance; sin dato
     /// (la petición falló o el buzón no está en la respuesta): «—».
     /// </summary>
     private string DescribirUltimoCorreo(Guid conexionId)
     {
         if (!_actividad.TryGetValue(conexionId, out var actividad)) return "—";
-        if (actividad.UltimoCorreoUtc is not { } instanteUtc) return Textos["SinCorreosAun"];
+        if (actividad.UltimoCorreoUtc is not { } instanteUtc) return Textos["SinCorreosVisibles"];
 
         var local = instanteUtc.EnHoraPeninsular();
         var hora = local.ToString("HH:mm", CultureInfo.InvariantCulture);

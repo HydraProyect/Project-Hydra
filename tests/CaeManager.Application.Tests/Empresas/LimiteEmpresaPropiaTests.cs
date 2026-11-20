@@ -677,7 +677,7 @@ public class LimiteEmpresaPropiaTests
                 .Handle(new RestaurarEmpresaCommand(id), default),
             "Cliente" => await new RestaurarClienteCommandHandler(empresas, tenant, alcance, uow, limite)
                 .Handle(new RestaurarClienteCommand(id), default),
-            "Subcontrata" => await new RestaurarSubcontrataCommandHandler(empresas, tenant, alcance, uow, limite)
+            "Subcontrata" => await new RestaurarSubcontrataCommandHandler(empresas, tenant, alcance, uow, limite, new CaeManager.Application.Tests.Empresas.RelacionesEmpresarialesFijas(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new RestaurarSubcontrataCommand(id), default),
             _ => throw new ArgumentOutOfRangeException(nameof(comando)),
         };
