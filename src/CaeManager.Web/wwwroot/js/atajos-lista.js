@@ -55,7 +55,7 @@ const SELECTOR_FILA_ENFOCADA = '.fila-enfocada, .panel-resolver-item-enfocado';
 // navegación entre filas ya la hacen j/k.
 export function enfocarFilaActiva(intentosRestantes = 10, alEnfocar = null) {
     // El diálogo puede haberse abierto mientras terminaba el callback de C#.
-    if (hayDialogoModalAbierto()) return;
+    if (hayDialogoModalAbierto() || hayPanelDeDialogoAbierto()) return;
     // Nunca roba el foco a un campo donde se está escribiendo (devolución tras cerrar la vista rápida).
     const activo = document.activeElement;
     if (activo && (activo.tagName === 'TEXTAREA' || activo.tagName === 'SELECT' || activo.isContentEditable ||
@@ -81,6 +81,13 @@ export function enfocarFilaActiva(intentosRestantes = 10, alEnfocar = null) {
 function hayMenuAbierto(activo) {
     if (activo?.closest?.('[role="menu"]')) return true;
     return document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]') !== null;
+}
+
+// Un panel con rol de diálogo que no declara aria-modal (el selector «Vista» de la bandeja de Comunicaciones, el calendario de
+// CampoFecha): su disparador anuncia aria-haspopup="dialog" y aria-expanded="true" mientras está abierto, igual que el de un menú.
+// Con él abierto el teclado es del panel: j/k/x/e/Enter/f y el prefijo «g» no mueven filas ni roban el foco.
+function hayPanelDeDialogoAbierto() {
+    return document.querySelector('[aria-haspopup="dialog"][aria-expanded="true"]') !== null;
 }
 
 // Un buscador oculto (pestaña inactiva, display:none, visibility:hidden) o deshabilitado
@@ -125,7 +132,7 @@ export function registrarAtajosLista(dotNetRef) {
         const activo = document.activeElement;
         filaAnterior.classList.remove('fila-enfocada', 'panel-resolver-item-enfocado');
         filaAnterior = fila;
-        if (fila && (activo === document.body || activo === fila) && !hayDialogoModalAbierto() &&
+        if (fila && (activo === document.body || activo === fila) && !hayDialogoModalAbierto() && !hayPanelDeDialogoAbierto() &&
             !document.querySelector('.workspace-panel')) enfocarFilaActiva(0);
     });
 
@@ -154,7 +161,7 @@ export function registrarAtajosLista(dotNetRef) {
         const esPrefijoGlobal = evento.key === 'g';
         if (!esPrefijoGlobal && !TECLAS_ADMITIDAS.includes(evento.key)) return;
         if (evento.defaultPrevented || evento.isComposing) return;
-        if (hayDialogoModalAbierto()) return;
+        if (hayDialogoModalAbierto() || hayPanelDeDialogoAbierto()) return;
 
         const activo = document.activeElement;
         const enCampoEditable = activo && (

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
@@ -20,7 +21,7 @@ public partial class ComunicacionesGen2Tests
     private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) RenderizarConCanalesYVistas()
     {
         var escenario = new Escenario();
-        var gestor = Guid.NewGuid();
+        var gestor = escenario.MiUsuarioId;
         escenario.Conversaciones.AddRange([
             Conversacion("Certificado sin asignar", ClienteRefrielectric),
             Conversacion("Alta con plazo vencido", ClienteRefrielectric) with { EjecutivoAsignadoId = gestor, SlaRestante = TimeSpan.FromHours(-2) },
@@ -128,6 +129,7 @@ public partial class ComunicacionesGen2Tests
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         CifraDeVista(cut, "Todas").Should().Be("3");
+        CifraDeVista(cut, "Mías").Should().Be("2", "solo dos conversaciones están asignadas al Gestor CAE de la sesión");
         CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().Be("1");
         CifraDeVista(cut, "Sin asignar").Should().Be("1");
         FilaDeVista(cut, "Todas").QuerySelector(".bandeja-vista-alerta").Should().BeNull("solo «Fuera de plazo» va en tono de alerta");
@@ -471,10 +473,17 @@ public partial class ComunicacionesGen2Tests
     {
         var escenario = new Escenario();
         escenario.Conversaciones.AddRange([
-            Conversacion("Certificado de correo", ClienteRefrielectric),
-            Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp }]);
+            Conversacion("Certificado de correo", ClienteRefrielectric) with { EjecutivoAsignadoId = escenario.MiUsuarioId },
+            Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp, EjecutivoAsignadoId = escenario.MiUsuarioId }]);
         var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } ? lenta.Task : null;
+        var primeraDeMias = true;
+        // Solo el primer recuento de «Mías» (el de todos los canales, anterior al chip) se queda en vuelo; el recálculo posterior pasa.
+        escenario.Interceptar = p =>
+        {
+            if (p is not ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } || !primeraDeMias) return null;
+            primeraDeMias = false;
+            return lenta.Task;
+        };
         var (cut, mediador) = Renderizar(escenario);
         var apertura = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1));
@@ -482,11 +491,14 @@ public partial class ComunicacionesGen2Tests
         var eleccion = ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().Contain(q => q.Canal == CanalConversacion.Correo));
+        // El recuento en vuelo se pidió sin canal («Mías» = 2): al llegar ya no corresponde a la lista de Correo y no se aplica.
         await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
         await apertura;
         await eleccion;
 
-        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().BeEmpty("el recuento quedó obsoleto al pedirse otra lista");
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Select(c => c.TextContent.Trim()).Should().NotContain("2",
+            "el recuento quedó obsoleto al pedirse otra lista");
+        cut.WaitForAssertion(() => CifraDeVista(cut, "Mías").Should().Be("1", "se recalcula con el canal Correo, como la lista"));
     }
 
     [Fact]
@@ -511,20 +523,96 @@ public partial class ComunicacionesGen2Tests
         cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().NotBeEmpty());
     }
     [Fact]
-    public async Task Las_cifras_de_las_vistas_no_aplican_el_canal_y_las_de_los_chips_si_aplican_la_vista()
+    public async Task Las_cifras_de_las_vistas_aplican_el_canal_activo_igual_que_la_lista_y_las_de_los_chips_aplican_la_vista()
     {
         var (cut, mediador) = RenderizarConCanalesYVistas();
         await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
         await AbrirPanelDeVistasAsync(cut);
+        await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         var recuentosDeVista = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi).ToList();
-        recuentosDeVista.Should().ContainSingle().Which.Canal.Should().BeNull("las cifras de las vistas cuentan todos los canales");
+        recuentosDeVista.Should().ContainSingle().Which.Canal.Should().Be(CanalConversacion.Correo, "las cifras de las vistas llevan el canal activo, como la lista");
+        // Con «Correo»: dos de correo (una sin asignar y una mía), ninguna de WhatsApp.
+        CifraDeVista(cut, "Todas").Should().Be("2");
+        CifraDeVista(cut, "Mías").Should().Be("1", "la mía de WhatsApp no cuenta con el chip de Correo");
+        CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().BeNull("la única que espera es de WhatsApp");
+        CifraDeVista(cut, "Sin asignar").Should().Be("1");
         await cut.Find(".bandeja-vista-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
 
+        // La cifra del panel y la del disparador coinciden con la lista que se ve al elegir la vista.
         await ElegirVistaAsync(cut, "Mías");
 
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Mías · 1");
+        cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle();
         var recuentosDeCanal = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.Canal is not null && q.SoloAsignadasAMi).ToList();
         recuentosDeCanal.Should().NotBeEmpty("las cifras de los chips cuentan dentro de la vista vigente");
+    }
+
+    [Fact]
+    public async Task Con_el_panel_abierto_recargar_la_lista_recalcula_las_cifras_de_las_vistas_una_sola_vez()
+    {
+        var (cut, mediador) = RenderizarConCanalesYVistas();
+        await AbrirPanelDeVistasAsync(cut);
+        CifraDeVista(cut, "Mías").Should().Be("2");
+
+        await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => CifraDeVista(cut, "Mías").Should().Be("1", "la lista se recargó con el panel abierto y sus cifras no se quedan viejas"));
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi)
+            .Should().Be(2, "uno al abrir el panel y uno al recargar la lista: recalcular no recarga la lista y no hay bucle");
+    }
+
+    [Fact]
+    public async Task Recargar_la_lista_con_el_panel_cerrado_no_pide_las_cifras_de_las_vistas()
+    {
+        var (cut, mediador) = RenderizarConCanalesYVistas();
+
+        await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi).Should().BeEmpty(
+            "las cifras de las vistas se piden con el selector abierto, no en cada carga");
+    }
+
+    [Fact]
+    public async Task La_lista_no_espera_a_los_recuentos_de_canal_y_las_cifras_de_los_chips_llegan_despues()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Certificado de correo", ClienteRefrielectric),
+            Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp }]);
+        var (cut, _) = Renderizar(escenario);
+        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: 1, Canal: CanalConversacion.WhatsApp } ? lenta.Task : null;
+
+        await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs()).WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle("la lista se pinta y la acción termina con un recuento todavía en vuelo");
+        cut.FindAll(".bandeja-canales .bandeja-canal-cifras").Should().BeEmpty();
+        await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(Canal: CanalConversacion.WhatsApp, TamanoPagina: 1))));
+        cut.WaitForAssertion(() => ChipsDeCanal(cut).Select(c => c.QuerySelector(".bandeja-canal-cifras")?.TextContent.Trim())
+            .Should().Equal("2", "1", "1"));
+    }
+
+    [Fact]
+    public async Task El_panel_de_Vista_sale_del_contenedor_que_recorta_para_alcanzar_todas_sus_vistas()
+    {
+        var (cut, _) = RenderizarConCanalesYVistas();
+        await AbrirPanelDeVistasAsync(cut);
+
+        cut.Find(".bandeja-filtros .bandeja-vista-sel .bandeja-vista-panel").Should().NotBeNull(
+            "el panel cuelga del selector que está dentro de .bandeja-filtros (overflow: hidden); lo que lo salva del recorte es position: fixed");
+        var css = File.ReadAllText(Path.Combine(
+            RaizDelRepositorio(), "src", "CaeManager.Web", "Features", "Comunicaciones", "Pages", "Bandeja.razor.css"));
+        Regex.Match(css, @"\.bandeja-vista-panel\s*\{(?<reglas>[^}]*)\}").Groups["reglas"].Value
+            .Should().Contain("position: fixed", "un panel absoluto dentro de .bandeja-filtros quedaba recortado en modo Tabla a ≤ 1099 px");
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directorio is not null && !Directory.Exists(Path.Combine(directorio.FullName, "src", "CaeManager.Web")))
+            directorio = directorio.Parent;
+        return directorio?.FullName ?? throw new InvalidOperationException("No se encontró la raíz del repositorio.");
     }
 
     [Fact]
@@ -543,7 +631,9 @@ public partial class ComunicacionesGen2Tests
     public async Task Mientras_carga_otra_vista_el_disparador_dice_solo_su_nombre_y_despues_la_cifra()
     {
         var escenario = new Escenario();
-        escenario.Conversaciones.AddRange([Conversacion("Uno", ClienteRefrielectric), Conversacion("Dos", ClienteRefrielectric)]);
+        escenario.Conversaciones.AddRange([
+            Conversacion("Uno", ClienteRefrielectric) with { EjecutivoAsignadoId = escenario.MiUsuarioId },
+            Conversacion("Dos", ClienteRefrielectric) with { EjecutivoAsignadoId = escenario.MiUsuarioId }]);
         var (cut, _) = Renderizar(escenario);
         var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         escenario.Interceptar = p => p is ObtenerConversacionesQuery { TamanoPagina: > 1, SoloAsignadasAMi: true } ? lenta.Task : null;

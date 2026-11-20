@@ -190,7 +190,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool _masVistasAbiertas;
     private ElementReference _disparadorVistas;
 
-    /// <summary>Recuento de cada vista con los demás filtros y sin el canal; se pide al abrir el selector, no en cada carga.</summary>
+    /// <summary>Recuento de cada vista con los mismos filtros que la lista, canal incluido; se pide con el selector abierto, no en cada carga.</summary>
     private Dictionary<VistaLista, int> _recuentosVista = [];
 
     /// <summary>Recuento de la lista por canal: Todos, Correo, WhatsApp (ver <see cref="IndiceCanal"/>). Nulo mientras no se conoce.</summary>
@@ -354,9 +354,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private readonly CancellationTokenSource _ciclo = new();
 
-    // Puerta de los recuentos (de canal y de vista): uno por vez, para que reabrir el selector no lance un segundo bucle mientras el
-    // primero sigue en vuelo. La lista no la usa: sus cargas concurrentes ya se resuelven con la guarda de carga vigente y no deben
-    // esperar a un recuento. El acceso a datos del circuito lo serializa ya SerializacionAccesoDatosBehavior.
+    // Puerta de los recuentos (de canal y de vista): uno por vez, para que reabrir el selector o recargar la lista no lance un segundo
+    // bucle mientras el primero sigue en vuelo. La lista no toma la puerta ni espera a los recuentos: los lanza al terminar de pintarse
+    // (CargarRecuentosTrasListaAsync) y no los espera, así que una acción que recarga la lista no queda detenida por ellos. Sus cargas
+    // concurrentes se resuelven con la guarda de carga vigente. Lo que no se evita es la cola del acceso a datos del circuito, que
+    // serializa SerializacionAccesoDatosBehavior: una lista nueva espera ahí a la consulta de recuento que ya esté ejecutándose
+    // (como mucho una), y el bucle de recuentos se abandona en cuanto ve que la carga ya no es la vigente.
     private readonly SemaphoreSlim _puertaConsultas = new(1, 1);
 
     /// <summary>
@@ -785,8 +788,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // vuelve aquí ya no es la lista que el gestor está mirando.
             if (carga != _cargaListaVigente) return;
 
-            // El canal es un filtro opcional de la lista (lienzo, chips de canal, L-10): con «Todos» —lo de siempre, § 10.2 de
-            // Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md— el Gestor CAE ve conversaciones sin separar «correo» y «WhatsApp».
+            // El canal es un filtro opcional de la lista (chips de canal, lienzo L-10, D1 del 2026-11-17): con «Todos» —lo de siempre—
+            // el Gestor CAE ve las conversaciones sin separar «correo» y «WhatsApp»; con un chip, solo las de ese canal. Así lo recoge el
+            // § 10 (principio 2) y § 12.1 de Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md, con su nota del 2026-11-20: filtrar por
+            // Conversacion.Canal ya no basta con los hilos mixtos del § 13.1.
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
             _cargaListaAplicada = carga;
@@ -813,8 +818,20 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
         }
 
-        // La lista ya se ve: los contadores de los chips de canal llegan después y un fallo suyo no tumba la lista.
-        if (carga == _cargaListaVigente && !_errorCargaLista) await CargarRecuentosCanalAsync(carga);
+        // La lista ya se ve: las cifras (chips de canal y, con el panel abierto, las del selector de vistas) se piden después y no se
+        // esperan aquí; un fallo suyo no tumba la lista.
+        if (carga == _cargaListaVigente && !_errorCargaLista) _ = CargarRecuentosTrasListaAsync(carga);
+    }
+
+    /// <summary>
+    /// Recuentos que siguen a una lista ya pintada: los chips de canal y, si el selector de vistas está abierto, sus cifras (que
+    /// de otro modo quedarían viejas tras un aviso de tiempo real, el refresco de plazos o volver atrás). No recarga la lista, así
+    /// que no hay bucle. Corre sin esperarse: cada paso recoge sus propios fallos.
+    /// </summary>
+    private async Task CargarRecuentosTrasListaAsync(int carga)
+    {
+        await CargarRecuentosCanalAsync(carga);
+        if (carga == _cargaListaVigente && _vistasAbiertas) await CargarRecuentosVistaAsync(reiniciar: false);
     }
 
     /// <summary>
@@ -854,10 +871,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta
     /// cada uno (salvo con «Fuera de plazo» vigente, que no se cuenta: ver el atajo de <see cref="CargarRecuentosVistaAsync"/>).
     /// </summary>
-    // shortcut: cada recuento es una ObtenerConversacionesQuery completa de una fila (el coste está en el CountAsync con todo el
-    // predicado, no en paginar), una tras otra para no solapar bucles de recuento (dos más por carga de lista y cuatro más cada vez
-    // que se abre el selector de vistas); un recuento por canal y por vista en la propia query (como ContarPorEstadoAsync de Clientes)
-    // cuando haya que quitar esas idas y vueltas.
+    // shortcut: cada recuento es una ObtenerConversacionesQuery completa con TamanoPagina: 1, que además del CountAsync con todo el
+    // predicado ejecuta la proyección y las lecturas de fila de una página (no es solo un conteo). Van una tras otra para no solapar
+    // bucles de recuento: dos más por carga de lista, y cuatro más (tres con «Fuera de plazo» fuera) cada vez que se abre el selector
+    // de vistas o se recarga la lista con él abierto, incluido el refresco de plazos de cada minuto. Un recuento por canal y por vista
+    // en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
     private async Task CargarRecuentosCanalAsync(int carga)
     {
         var puertaTomada = false;
@@ -903,11 +921,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
     }
 
-    /// <summary>Cifra de cada vista del selector, con los demás filtros y sin el canal; la vista y el canal activos ya los tiene la lista.</summary>
-    private async Task CargarRecuentosVistaAsync()
+    /// <summary>
+    /// Cifra de cada vista del selector, con los mismos filtros que la lista, canal incluido (con «Correo» activo, «Mías» cuenta las
+    /// mías de correo, como la lista y el disparador); la vista activa ya la tiene la lista.
+    /// </summary>
+    /// <param name="reiniciar">
+    /// Al abrir el selector, las cifras de la apertura anterior (otros filtros, otra búsqueda) no se anuncian mientras llegan las nuevas.
+    /// Al recargar la lista con el selector ya abierto se conservan hasta que llegan las nuevas, para que no parpadeen.
+    /// </param>
+    private async Task CargarRecuentosVistaAsync(bool reiniciar = true)
     {
-        // Las cifras de una apertura anterior (otros filtros, otra búsqueda) no se anuncian mientras llegan las nuevas.
-        _recuentosVista = [];
+        if (reiniciar) _recuentosVista = [];
         var carga = _cargaListaVigente;
         var puertaTomada = false;
         try
@@ -918,7 +942,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             foreach (var vista in VistasPrincipales.Concat(VistasMasVistas))
             {
                 if (carga != _cargaListaVigente || !_vistasAbiertas) return;
-                if (vista == _vistaLista && _canalFiltro is null && !_cargandoLista && !_errorCargaLista)
+                if (vista == _vistaLista && !_cargandoLista && !_errorCargaLista)
                 {
                     nuevos[vista] = _totalConversaciones;
                     continue;
@@ -929,12 +953,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 // un recuento barato de plazos vencidos en la propia query (PR-F1 o posterior) cuando se quiera la cifra del lienzo.
                 if (vista == VistaLista.FueraDePlazo) continue;
 
-                var resultado = await Mediator.Send(ConsultaLista(vista, null, 1, 1), _ciclo.Token);
+                var resultado = await Mediator.Send(ConsultaLista(vista, _canalFiltro, 1, 1), _ciclo.Token);
                 if (carga != _cargaListaVigente) return;
                 nuevos[vista] = resultado.TotalElementos;
             }
 
             _recuentosVista = nuevos;
+            StateHasChanged();
         }
         catch (OperationCanceledException)
         {

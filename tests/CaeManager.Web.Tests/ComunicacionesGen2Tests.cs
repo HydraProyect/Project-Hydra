@@ -335,11 +335,15 @@ public partial class ComunicacionesGen2Tests : BunitContext
             };
         }
 
+        /// <summary>El Gestor CAE que usa la pantalla: la vista «Mías» deja las conversaciones asignadas a este Id, como el handler real.</summary>
+        public Guid MiUsuarioId { get; } = Guid.NewGuid();
+
         /// <summary>Los filtros que esta pantalla manda de verdad; el resto de la consulta no los usan estos tests.</summary>
         public ResultadoPaginado<ConversacionListaDto> Pagina(ObtenerConversacionesQuery q)
         {
             var visibles = Conversaciones
                 .Where(c => q.Canal is null || c.Canal == q.Canal)
+                .Where(c => !q.SoloAsignadasAMi || c.EjecutivoAsignadoId == MiUsuarioId)
                 .Where(c => !q.SoloSinAsignar || c.EjecutivoAsignadoId is null)
                 .Where(c => !q.SoloEsperandoCliente || c.EsperandoCliente)
                 .Where(c => !q.SoloFueraDeSla || c.SlaRestante is { } restante && restante < TimeSpan.Zero)
