@@ -205,9 +205,12 @@ public partial class ComunicacionesGen2Tests
         // La primera carga (vacía, sin filtros) sigue esperando los buzones: al llegar ya no es la vigente.
         conexiones.SetResult(new List<ConexionIntegracionListaDto>());
         await Task.Delay(100); // solo da tiempo a la continuación; una espera corta no puede dar un falso fallo
+        // Un render forzado: sin él, una carga obsoleta que ensuciara el estado no se vería en el DOM hasta el siguiente render.
+        cut.Render();
         await cut.WaitForAssertionAsync(() => AsuntosVisibles(cut).Should().Equal(["Aviso por WhatsApp"]), PlazoEspera);
         cut.FindAll(".bandeja-lista .estado-vacio").Should().BeEmpty();
     }
+
     [Theory]
     [InlineData("Mías")]
     [InlineData("Esperando respuesta del Interlocutor")]

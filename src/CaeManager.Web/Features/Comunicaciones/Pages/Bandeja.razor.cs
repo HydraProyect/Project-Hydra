@@ -1073,10 +1073,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool EsVistaAbiertas => _vistaLista == VistaLista.Todas;
 
     /// <summary>
-    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal en la vista por defecto. El lienzo dice
+    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal, en cualquier vista. El lienzo dice
     /// «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era «Sin resultados».
     /// </summary>
-    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || (EsVistaAbiertas && _canalFiltro is not null);
+    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || _canalFiltro is not null;
 
     /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda ni filtros, en la vista por defecto y con buzones conectados.</summary>
     private bool AlDiaVacio => !VacioPorFiltros && !_sinBuzonesConectados && EsVistaAbiertas;
@@ -1111,7 +1111,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "No se pudo comprobar si hay buzones conectados para el vacío de la bandeja.");
+            Logger.LogWarning(ex, "No se pudo comprobar si hay buzones conectados para el vacío de la lista de conversaciones.");
             return false;
         }
     }
