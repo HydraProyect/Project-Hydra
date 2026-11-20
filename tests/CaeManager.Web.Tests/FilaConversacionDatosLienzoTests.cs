@@ -173,6 +173,7 @@ public class FilaConversacionDatosLienzoTests : BunitContext
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("123 456")]
+    [InlineData(" @x")] // con espacios alrededor, sin recortar daría «X»; recortado no tiene ninguna letra y el avatar pintaría «?»
     public void Si_el_nombre_de_la_persona_asignada_no_llega_la_fila_no_enseña_ningun_nombre(string? nombre)
     {
         // El directorio no la deja ver desde el Tenant activo: el DTO trae el id pero no el nombre. Ni iniciales, ni «Sin asignar», ni un «Asignada a» vacío.
@@ -281,6 +282,7 @@ public class FilaConversacionDatosLienzoTests : BunitContext
         Regla(css, @"li\.fila-conversacion \.fila-linea-derecha").Should().MatchRegex(@"max-width\s*:\s*100%").And.MatchRegex(@"min-width\s*:\s*0");
         Regla(css, @"\.fila-buzon").Should().MatchRegex(@"min-width\s*:\s*0").And.MatchRegex(@"text-overflow\s*:\s*ellipsis").And.MatchRegex(@"max-width\s*:\s*var\(--space-24\)");
         Regla(css, @"\.fila-por-aprobar").Should().MatchRegex(@"background\s*:[^;]*var\(--color-system-tint\)[^;]*var\(--color-surface\)");
+        Regla(css, @"\.fila-asignada").Should().MatchRegex(@"display\s*:\s*inline-flex").And.MatchRegex(@"align-items\s*:\s*center");
         Regla(css, @"\.fila-por-aprobar ::deep \.icono").Should().MatchRegex(@"width\s*:\s*12px");
     }
 

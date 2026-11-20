@@ -111,7 +111,7 @@
         // «?» es lo que da InicialesDeUsuario.De (las del respaldo de AvatarUsuario) si el nombre no tiene ninguna letra: entonces la fila no enseña persona.
         // El avatar elegido (emoji) o, si no eligió, esas iniciales las pinta AvatarUsuario con la clave que trae el DTO. El lienzo pinta tres letras («MGR»):
         // desviación declarada en la PR.
-        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is "?" ? null
+        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre.Trim()) is "?" ? null
         : Conversacion.EjecutivoAsignadoNombre.Trim();
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
