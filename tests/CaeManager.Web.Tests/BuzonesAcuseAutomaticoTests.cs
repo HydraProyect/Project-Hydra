@@ -2,6 +2,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
@@ -74,10 +75,21 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         /// <summary>Si es true, solo falla el cálculo de elegibles, no el listado.</summary>
         public bool FallaElCalculoDeElegibles { get; set; }
 
+        /// <summary>«Último correo» y «Abiertas» por buzón; lo que no esté aquí no sale en la respuesta (como un buzón sin medir).</summary>
+        public Dictionary<Guid, ActividadBuzonDto> Actividad { get; } = [];
+
+        public List<ObtenerActividadBuzonesQuery> ConsultasActividad { get; } = [];
+
+        /// <summary>Si es true, solo falla la petición de actividad: la tabla sigue y esas dos celdas enseñan «—».</summary>
+        public bool FallaLaActividad { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object respuesta = request switch
             {
+                ObtenerActividadBuzonesQuery q => FallaLaActividad
+                    ? throw new InvalidOperationException("actividad caída")
+                    : Responder(q),
                 ObtenerConexionesIntegracionQuery => FallaElListado
                     ? throw new InvalidOperationException("listado caído")
                     : (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
@@ -89,6 +101,12 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return Task.FromResult((TResponse)respuesta);
+        }
+
+        private IReadOnlyDictionary<Guid, ActividadBuzonDto> Responder(ObtenerActividadBuzonesQuery consulta)
+        {
+            ConsultasActividad.Add(consulta);
+            return Actividad.Where(a => consulta.ConexionIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value);
         }
 
         private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> Evaluar(ObtenerResponsablesElegiblesBuzonesQuery consulta)
@@ -623,7 +641,98 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         var cut = Renderizar(new MediadorBuzones());
 
         cut.Markup.Should().Contain("Aún no hay buzones conectados.");
+        cut.Markup.Should().Contain("Añade el primero con su dirección.");
         cut.FindAll("table").Should().BeEmpty();
+    }
+
+    // ---- PR-B1: columnas «Último correo» y «Abiertas» (lienzo «Pulida: buzones de correo de una Empresa gestionada») ----
+
+    [Fact]
+    public void Las_cabeceras_siguen_el_orden_del_lienzo_con_Ultimo_correo_tras_Estado_y_Abiertas_tras_Responsable()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("compartido")] });
+
+        var cabeceras = cut.FindAll("thead th").Select(t => t.TextContent.Trim()).ToList();
+
+        cabeceras.Should().Equal("Buzón", "Tipo", "Enruta a", "Estado", "Último correo", "Responsable", "Abiertas", "Acuse automático");
+    }
+
+    [Fact]
+    public void Una_sola_peticion_de_actividad_lleva_todos_los_buzones_de_la_tabla()
+    {
+        var mediador = new MediadorBuzones { Conexiones = [Buzon("uno"), Buzon("dos"), Buzon("tres")] };
+
+        Renderizar(mediador);
+
+        mediador.ConsultasActividad.Should().ContainSingle().Which.ConexionIds.Should().BeEquivalentTo(mediador.Conexiones.Select(c => c.Id));
+    }
+
+    [Fact]
+    public void Abiertas_enseña_la_cifra_de_cada_buzon_y_un_guion_si_no_hay_dato()
+    {
+        var conCifra = Buzon("conCifra");
+        var sinDato = Buzon("sinDato");
+        var mediador = new MediadorBuzones { Conexiones = [conCifra, sinDato] };
+        mediador.Actividad[conCifra.Id] = new ActividadBuzonDto(null, 7);
+
+        var cut = Renderizar(mediador);
+
+        cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains("conCifra@"))
+            .QuerySelector("[data-testid=abiertas-buzon]")!.TextContent.Trim().Should().Be("7");
+        cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains("sinDato@"))
+            .QuerySelector("[data-testid=abiertas-buzon]")!.TextContent.Trim().Should().Be("—");
+    }
+
+    [Fact]
+    public void Ultimo_correo_se_escribe_Hoy_Ayer_o_la_fecha_en_hora_peninsular_y_Sin_correos_aun_si_no_hay_ninguno()
+    {
+        var ahora = DateTime.UtcNow;
+        var ayerAMediodia = TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(DiaDeNegocio.Hoy().AddDays(-1).ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Unspecified),
+            DiaDeNegocio.Zona);
+        var antiguo = new DateTime(2026, 1, 15, 9, 5, 0, DateTimeKind.Utc);
+        var hoy = Buzon("hoy");
+        var ayer = Buzon("ayer");
+        var viejo = Buzon("viejo");
+        var vacio = Buzon("vacio");
+        var mediador = new MediadorBuzones { Conexiones = [hoy, ayer, viejo, vacio] };
+        mediador.Actividad[hoy.Id] = new ActividadBuzonDto(ahora, 1);
+        mediador.Actividad[ayer.Id] = new ActividadBuzonDto(ayerAMediodia, 1);
+        mediador.Actividad[viejo.Id] = new ActividadBuzonDto(antiguo, 1);
+        mediador.Actividad[vacio.Id] = new ActividadBuzonDto(null, 0);
+
+        var cut = Renderizar(mediador);
+
+        string Celda(string nombre) => cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains($"{nombre}@"))
+            .QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim();
+        Celda("hoy").Should().Be($"Hoy, {ahora.EnHoraPeninsular():H:mm}");
+        Celda("ayer").Should().Be("Ayer, 12:00");
+        Celda("viejo").Should().Be("15/01/2026, 10:05");
+        Celda("vacio").Should().Be("Sin correos aún");
+    }
+
+    [Fact]
+    public void Si_falla_la_actividad_la_tabla_sigue_y_las_dos_celdas_enseñan_un_guion_en_vez_de_un_cero()
+    {
+        var mediador = new MediadorBuzones { Conexiones = [Buzon("compartido")], FallaLaActividad = true };
+
+        var cut = Renderizar(mediador);
+
+        cut.FindAll("[data-testid=aviso-buzones-no-cargados]").Should().BeEmpty();
+        var fila = cut.Find("[data-testid=fila-buzon]");
+        fila.QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim().Should().Be("—");
+        fila.QuerySelector("[data-testid=abiertas-buzon]")!.TextContent.Trim().Should().Be("—");
+    }
+
+    [Fact]
+    public void La_franja_de_error_ocupa_las_ocho_columnas_de_la_tabla()
+    {
+        var cut = Renderizar(new MediadorBuzones
+        {
+            Conexiones = [Buzon("roto", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado")]
+        });
+
+        cut.Find(".fila-franja-error > td").GetAttribute("colspan").Should().Be("8");
     }
 
     // ---- Añadir buzón (cajón), franja de error con «Reconectar» y punto de estado ----

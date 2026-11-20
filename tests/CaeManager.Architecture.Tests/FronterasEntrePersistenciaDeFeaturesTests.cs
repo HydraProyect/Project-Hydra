@@ -392,6 +392,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // La búsqueda de la bandeja encuentra por el nombre del Centro ligado a la conversación: lee Centros, las
         // Gestiones nacidas de un mensaje del hilo y las Visitas creadas desde él, siempre como semi-join dentro de la
         // misma consulta y sumado con AND a la regla de visibilidad (que no cambia).
+        // La tabla de Buzones cuenta las conversaciones abiertas de cada buzón y su último correo con la regla de
+        // visibilidad de la bandeja (ConversacionesVisibles), que consulta la conexión de integración para los buzones
+        // personales: la misma lectura que ya hace la bandeja, sin ampliar lo visible.
+        ("Comunicaciones.ObtenerActividadBuzonesQueryHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IGestionesQueryContext"),

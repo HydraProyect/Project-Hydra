@@ -65,7 +65,9 @@
                             <th scope="col">@Textos["ColTipo"]</th>
                             <th scope="col">@Textos["ColEnrutaA"]</th>
                             <th scope="col">@Textos["ColEstado"]</th>
+                            <th scope="col">@Textos["ColUltimoCorreo"]</th>
                             <th scope="col">@Textos["ColResponsable"]</th>
+                            <th scope="col" class="celda-cifras">@Textos["ColAbiertas"]</th>
                             <th scope="col">@Textos["ColAcuse"]</th>
                         </tr>
                     </thead>
@@ -85,6 +87,7 @@
                                         <span class="punto-estado" aria-hidden="true"></span>@ObtenerEtiquetaEstado(conexion.Estado)
                                     </span>
                                 </td>
+                                <td data-testid="ultimo-correo">@DescribirUltimoCorreo(conexion.Id)</td>
                                 <td>
                                     @if (conexion.GestorPropietarioId is { } propietarioId)
                                     {
@@ -113,6 +116,7 @@
                                         </AuthorizeView>
                                     }
                                 </td>
+                                <td class="celda-cifras" data-testid="abiertas-buzon">@DescribirAbiertas(conexion.Id)</td>
                                 <td>
                                     @if (conexion.GestorPropietarioId is not null)
                                     {
@@ -145,7 +149,7 @@
                             {
                                 @* E32 (parcial): franja con el último error de ese buzón y «Reconectar», que es la acción de «Reactivar». *@
                                 <tr class="fila-franja-error">
-                                    <td colspan="6">
+                                    <td colspan="8">
                                         <div class="franja-error" role="alert" data-testid="franja-error-buzon">
                                             <span class="franja-error-texto">@Textos["FranjaErrorBuzon", conexion.BuzonEmail]: @conexion.UltimoError</span>
                                             <AuthorizeView Roles="@RolAdministrador" Context="autorizacionReconectar">

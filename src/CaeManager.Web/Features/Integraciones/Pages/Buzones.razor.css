@@ -13,6 +13,9 @@
 .nombre-buzon { display: block; font-weight: 600; }
 .direccion-buzon, .texto-secundario { display: block; color: var(--color-text-muted); font-size: 0.85rem; }
 
+/* Columna «Abiertas» (lienzo, .cifras): cifras alineadas a la derecha y de ancho fijo. */
+.celda-cifras { text-align: right; font-variant-numeric: tabular-nums; }
+
 .texto-error {
     display: block;
     color: var(--color-danger-700);

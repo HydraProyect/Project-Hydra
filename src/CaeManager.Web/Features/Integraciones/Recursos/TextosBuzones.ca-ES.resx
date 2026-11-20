@@ -48,6 +48,21 @@
   <data name="ColAcuse" xml:space="preserve">
     <value>Confirmació automàtica</value>
   </data>
+  <data name="ColUltimoCorreo" xml:space="preserve">
+    <value>Últim correu</value>
+  </data>
+  <data name="ColAbiertas" xml:space="preserve">
+    <value>Obertes</value>
+  </data>
+  <data name="UltimoCorreoHoy" xml:space="preserve">
+    <value>Avui, {0}</value>
+  </data>
+  <data name="UltimoCorreoAyer" xml:space="preserve">
+    <value>Ahir, {0}</value>
+  </data>
+  <data name="SinCorreosAun" xml:space="preserve">
+    <value>Encara sense correus</value>
+  </data>
   <data name="TipoCompartido" xml:space="preserve">
     <value>Compartida</value>
   </data>
@@ -97,7 +112,7 @@
     <value>Encara no hi ha cap bústia connectada.</value>
   </data>
   <data name="VacioTexto" xml:space="preserve">
-    <value>Connecta la primera des de Connexions d&apos;integració.</value>
+    <value>Afegeix el primer amb la seva adreça.</value>
   </data>
   <data name="AvisoCargaFallida" xml:space="preserve">
     <value>No hem pogut carregar les bústies. Torna-ho a provar d&apos;aquí a uns minuts.</value>
