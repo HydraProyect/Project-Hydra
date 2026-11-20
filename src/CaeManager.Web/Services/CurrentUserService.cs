@@ -297,6 +297,11 @@ public class CurrentUserService(
     /// <c>ObtenerClientesAutorizadosQuery</c> enumera qué Tenants entran en el
     /// fan-out: la de Operación y la heredada. Un Tenant de la lista siempre
     /// tiene aquí el rol que tendría seleccionado.
+    ///
+    /// Excepción: dentro de la marca <see cref="AmbitoSinViaHeredada"/> (el
+    /// ámbito de la vista unificada de Comunicaciones, D-6 b) solo cuenta la vía
+    /// de Operación; sin operación que autorice, el rol es <c>Ninguno</c> y no
+    /// hay rol heredado.
     /// </summary>
     private async Task<(RolEfectivoPorOperacion Efectivo, string? RolHeredado)> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
     {
@@ -322,8 +327,12 @@ public class CurrentUserService(
             usuarioId.Value, tenantOrigenId.Value, tenantAmbito, PerfilQueDecideAlcance(await ObtenerUsuarioAsync()),
             DateTime.UtcNow, CancellationToken.None);
 
-        return operacionId is not null
-            ? (await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen), null)
+        // D-6 b (§ 4.3, M1): dentro del ámbito de la vista unificada de Comunicaciones (AmbitoSinViaHeredada), sin
+        // operación que autorice no hay rol, ni efectivo ni heredado: la vista nunca usa la vía heredada (DN-2 (a)).
+        if (operacionId is not null)
+            return (await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen), null);
+        return AmbitoSinViaHeredada.Activo
+            ? (RolEfectivoPorOperacion.Ninguno, null)
             : await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
     }
 
