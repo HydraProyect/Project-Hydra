@@ -144,6 +144,12 @@ public class ExposicionDeRedDelDespliegueTests
         ultima.Count(c => c == ';').Should().Be(1, "es lo último del bloque UseSentry: nada posterior en él lo sustituye");
         privacidad.Should().Contain("filtroDeEventos(evento, pista) is { } filtrado ? FiltrarEvento(filtrado) : null",
             "el SetBeforeSend de Configurar aplica el filtro de Program.cs antes de quitar la ruta");
+        privacidad.Should().Contain("opciones.SetBeforeSend((evento, pista) => FiltrarEventoConFalloCerrado(evento, pista, filtroDeEventos));",
+            "el SetBeforeSend de Configurar descarta el evento si un filtro lanza (PrivacidadDeSentryTests)");
+        privacidad.Should().Contain("opciones.SetBeforeBreadcrumb((miga, pista) => FiltrarMigaDePanConFalloCerrado(miga, pista, FiltrarMigaDePan));",
+            "el SetBeforeBreadcrumb de Configurar descarta la miga si su filtro lanza (PrivacidadDeSentryTests)");
+        System.Text.RegularExpressions.Regex.Matches(privacidad, @"\bSetBeforeBreadcrumb\(").Count
+            .Should().Be(1, "un segundo SetBeforeBreadcrumb sustituiría al de fallo cerrado");
 
         System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count
             .Should().Be(0, "un SetBeforeBreadcrumb en Program.cs sustituiría al de PrivacidadDeSentry");

@@ -43,8 +43,50 @@ public static partial class PrivacidadDeSentry
     public static void Configurar(SentryOptions opciones, Func<SentryEvent, SentryHint, SentryEvent?> filtroDeEventos)
     {
         opciones.TracePropagationTargets.Clear();
-        opciones.SetBeforeBreadcrumb(FiltrarMigaDePan);
-        opciones.SetBeforeSend((evento, pista) => filtroDeEventos(evento, pista) is { } filtrado ? FiltrarEvento(filtrado) : null);
+        opciones.SetBeforeBreadcrumb((miga, pista) => FiltrarMigaDePanConFalloCerrado(miga, pista, FiltrarMigaDePan));
+        opciones.SetBeforeSend((evento, pista) => FiltrarEventoConFalloCerrado(evento, pista, filtroDeEventos));
+    }
+
+    /// <summary>
+    /// El cuerpo del <c>SetBeforeSend</c> de <see cref="Configurar(SentryOptions, Func{SentryEvent, SentryHint, SentryEvent?})"/>:
+    /// aplica <paramref name="filtroDeEventos"/> y después <see cref="FiltrarEvento"/>. Si cualquiera de los dos lanza, el
+    /// evento no se envía (fallo cerrado).
+    /// </summary>
+    public static SentryEvent? FiltrarEventoConFalloCerrado(
+        SentryEvent evento, SentryHint pista, Func<SentryEvent, SentryHint, SentryEvent?> filtroDeEventos)
+    {
+        try
+        {
+            return filtroDeEventos(evento, pista) is { } filtrado ? FiltrarEvento(filtrado) : null;
+        }
+        catch (Exception)
+        {
+            // Si el callback lanza, el SDK registra el error y envía el evento original, con la ruta y la consulta de su
+            // petición (lo fija PrivacidadDeSentryTests). Un evento que no se pudo filtrar no sale: se pierde ese evento
+            // en Sentry a cambio de no mandar a un tercero lo que el filtro debía quitar.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// El cuerpo del <c>SetBeforeBreadcrumb</c> de <see cref="Configurar(SentryOptions, Func{SentryEvent, SentryHint, SentryEvent?})"/>,
+    /// con <see cref="FiltrarMigaDePan"/> como <paramref name="filtroDeMigas"/>: si el filtro lanza, la miga se descarta
+    /// (fallo cerrado).
+    /// </summary>
+    public static Breadcrumb? FiltrarMigaDePanConFalloCerrado(
+        Breadcrumb miga, SentryHint pista, Func<Breadcrumb, SentryHint, Breadcrumb?> filtroDeMigas)
+    {
+        try
+        {
+            return filtroDeMigas(miga, pista);
+        }
+        catch (Exception)
+        {
+            // El SDK 6.7.0 ya descarta la miga cuyo callback lanza (lo observa PrivacidadDeSentryTests), pero eso es un
+            // detalle suyo: si una versión la guardara, saldría con el siguiente evento con la URL completa o el correo de
+            // su mensaje. Una miga que no se pudo filtrar no se guarda, sea cual sea la versión del SDK.
+            return null;
+        }
     }
 
     /// <summary>

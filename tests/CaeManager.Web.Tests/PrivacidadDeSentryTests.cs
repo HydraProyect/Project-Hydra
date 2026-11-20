@@ -283,6 +283,101 @@ public class PrivacidadDeSentryTests
         transporte.Sobres.Should().ContainSingle("control: el 5xx sin marcar sí se envía");
     }
 
+    [Fact]
+    public void Si_el_filtro_de_eventos_lanza_el_evento_no_se_envia()
+    {
+        var evento = new SentryEvent();
+        evento.Request.Url = "https://graph.microsoft.com/v1.0/users/" + Correo;
+
+        PrivacidadDeSentry.FiltrarEventoConFalloCerrado(evento, new SentryHint(), (_, _) => throw new InvalidOperationException())
+            .Should().BeNull("fallo cerrado: un evento que no se pudo filtrar no sale");
+    }
+
+    [Fact]
+    public void Si_el_filtro_de_eventos_termina_el_evento_sale_sin_la_ruta()
+    {
+        var evento = new SentryEvent();
+        evento.Request.Url = "https://graph.microsoft.com/v1.0/users/" + Correo;
+
+        PrivacidadDeSentry.FiltrarEventoConFalloCerrado(evento, new SentryHint(), (e, _) => e)!
+            .Request.Url.Should().Be("https://graph.microsoft.com/", "control: sin excepción sale el evento filtrado");
+    }
+
+    [Fact]
+    public void Si_el_filtro_de_migas_lanza_la_miga_se_descarta()
+    {
+        var miga = new Breadcrumb("Buzón " + Correo, "default");
+
+        PrivacidadDeSentry.FiltrarMigaDePanConFalloCerrado(miga, new SentryHint(), (_, _) => throw new InvalidOperationException())
+            .Should().BeNull("fallo cerrado: una miga que no se pudo filtrar no se guarda");
+    }
+
+    [Fact]
+    public void Si_el_filtro_de_migas_termina_la_miga_sale_filtrada()
+    {
+        var miga = new Breadcrumb("Buzón " + Correo, "default");
+
+        PrivacidadDeSentry.FiltrarMigaDePanConFalloCerrado(miga, new SentryHint(), PrivacidadDeSentry.FiltrarMigaDePan)!
+            .Message.Should().Be("Buzón [correo]", "control: sin excepción sale lo que devuelve el filtro real");
+    }
+
+    [Fact]
+    public async Task Con_la_configuracion_real_si_el_filtro_de_program_lanza_el_5xx_no_se_envia_y_sin_ella_sale_con_la_ruta()
+    {
+        const string destino = "https://graph.microsoft.com/v1.0/users/" + Correo + "/messages";
+        static SentryEvent? Lanza(SentryEvent evento, SentryHint pista) => throw new InvalidOperationException("filtro roto");
+
+        var configurado = await SobresDe5xxAsync(o => PrivacidadDeSentry.Configurar(o, Lanza), destino);
+        var control = await SobresDe5xxAsync(o => o.SetBeforeSend(Lanza), destino);
+
+        // Control: con un SetBeforeSend que lanza, el SDK envía el evento original, con la ruta de su petición.
+        var sobre = control.Should().ContainSingle("control: el SDK envía el evento aunque su BeforeSend lance").Subject;
+        using var flujo = new MemoryStream();
+        await sobre.SerializeAsync(flujo, null);
+        System.Text.Encoding.UTF8.GetString(flujo.ToArray()).Should().Contain("/v1.0/users/" + Correo);
+
+        configurado.Should().BeEmpty("fallo cerrado: el SetBeforeSend de Configurar descarta el evento que no pudo filtrar");
+    }
+
+    [Fact]
+    public void Sin_la_configuracion_si_el_filtro_de_migas_lanza_el_sdk_descarta_la_miga_y_si_termina_la_guarda()
+    {
+        // Lo que hace el SDK sin FiltrarMigaDePanConFalloCerrado: hoy ya descarta la miga cuyo BeforeBreadcrumb lanza, y
+        // el fallo cerrado propio lo mantiene aunque una versión futura cambie ese comportamiento. Configurar no admite
+        // otro filtro de migas, así que su cableado lo fija el test de Architecture.
+        static List<Breadcrumb> Migas(Func<Breadcrumb, SentryHint, Breadcrumb?> filtro)
+        {
+            List<Breadcrumb> migas = [];
+            using (IniciarSdk(o => o.SetBeforeBreadcrumb(filtro)))
+            {
+                SentrySdk.AddBreadcrumb("Buzón " + Correo, "prueba");
+                SentrySdk.ConfigureScope(ambito => migas = [.. ambito.Breadcrumbs.Where(m => m.Category == "prueba")]);
+            }
+
+            return migas;
+        }
+
+        Migas((miga, _) => miga).Select(m => m.Message).Should().Contain("Buzón " + Correo, "control: con un filtro que termina, el SDK guarda la miga");
+        Migas((_, _) => throw new InvalidOperationException("filtro roto")).Should().BeEmpty("el SDK descarta la miga si su BeforeBreadcrumb lanza");
+    }
+
+    private static async Task<List<Sentry.Protocol.Envelopes.Envelope>> SobresDe5xxAsync(Action<SentryOptions> configurar, string destino)
+    {
+        var transporte = new TransporteQueAnota();
+        using (IniciarSdk(o =>
+               {
+                   o.CaptureFailedRequests = true;
+                   configurar(o);
+               }, transporte))
+        {
+            using var http = new HttpClient(new SentryHttpMessageHandler(new Responde500()));
+            (await http.GetAsync(destino)).Dispose();
+            await SentrySdk.FlushAsync(TimeSpan.FromSeconds(10));
+        }
+
+        return [.. transporte.Sobres];
+    }
+
     private static async Task<List<Breadcrumb>> MigasHttpAsync(Action<SentryOptions> configurar, string nif)
     {
         List<Breadcrumb> migas = [];
