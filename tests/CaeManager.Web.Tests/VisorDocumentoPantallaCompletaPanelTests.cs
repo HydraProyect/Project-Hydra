@@ -32,19 +32,19 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
             b.AddAttribute(5, "data-total", Contexto.Total);
             b.AddAttribute(6, "onkeydown", Contexto.Tecla);
             b.AddEventStopPropagationAttribute(7, "onkeydown", true);
-            Boton(b, 10, "asignar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Asignado)));
-            Boton(b, 20, "rechazar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Rechazado)));
-            Boton(b, 30, "reabrir", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Pendiente)));
-            Boton(b, 40, "dejar", () => Contexto.Dejar.InvokeAsync());
+            Boton(b, "asignar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Asignado)));
+            Boton(b, "rechazar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Rechazado)));
+            Boton(b, "reabrir", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Pendiente)));
+            Boton(b, "dejar", () => Contexto.Dejar.InvokeAsync());
             b.CloseElement();
         }
 
-        private void Boton(RenderTreeBuilder b, int secuencia, string clase, Func<Task> alPulsar)
+        private void Boton(RenderTreeBuilder b, string clase, Func<Task> alPulsar)
         {
-            b.OpenElement(secuencia, "button");
-            b.AddAttribute(secuencia + 1, "type", "button");
-            b.AddAttribute(secuencia + 2, "class", clase);
-            b.AddAttribute(secuencia + 3, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, alPulsar));
+            b.OpenElement(10, "button");
+            b.AddAttribute(11, "type", "button");
+            b.AddAttribute(12, "class", clase);
+            b.AddAttribute(13, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, alPulsar));
             b.CloseElement();
         }
     }
