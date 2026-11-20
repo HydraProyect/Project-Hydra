@@ -133,7 +133,7 @@
                 {
                     @* El contenedor es del visor, no del panel: es el destino de aria-controls y corta las teclas del panel antes del diálogo (stopPropagation sin manejador: no cuesta un viaje por pulsación), para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. «Ocultar la revisión» solo lo marca hidden: el panel sigue montado y conserva lo que se haya escrito en él. Con display:contents no cambia la maquetación del cuerpo. *@
                     <div id="vz-revision" class="vz-revision" hidden="@(!_panelAbierto)" @onkeydown:stopPropagation="true">
-                        @Panel(ContextoDelPanel(actual, pendientes))
+                        @PanelDe(actual, pendientes)
                     </div>
                 }
             </div>
@@ -171,12 +171,15 @@
     // guarda también el estado que la lista tenía al resolver (Base): el estado local vale mientras la lista siga con ese estado de partida,
     // y en cuanto la lista llega con otro (el resuelto aquí u otro distinto) manda la lista. Límite: una lista que vuelve exactamente al
     // estado de partida (otra persona deshace entre tanto) no se distingue de «aún no ha refrescado».
-    private readonly Dictionary<Guid, (EstadoAdjuntoVisor Local, EstadoAdjuntoVisor Base)> _estados = [];
+    private readonly Dictionary<Guid, (EstadoAdjuntoVisor Vigente, EstadoAdjuntoVisor Base)> _estados = [];
     private bool _panelAbierto = true;
 
     private int Pendientes => _lista.Count(a => EstadoDe(a) == EstadoAdjuntoVisor.Pendiente);
 
-    private EstadoAdjuntoVisor EstadoDe(AdjuntoVisor adjunto) => _estados.TryGetValue(adjunto.Id, out var e) ? e.Local : adjunto.Estado;
+    // Un método y no la llamada anidada en el marcado: el medidor de textos sin localizar tomaba «(ContextoDelPanel(actual, pendientes))» por texto.
+    private RenderFragment? PanelDe(AdjuntoVisor actual, int pendientes) => Panel?.Invoke(ContextoDelPanel(actual, pendientes));
+
+    private EstadoAdjuntoVisor EstadoDe(AdjuntoVisor adjunto) => _estados.TryGetValue(adjunto.Id, out var e) ? e.Vigente : adjunto.Estado;
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
