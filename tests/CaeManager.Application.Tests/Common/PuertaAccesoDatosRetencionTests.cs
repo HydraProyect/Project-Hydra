@@ -153,8 +153,12 @@ public class PuertaAccesoDatosRetencionTests
         });
 
         await dentro.Task;
-        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(5));
-        await Task.Delay(50);
+        // CerrarAsync corre síncrono hasta su primer await: cuando devuelve, ya cerró la puerta y ya está esperando al semáforo
+        // que la operación sigue reteniendo, así que no hace falta dejar pasar tiempo para comprobar que no ha vuelto. El plazo
+        // es una cota que no puede vencer por falta de CPU entre esta línea y liberando.SetResult() (con 5 s, un test parado
+        // más de 5 s por la carga volvía con false y el aserto de abajo fallaba por el reloj, no por el cierre).
+        var cierre = puerta.CerrarAsync(TimeSpan.FromMinutes(5));
+        puerta.Cerrada.Should().BeTrue("CerrarAsync cierra la puerta antes de esperar a la operación en vuelo");
         cierre.IsCompleted.Should().BeFalse("el scope no se puede disponer con la conexión aún retenida");
 
         liberando.SetResult();
