@@ -90,6 +90,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private readonly ToastService _toasts = new();
     private readonly MediatorFalso _mediador = new();
     private readonly CatalogoCarteraFalso _catalogo = new();
+    private readonly HashSet<Guid> _outboundCerrados = [];
     private readonly AvisoSinGestorCaeRegistrado _aviso = new();
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _identidad = new();
@@ -479,6 +480,16 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Outbound cerrado para los Tenants de <paramref name="cerrados"/> (D3, R1): el diálogo «Asignar empresas» no ofrece
+    /// «Designar principal» donde el comando lo deniega. Vacío equivale a <see cref="OutboundTenantTecAbiertoWeb"/>.
+    /// </summary>
+    private sealed class OutboundTenantTecCerradoPara(ISet<Guid> cerrados) : CaeManager.Application.Comercial.LineaOutbound.IOutboundCerradoTenantTec
+    {
+        public Task<bool> EstaCerradoAsync(Guid tenantBeneficiarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(cerrados.Contains(tenantBeneficiarioId));
+    }
+
+    /// <summary>
     /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
     /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
     /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
@@ -803,9 +814,10 @@ public partial class UsuariosGen2Tests : BunitContext
                 cuentas, usuarioActual, tenantActual, new TransaccionQueDeshaceSiFalla(_identidad), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
                 new OtroAdministradorSiempre(), _aviso, new OutboundTenantTecAbiertoWeb()).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
-                usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
+                usuarioActual, directorioCartera, _catalogo, new OutboundTenantTecCerradoPara(_outboundCerrados)).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
-                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
+                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera(),
+                new OutboundTenantTecCerradoPara(_outboundCerrados)).Handle(c, ct),
             EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
                 cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre(), new SinBloqueoCartera()).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
@@ -1729,6 +1741,45 @@ public partial class UsuariosGen2Tests : BunitContext
         sur.QuerySelector("strong")!.TextContent.Trim().Should().Be("Apoyo");
         Compacto(sur.QuerySelector("span")!).Should().Be("· Sin Gestor CAE principal");
         sur.QuerySelectorAll("button").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Designar principal");
+    }
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): sin principal, designar es asumir sin una baja previa, y con Outbound
+    /// cerrado para el Tenant beneficiario o para el Tenant de origen del Operador CAE externo el comando lo deniega. El
+    /// diálogo no lo ofrece: la visibilidad de la acción sigue la autorización real del comando.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]  // Tenant beneficiario cerrado
+    [InlineData(false, true)]  // Tenant de origen del Operador CAE externo cerrado
+    public async Task D3_sin_principal_y_con_Outbound_cerrado_el_dialogo_no_ofrece_designar(bool beneficiario, bool operador)
+    {
+        SembrarPrincipalYApoyo(principalDeSur: false);
+        if (beneficiario) _outboundCerrados.Add(BeneficiarioSur);
+        if (operador) _outboundCerrados.Add(TenantDelArnes);
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        var sur = ResponsableDe(cut, BeneficiarioSur);
+        Compacto(sur.QuerySelector("span")!).Should().Be("· Sin Gestor CAE principal", "la empresa se pinta igual");
+        sur.QuerySelectorAll("button").Should().BeEmpty("el comando lo denegaría");
+        ResponsableDe(cut, BeneficiarioNorte).QuerySelectorAll("button").Should().BeEmpty("control: Ander ya es el principal");
+    }
+
+    [Fact]
+    public async Task D3_con_principal_el_dialogo_ofrece_designar_aunque_Outbound_este_cerrado()
+    {
+        SembrarPrincipalYApoyo(principalDeSur: true);
+        _outboundCerrados.Add(BeneficiarioSur);
+        _outboundCerrados.Add(TenantDelArnes);
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        ResponsableDe(cut, BeneficiarioSur).QuerySelectorAll("button").Should().ContainSingle()
+            .Which.TextContent.Trim().Should().Be("Designar principal", "con principal designar sustituye y sigue permitido");
     }
 
     [Fact]

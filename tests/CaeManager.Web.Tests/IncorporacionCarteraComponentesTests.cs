@@ -287,8 +287,9 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     // ------------------------------------------------- Alerta «sin principal»
 
     private static OperacionEnAlertaDePrincipal EnAlerta(
-        string nombre, SituacionDePrincipal situacion, int personas = 0, string? principal = null, bool propia = false) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion, personas, principal, propia);
+        string nombre, SituacionDePrincipal situacion, int personas = 0, string? principal = null, bool propia = false,
+        bool outboundCerrado = false) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion, personas, principal, propia, outboundCerrado);
 
     private static IElement BotonAsumir(IRenderedComponent<SolicitudesCartera> pagina, OperacionEnAlertaDePrincipal operacion) =>
         pagina.Find($"table[data-sin-principal] tr[data-operacion='{operacion.AsignacionOperacionId}'] button");
@@ -314,6 +315,57 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         var informativa = pagina.Find("table[data-coordinador-principal] tbody tr");
         informativa.TextContent.Should().Contain("Montajes Este").And.Contain("Carla");
         pagina.FindAll("table[data-coordinador-principal] button").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): con Outbound cerrado la empresa sigue en la lista de las que no tienen
+    /// principal, con su situación, pero sin «Asumir»: la visibilidad de la acción sigue la autorización real del comando.
+    /// </summary>
+    [Fact]
+    public void D3_la_empresa_sin_principal_con_Outbound_cerrado_se_lista_sin_Asumir()
+    {
+        var abierta = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        var cerrada = EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, personas: 2, outboundCerrado: true);
+        _mediator.Alerta = new AlertaDePrincipal(true, [abierta, cerrada]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        var filas = pagina.FindAll("table[data-sin-principal] tbody tr");
+        filas.Select(f => f.GetAttribute("data-operacion")).Should().Equal(
+            abierta.AsignacionOperacionId.ToString(), cerrada.AsignacionOperacionId.ToString());
+        filas[1].TextContent.Should().Contain("Obras Sur").And.Contain(Textos["SinPrincipalConApoyoVarias", 2]);
+        filas[1].QuerySelectorAll("button").Should().BeEmpty("el comando denegaría «Asumir»");
+        BotonAsumir(pagina, abierta).TextContent.Trim().Should().Be(Textos["SinPrincipalAsumir"]);
+        pagina.FindAll("table[data-coordinador-principal]").Should().BeEmpty("cerrada no es lo mismo que con principal");
+    }
+
+    /// <summary>
+    /// D3, R1: la celda de acciones de la fila cerrada no se queda vacía; dice el motivo
+    /// (<c>MotivoSinAsumirOutboundCerrado</c>) como texto secundario, sin el «no se ha cambiado nada» del error del clic.
+    /// La fila abierta no lo lleva.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void D3_la_fila_con_Outbound_cerrado_dice_el_motivo_en_lugar_de_Asumir(string cultura)
+    {
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        var abierta = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        var cerrada = EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, personas: 2, outboundCerrado: true);
+        _mediator.Alerta = new AlertaDePrincipal(true, [abierta, cerrada]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        Textos["MotivoSinAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
+        var acciones = pagina.Find(
+            $"table[data-sin-principal] tr[data-operacion='{cerrada.AsignacionOperacionId}'] td.sin-principal-acciones");
+        var motivo = acciones.QuerySelector("[data-motivo='outbound-cerrado']");
+        motivo.Should().NotBeNull();
+        motivo!.ClassList.Should().Contain("sin-principal-motivo");
+        motivo.TextContent.Trim().Should().Be(Textos["MotivoSinAsumirOutboundCerrado"].Value);
+        acciones.QuerySelectorAll("button").Should().BeEmpty();
+        pagina.FindAll($"table[data-sin-principal] tr[data-operacion='{abierta.AsignacionOperacionId}'] [data-motivo]")
+            .Should().BeEmpty("la fila que se puede asumir ofrece «Asumir» y no un motivo");
     }
 
     [Fact]
@@ -347,6 +399,26 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error
             && t.Mensaje == Textos["ErrorAsumirYaTienePrincipal"].Value);
         _mediator.ConsultasDeAlerta.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public async Task D3_Asumir_denegado_por_Outbound_cerrado_muestra_su_mensaje_y_no_el_generico(string cultura)
+    {
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        _mediator.AlComando = _ => Result.Fallo(
+            CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        Textos["ErrorAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error
+            && t.Mensaje == Textos["ErrorAsumirOutboundCerrado"].Value
+            && t.Mensaje != Textos["ErrorGenerico"].Value);
     }
 
     [Theory]

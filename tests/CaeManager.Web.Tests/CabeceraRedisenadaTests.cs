@@ -819,10 +819,38 @@ public class CabeceraRedisenadaTests : BunitContext
         layout.Should().NotContain("NotificacionesPopup").And.NotContain("PanelAvisosNormativos").And.NotContain("AvisoSolicitudesCartera");
     }
 
-    private static OperacionEnAlertaDePrincipal EnAlerta(string nombre, SituacionDePrincipal situacion) =>
+    private static OperacionEnAlertaDePrincipal EnAlerta(string nombre, SituacionDePrincipal situacion, bool outboundCerrado = false) =>
         new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion,
             situacion == SituacionDePrincipal.SinNadieAsignado ? 0 : 1,
-            situacion == SituacionDePrincipal.CoordinadorCaePrincipal ? "Carla" : null, EsDeQuienConsulta: false);
+            situacion == SituacionDePrincipal.CoordinadorCaePrincipal ? "Carla" : null, EsDeQuienConsulta: false,
+            OutboundCerrado: outboundCerrado);
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): el aviso lleva a la lista donde se asumen, así que solo cuenta las
+    /// empresas que se pueden asumir; las de Outbound cerrado siguen en la lista, sin «Asumir», pero no avisan.
+    /// </summary>
+    [Fact]
+    public void D3_el_aviso_sin_principal_solo_cuenta_las_empresas_que_se_pueden_asumir()
+    {
+        RegistrarCampana(alertaSinPrincipal: new AlertaDePrincipal(true,
+        [
+            EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado),
+            EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, outboundCerrado: true),
+            EnAlerta("Montajes Este", SituacionDePrincipal.SinNadieAsignado, outboundCerrado: true),
+        ]));
+
+        var item = Render<CampanaAvisos>().FindAll(".campana-item").Should().ContainSingle().Subject;
+        item.TextContent.Should().Contain("1 empresa de tu organización no tiene principal");
+    }
+
+    [Fact]
+    public void D3_con_todas_las_empresas_sin_principal_cerradas_la_campana_no_avisa()
+    {
+        RegistrarCampana(alertaSinPrincipal: new AlertaDePrincipal(true,
+            [EnAlerta("Obras Sur", SituacionDePrincipal.SinNadieAsignado, outboundCerrado: true)]));
+
+        Render<CampanaAvisos>().FindAll(".campana-item").Should().BeEmpty();
+    }
 
     [Fact]
     public void Las_empresas_sin_principal_son_un_solo_elemento_resumen_que_lleva_a_la_bandeja_de_cartera()

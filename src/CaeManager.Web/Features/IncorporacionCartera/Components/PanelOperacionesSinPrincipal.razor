@@ -25,8 +25,17 @@
                         <td>@operacion.NombreTenant</td>
                         <td>@Situacion(operacion)</td>
                         <td class="sin-principal-acciones">
-                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
-                                   OnClick="() => AsumirAsync(operacion)" Deshabilitado="_enCurso is not null">@Textos["SinPrincipalAsumir"]</Boton>
+                            @* «Asumir» solo donde el comando lo permitiría (D3, R1): con Outbound cerrado la fila
+                               se lista igual, sin la acción y con el motivo. *@
+                            @if (operacion.SePuedeAsumir)
+                            {
+                                <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AsumirAsync(operacion)" Deshabilitado="_enCurso is not null">@Textos["SinPrincipalAsumir"]</Boton>
+                            }
+                            else
+                            {
+                                <span class="sin-principal-motivo" data-motivo="outbound-cerrado">@Textos["MotivoSinAsumirOutboundCerrado"]</span>
+                            }
                         </td>
                     </tr>
                 }

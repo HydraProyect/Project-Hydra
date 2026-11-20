@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 
 namespace CaeManager.Application.Operaciones;
@@ -11,7 +12,11 @@ namespace CaeManager.Application.Operaciones;
 /// activa. Con <b>una sola</b> en ese nivel, recibe la cartera principal en la transacción del
 /// hecho que lo dispara; con varias no se asigna a nadie: la operación queda en la alerta
 /// (<c>ObtenerOperacionesSinPrincipalQuery</c>) y cualquiera de los tres perfiles la toma con
-/// <c>AsumirPrincipalDeOperacionCommand</c>.
+/// <c>AsumirPrincipalDeOperacionCommand</c>, salvo que D3 lo deniegue: asumir sin una baja previa
+/// no se permite con Outbound cerrado para el Tenant beneficiario o para el Tenant de origen del
+/// Operador CAE externo (R1, DECISION_LOG 2026-11-20, punto 5;
+/// <see cref="BeneficiariosDondeSePuedeAsumirAsync"/>). Entonces la operación sigue en la alerta,
+/// sin «Asumir», y se queda sin principal (coste aceptado).
 ///
 /// <para>
 /// La cartera la emite <see cref="ICatalogoIncorporacionCartera.RelevarPrincipalAsync"/>, la
@@ -126,11 +131,20 @@ public static class EscaladoDePrincipalDeCartera
     /// elegible del Operador CAE, recibe la cartera principal de cada operación suya que siga
     /// sin principal vivo (las que tienen principal no se tocan: lo comprueba la escritura).
     /// Mismas condiciones y mismo significado del <c>false</c> que <see cref="AsignarAlUnicoAsync"/>.
+    ///
+    /// <para>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): es asumir sin una baja previa que lo justifique,
+    /// así que no se asigna nada si Outbound está cerrado para el Tenant de origen del Operador CAE
+    /// externo, y se salta cada operación cuyo Tenant beneficiario lo tenga cerrado
+    /// (<see cref="BeneficiariosDondeSePuedeAsumirAsync"/>). Cada Tenant se lee con él como Tenant
+    /// activo. La cuenta se confirma igual: la operación cerrada queda sin principal.
+    /// </para>
     /// </summary>
     public static async Task<bool> AsignarAlPrimerElegibleAsync(
         ICatalogoIncorporacionCartera catalogo,
         IDirectorioUsuariosService directorioUsuarios,
         IBloqueoCarteraUsuario bloqueoCartera,
+        IOutboundCerradoTenantTec outboundCerrado,
         Guid usuarioId,
         Guid operadorTenantId,
         CancellationToken cancellationToken)
@@ -144,7 +158,58 @@ public static class EscaladoDePrincipalDeCartera
         if (!await EsElUnicoElegibleAsync(usuarioId, operadorTenantId, directorioUsuarios, bloqueoCartera, cancellationToken))
             return true;
 
+        var abiertos = await BeneficiariosDondeSePuedeAsumirAsync(
+            outboundCerrado, operaciones.Select(o => o.PropietarioTenantId), operadorTenantId, cancellationToken);
+        var abiertas = operaciones.Where(o => abiertos.Contains(o.PropietarioTenantId)).ToList();
+
         return await RelevoDePrincipalDeCartera.RelevarAsync(
-            catalogo, operaciones, operadorTenantId, usuarioId, cancellationToken);
+            catalogo, abiertas, operadorTenantId, usuarioId, cancellationToken);
+    }
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): de los Tenants beneficiarios de
+    /// <paramref name="tenantsBeneficiarios"/>, aquellos en cuyas operaciones del Operador CAE externo
+    /// de <paramref name="operadorTenantId"/> se puede asumir un principal sin una baja previa. Ninguno
+    /// si Outbound está cerrado para el Tenant de origen del Operador CAE externo; si no, los que lo
+    /// tienen abierto (<see cref="IOutboundCerradoTenantTec"/>). Cada Tenant se lee una sola vez y con
+    /// él como Tenant activo: dentro del ámbito de otro Tenant su línea se leería como «sin línea».
+    ///
+    /// <para>
+    /// Es la única definición de la regla: la aplican «Asumir»
+    /// (<c>AsumirPrincipalDeOperacionCommand</c>), «Designar principal» sin principal actual
+    /// (<c>DesignarGestorCaePrincipalCommand</c>), el primer usuario elegible
+    /// (<see cref="AsignarAlPrimerElegibleAsync"/>), la alerta que ofrece «Asumir»
+    /// (<c>ObtenerOperacionesSinPrincipalQuery</c>) y el diálogo que ofrece «Designar principal»
+    /// (<c>ObtenerPersonasConCarteraQuery</c>), para que cada acción solo se ofrezca donde el
+    /// comando la permite. El relevo como consecuencia de una baja no pasa por aquí.
+    /// </para>
+    /// </summary>
+    public static async Task<IReadOnlySet<Guid>> BeneficiariosDondeSePuedeAsumirAsync(
+        IOutboundCerradoTenantTec outboundCerrado,
+        IEnumerable<Guid> tenantsBeneficiarios,
+        Guid operadorTenantId,
+        CancellationToken cancellationToken)
+    {
+        var abiertos = new HashSet<Guid>();
+        var distintos = tenantsBeneficiarios.Distinct().ToList();
+        if (distintos.Count == 0)
+            return abiertos;
+
+        using (AmbitoTenantExplicito.Establecer(operadorTenantId))
+        {
+            if (await outboundCerrado.EstaCerradoAsync(operadorTenantId, cancellationToken))
+                return abiertos;
+        }
+
+        foreach (var tenantBeneficiarioId in distintos)
+        {
+            using (AmbitoTenantExplicito.Establecer(tenantBeneficiarioId))
+            {
+                if (!await outboundCerrado.EstaCerradoAsync(tenantBeneficiarioId, cancellationToken))
+                    abiertos.Add(tenantBeneficiarioId);
+            }
+        }
+
+        return abiertos;
     }
 }

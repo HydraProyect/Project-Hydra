@@ -25,7 +25,7 @@ namespace CaeManager.Application.Tests.Common;
 /// no depende de D5.</item>
 /// <item>Controles negativos sensibles a la causa: con la misma composición, el alta de un Centro sí se niega al Tenant TEC
 /// (D3 sigue igual) y el mismo Command de Subcontratas pasa si el Tenant no es solo Inbound.</item>
-/// <item>Lo que D5 no abre: crear una Subcontrata relacionada con Clientes empresariales (D3/DN-4 y EP-4) se niega al
+/// <item>Lo que D5 no abre: crear una Subcontrata relacionada con Clientes empresariales (EP-4, aplicada en D3) se niega al
 /// Tenant TEC por datos, como <c>CrearEmpresaCommand</c>; sin Clientes empresariales, o con línea Outbound, pasa. Editar y
 /// restaurar una Subcontrata con Clientes empresariales se cierran en su handler y se prueban en
 /// <c>SubcontrataLimiteTenantTecTests</c>.</item>
@@ -123,7 +123,7 @@ public class SubcontratasAbiertasAlTenantTecTests
         var ejecucion = await EjecutarTipadoAsync<CrearSubcontrataCommand, Result<Guid>>(
             ConClientes(), PapelActivo.TenantDeOrigen, soloInbound: false, limite);
 
-        ejecucion.LlegoAlHandler.Should().BeFalse("D3/DN-4 y EP-4: D5 no abre la Relación Empresarial con Clientes empresariales");
+        ejecucion.LlegoAlHandler.Should().BeFalse("EP-4, aplicada en D3: D5 no abre la Relación Empresarial con Clientes empresariales");
         ejecucion.Respuesta!.Error!.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo,
             "el mismo error que CrearEmpresaCommand con ClienteIds");
         ejecucion.LecturasDelLimite.Should().Be(1);

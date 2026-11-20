@@ -31,13 +31,23 @@ public class EditarEmpresaLimiteTenantTecTests
             .Handle(new EditarEmpresaCommand(_empresa.Id, "Empresa de prueba renombrada", "B12345674", clienteIds,
                 Version: _empresa.Version), default);
 
+    // Solo el Tenant activo está cerrado: un handler que preguntara por otro Tenant vería la línea abierta.
+    private static OutboundCerradoTenantTecFijo CerradoSoloPara(Guid tenantId) => new(t => t == tenantId);
+
+    // Solo el Tenant activo está abierto: un handler que preguntara por otro Tenant vería la línea cerrada.
+    private static OutboundCerradoTenantTecFijo AbiertoSoloPara(Guid tenantId) => new(t => t != tenantId);
+
     [Fact]
     public async Task Anadir_un_Cliente_empresarial_con_Outbound_cerrado_se_deniega()
     {
-        var resultado = await Ejecutar(Guid.NewGuid(), OutboundCerradoTenantTecFijo.Cerrado(), Guid.NewGuid());
+        var tenantActivo = Guid.NewGuid();
+        var limite = CerradoSoloPara(tenantActivo);
+
+        var resultado = await Ejecutar(tenantActivo, limite, Guid.NewGuid());
 
         resultado.Error!.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo);
         _unidad.VecesGuardado.Should().Be(0);
+        limite.Preguntados.Should().Equal([tenantActivo], "el Tenant beneficiario de la edición es el Tenant activo");
     }
 
     [Fact]
@@ -52,9 +62,13 @@ public class EditarEmpresaLimiteTenantTecTests
     public async Task Con_Outbound_abierto_la_guarda_no_decide()
     {
         // El Cliente empresarial no existe en el contexto falso: el fallo que llega es el de después de la guarda.
-        var resultado = await Ejecutar(Guid.NewGuid(), OutboundCerradoTenantTecFijo.Abierto(), Guid.NewGuid());
+        var tenantActivo = Guid.NewGuid();
+        var limite = AbiertoSoloPara(tenantActivo);
+
+        var resultado = await Ejecutar(tenantActivo, limite, Guid.NewGuid());
 
         resultado.Error!.Codigo.Should().Be("Empresa.ClienteNoEncontrado");
+        limite.Preguntados.Should().Equal([tenantActivo], "pregunta por el Tenant activo y por ningún otro");
     }
 
     [Fact]

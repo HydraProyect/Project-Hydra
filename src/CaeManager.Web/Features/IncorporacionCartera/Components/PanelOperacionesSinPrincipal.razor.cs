@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
 using CaeManager.Web.Components.DesignSystem;
@@ -43,9 +44,16 @@ public partial class PanelOperacionesSinPrincipal
 
     private const string PrefijoCodigo = "AsumirPrincipal.";
 
-    /// <summary>Cada código estable <c>AsumirPrincipal.X</c> tiene su clave <c>ErrorAsumirX</c>; el resto cae al genérico.</summary>
+    /// <summary>
+    /// Cada código estable <c>AsumirPrincipal.X</c> tiene su clave <c>ErrorAsumirX</c>, y la denegación de D3
+    /// (Outbound cerrado, R1, DECISION_LOG 2026-11-20, punto 5) la suya; el resto cae al genérico. La lista ya no
+    /// ofrece «Asumir» donde D3 lo deniega; el error queda para cuando la línea cambia entre la lectura y el clic.
+    /// </summary>
     private string MensajeDeError(CaeManager.Domain.Common.Error error)
     {
+        if (error.Codigo == ErroresLimiteTenantTec.OutboundCerrado.Codigo)
+            return Textos["ErrorAsumirOutboundCerrado"].Value;
+
         if (error.Codigo.StartsWith(PrefijoCodigo, StringComparison.Ordinal))
         {
             var texto = Textos[string.Concat("ErrorAsumir", error.Codigo.AsSpan(PrefijoCodigo.Length))];
