@@ -71,10 +71,51 @@ public class VistaUnificadaComunicacionesTests
                 codigo.Should().NotContain("AmbitoSinViaHeredada.Marcar", $"{nombre} no abre la marca");
             }
 
-            codigo.Should().NotContain("ObtenerClientesAutorizadosQuery", $"{nombre} no suma la vía heredada (DN-2 (a))");
-            codigo.Should().NotContain("EstaAutorizadoAsync", $"{nombre} no suma la vía heredada (DN-2 (a))");
+            foreach (var heredada in ViaHeredada)
+                codigo.Should().NotContain(heredada, $"{nombre} no suma la vía heredada (DN-2 (a))");
+            foreach (var salto in SaltosDeFiltroORls)
+                codigo.Should().NotContain(salto, $"{nombre} lee solo por el filtro global y la RLS del Tenant de la vuelta");
+            foreach (var construccion in ConstruccionSinFabrica)
+                codigo.Should().NotContain(construccion, $"{nombre} no construye tipos saltándose su fábrica");
         }
     }
+
+    /// <summary>
+    /// <see cref="AmbitoTenantAutorizado"/> no sale de la carpeta de la vista: ningún DTO, componente, servicio ni
+    /// estado de otro fichero de <c>src</c> lo nombra, así que no viaja en una firma ni se guarda (§ 7.3).
+    /// </summary>
+    [Fact]
+    public void AmbitoTenantAutorizado_no_sale_de_la_carpeta_de_la_vista()
+    {
+        var src = Path.Combine(RaizDelRepositorio(), "src");
+        var carpeta = Path.Combine(src, "CaeManager.Application", "Comunicaciones", "VistaUnificada") + Path.DirectorySeparatorChar;
+        var ficheros = Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(src, "*.razor", SearchOption.AllDirectories))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .ToList();
+        ficheros.Where(f => f.StartsWith(carpeta, StringComparison.OrdinalIgnoreCase)
+                            && SinComentarios(File.ReadAllText(f)).Contains(nameof(AmbitoTenantAutorizado)))
+            .Should().NotBeEmpty("control del instrumento: tiene que ver los usos de dentro de la carpeta");
+
+        ficheros.Where(f => !f.StartsWith(carpeta, StringComparison.OrdinalIgnoreCase)
+                            && SinComentarios(File.ReadAllText(f)).Contains(nameof(AmbitoTenantAutorizado)))
+            .Select(f => Path.GetRelativePath(src, f))
+            .Should().BeEmpty();
+    }
+
+    /// <summary>Los puntos de entrada que suman la vía heredada (<c>TenantsBeneficiariosAutorizados</c> y Mi trabajo).</summary>
+    private static readonly string[] ViaHeredada =
+    [
+        "ObtenerClientesAutorizadosQuery", "EstaAutorizadoAsync", "AutorizadoPorViaHeredadaAsync",
+        "AsignacionesHeredadasVigentes", "ObtenerRolDeAsignacionHeredadaAsync",
+    ];
+
+    private static readonly string[] SaltosDeFiltroORls =
+        ["IgnoreQueryFilters", "FromSql", "ExecuteSql", "SqlQuery"];
+
+    private static readonly string[] ConstruccionSinFabrica =
+        ["Activator.CreateInstance", "GetUninitializedObject", "RuntimeHelpers.GetUninitializedObject"];
 
     [Fact]
     public void El_instrumento_de_comentarios_no_borra_codigo()

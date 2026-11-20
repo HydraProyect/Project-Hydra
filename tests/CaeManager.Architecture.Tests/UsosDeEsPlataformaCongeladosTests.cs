@@ -232,6 +232,13 @@ public class UsosDeEsPlataformaCongeladosTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-11-20 (D-6 b, R-3): <c>ObtenerConversacionesUnificadasQuery.cs</c> entra con una guarda (+1
+    /// fichero, +1 aparición de guarda). Al cuadrar la suma se contó el diccionario entero en vez de sumar a la cifra
+    /// anterior, y no casaba: en origin/main ya eran 52 ficheros y 96 apariciones, así que la cifra de arriba estaba
+    /// desalineada antes de este cambio. Con esta entrada, <b>53 ficheros, 97 apariciones</b>.
+    /// </para>
+    ///
+    /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
     /// escaneo — eso es precisamente cómo mueren estos ratchets. Así se explicó, por
     /// ejemplo, que <c>Tenant.cs</c> aportara 7 y no 4: las líneas del mutador contienen
@@ -265,13 +272,6 @@ public class UsosDeEsPlataformaCongeladosTests
                 "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
                 "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
                 "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),
-
-        // D-6 b, R-3 (2026-11-20): exclusión de plano del Soporte TALVEG en la vista unificada de Comunicaciones (§ 4.2).
-        // Solo impide: con Tenant de origen de plataforma la vista lanza; no concede nada a nadie.
-        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerConversacionesUnificadasQuery.cs"] =
-            new(1, CategoriaUso.Guarda,
-                "Rechaza la vista unificada de Comunicaciones si el Tenant de origen es de plataforma (Soporte TALVEG, " +
-                "§ 4.2 del diseño D-6 b); mitad negativa, no autoriza"),
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
@@ -334,6 +334,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "porque El_ensamblado_de_Web_no_depende_de_EsPlataforma congela esa frontera a cero"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
+        // D-6 b, R-3 (2026-11-20): exclusión de plano del Soporte TALVEG en la vista unificada de Comunicaciones (§ 4.2).
+        // Solo impide: con Tenant de origen de plataforma la vista lanza; no concede nada a nadie.
+        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerConversacionesUnificadasQuery.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "Rechaza la vista unificada de Comunicaciones si el Tenant de origen es de plataforma (Soporte TALVEG, " +
+                "§ 4.2 del diseño D-6 b); mitad negativa, no autoriza"),
         ["src/CaeManager.Application/Tenants/OperadorCaeExternoElegible.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":28 excluye el Tenant de plataforma de los Operadores CAE externos que el Administrador de un " +

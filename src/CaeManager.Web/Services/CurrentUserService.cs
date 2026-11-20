@@ -297,6 +297,11 @@ public class CurrentUserService(
     /// <c>ObtenerClientesAutorizadosQuery</c> enumera qué Tenants entran en el
     /// fan-out: la de Operación y la heredada. Un Tenant de la lista siempre
     /// tiene aquí el rol que tendría seleccionado.
+    ///
+    /// Excepción: dentro de la marca <see cref="AmbitoSinViaHeredada"/> (el
+    /// ámbito de la vista unificada de Comunicaciones, D-6 b) solo cuenta la vía
+    /// de Operación; sin operación que autorice, el rol es <c>Ninguno</c> y no
+    /// hay rol heredado.
     /// </summary>
     private async Task<(RolEfectivoPorOperacion Efectivo, string? RolHeredado)> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
     {

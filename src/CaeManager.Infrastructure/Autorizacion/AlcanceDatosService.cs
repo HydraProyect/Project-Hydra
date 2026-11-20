@@ -373,6 +373,8 @@ public class AlcanceDatosService(
     /// Por la vía heredada (acceso de soporte), decide el rol de su asignación vigente antes
     /// del techo, nunca el perfil del Tenant de origen: Gestor CAE conserva su cartera,
     /// Coordinador CAE la de su equipo y Consulta el acceso total. Sin asignación, falla cerrado.
+    /// Dentro de la marca <see cref="AmbitoSinViaHeredada"/> (vista unificada de Comunicaciones, D-6 b) no hay vía
+    /// heredada: <c>ObtenerRolDeAsignacionHeredadaAsync</c> devuelve <c>null</c> y el alcance queda cerrado.
     /// </summary>
     private async Task<string?> RolQueDecideAlcanceAsync()
     {

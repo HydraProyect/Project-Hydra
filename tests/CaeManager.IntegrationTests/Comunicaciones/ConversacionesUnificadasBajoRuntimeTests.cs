@@ -282,6 +282,92 @@ public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
             "PostgreSQL y la fusión en memoria ordenan el uuid igual");
     }
 
+    /// <summary>
+    /// La fusión entre Tenants (§ 4.3, M4; A-13): dos Tenants beneficiarios con fechas intercaladas y un empate de fecha
+    /// entre ellos. Página a página de una fila, el recorrido sale entero, sin repetir ni saltarse filas y en el orden
+    /// global, con el <c>TenantId</c> de cada fila. Sin la ordenación en memoria de la fusión, el cursor tomaría una fila
+    /// que no es la última del orden global y el recorrido saltaría filas del otro Tenant.
+    /// </summary>
+    [Fact]
+    public async Task La_fusion_entre_dos_Tenants_intercala_por_fecha_y_desempata_por_Id()
+    {
+        var (otro, clienteOtro) = await CrearTenantDentroAsync("Segundo Tenant beneficiario dentro", "B10380202");
+        Guid dentroCuarta, dentroEmpate, otroSegunda, otroTercera, otroEmpate;
+        using (AmbitoTenantExplicito.Establecer(_tenantDentro))
+        {
+            dentroCuarta = AgregarConversacion("Dentro, cuarta", _clienteDentro, null);
+            dentroEmpate = AgregarConversacion("Dentro, empate", _clienteDentro, null);
+            await _propietario.SaveChangesAsync();
+        }
+        using (AmbitoTenantExplicito.Establecer(otro))
+        {
+            otroSegunda = AgregarConversacion("Otro, segunda", clienteOtro, null);
+            otroTercera = AgregarConversacion("Otro, tercera", clienteOtro, null);
+            otroEmpate = AgregarConversacion("Otro, empate", clienteOtro, null);
+            await _propietario.SaveChangesAsync();
+        }
+
+        var referencia = OrdenConversacionesUnificadas.TruncarAMicrosegundos(DateTime.UtcNow.AddMinutes(-10));
+        var esperadas = new List<(Guid Id, Guid TenantId, DateTime Fecha)>
+        {
+            (_conversacionDentro, _tenantDentro, referencia.AddMinutes(-1)),
+            (otroSegunda, otro, referencia.AddMinutes(-2)),
+            (otroTercera, otro, referencia.AddMinutes(-3)),
+            (dentroCuarta, _tenantDentro, referencia.AddMinutes(-4)),
+            (dentroEmpate, _tenantDentro, referencia.AddMinutes(-5)),
+            (otroEmpate, otro, referencia.AddMinutes(-5)),
+        };
+        foreach (var (id, _, fecha) in esperadas)
+            await _propietario.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"Conversaciones\" SET \"FechaUltimoMensajeUtc\" = {fecha} WHERE \"Id\" = {id}");
+        esperadas.Sort((x, y) => OrdenConversacionesUnificadas.Comparar(x.Fecha, x.Id, y.Fecha, y.Id));
+
+        var recorridas = new List<ConversacionUnificadaDto>();
+        CursorConversacionesUnificadas? cursor = null;
+        for (var vuelta = 0; vuelta < 20; vuelta++)
+        {
+            var pagina = await EnviarAsync(new ObtenerConversacionesUnificadasQuery(Cursor: cursor, TamanoPagina: 1));
+            pagina.NoConsultados.Should().BeEmpty();
+            recorridas.AddRange(pagina.Filas);
+            cursor = pagina.Siguiente;
+            if (cursor is null) break;
+        }
+
+        cursor.Should().BeNull("el recorrido termina");
+        recorridas.Select(f => (f.Id, f.TenantId, f.FechaUltimoMensajeUtc)).Should().Equal(esperadas,
+            "orden global entre los dos Tenants, sin repetir ni saltarse filas");
+        recorridas.Select(f => f.TenantId).Distinct().Should().BeEquivalentTo(new[] { _tenantDentro, otro },
+            "control: el recorrido mezcla de verdad los dos Tenants");
+    }
+
+    /// <summary>Otro Tenant beneficiario «dentro», como el del fixture: Operación Outbound y cartera vigentes.</summary>
+    private async Task<(Guid TenantId, Guid ClienteId)> CrearTenantDentroAsync(string nombre, string cif)
+    {
+        var tenant = new Tenant(nombre);
+        _propietario.Tenants.Add(tenant);
+        var delegacion = new DelegacionTenant(_tenantOrigen, tenant.Id);
+        _propietario.DelegacionesTenant.Add(delegacion);
+        _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
+            new AsignacionOperadorDelegado(delegacion.Id, _usuario, Roles.GestorCae));
+        await _propietario.SaveChangesAsync();
+
+        var ahora = DateTime.UtcNow;
+        using (AmbitoTenantExplicito.Establecer(tenant.Id))
+        {
+            var cliente = Empresa.CrearComoCliente($"Cliente de {nombre}", cif, false, null, null);
+            _propietario.Empresas.Add(cliente);
+            await _propietario.SaveChangesAsync();
+
+            var operacion = AsignacionOperacion.Externa(
+                tenant.Id, _tenantOrigen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora);
+            OperacionExternaAmparada.Agregar(_propietario, operacion, delegacion);
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, _usuario, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
+            await _propietario.SaveChangesAsync();
+            return (tenant.Id, cliente.Id);
+        }
+    }
+
     [Fact]
     public async Task Las_sentencias_por_pagina_no_crecen_con_las_conversaciones()
     {
@@ -334,6 +420,21 @@ public class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull("el ámbito se cierra al volver");
         AmbitoSinViaHeredada.Activo.Should().BeFalse();
         capturado!.Invoking(a => a.ExigirAbierto()).Should().Throw<ObjectDisposedException>();
+
+        // También si la lectura lanza: el using de EjecutarAsync cierra el ámbito. Las dos aserciones de arriba sobre el
+        // AsyncLocal no lo distinguen (un AsyncLocal fijado dentro de un método async no vuelve a quien llama); esta sí.
+        AmbitoTenantAutorizado? conFallo = null;
+        var lecturaQueFalla = () => AmbitoTenantAutorizado.EjecutarAsync<bool>(
+            identidad!, _runtime, _runtime, _tenantDentro,
+            ambito =>
+            {
+                conFallo = ambito;
+                throw new InvalidOperationException("lectura que falla");
+            },
+            CancellationToken.None);
+        await lecturaQueFalla.Should().ThrowAsync<InvalidOperationException>().WithMessage("lectura que falla");
+        conFallo!.Invoking(a => a.ExigirAbierto()).Should().Throw<ObjectDisposedException>(
+            "el ámbito se cierra también cuando la lectura lanza");
 
         var (fuera, valor) = await AmbitoTenantAutorizado.EjecutarAsync(
             identidad!, _runtime, _runtime, _tenantFuera, _ => Task.FromResult(true), CancellationToken.None);
