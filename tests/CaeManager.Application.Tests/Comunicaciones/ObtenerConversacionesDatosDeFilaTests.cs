@@ -133,10 +133,13 @@ public class ObtenerConversacionesDatosDeFilaTests
         var banda = new Banda();
         var ruido = banda.Hilo("Resumen automático con un detalle de Gestión");
         var confirmado = banda.Hilo("Resumen que el Gestor confirmó que importa");
+        var sinMotivo = banda.Hilo("Notificación automática sin motivo de ruido");
         banda.DetalleDeGestion(ruido);
         banda.DetalleDeGestion(confirmado);
+        banda.DetalleDeGestion(sinMotivo);
         banda.MotivoRuido(ruido, MotivoRuidoMensaje.ResumenSinCambios);
         banda.MotivoRuido(confirmado, MotivoRuidoMensaje.ResumenSinCambios).ConfirmarManualmente();
+        banda.MotivoRuido(sinMotivo, MotivoRuidoMensaje.Ninguno);
 
         var resultado = await banda.Lista();
 
@@ -144,6 +147,10 @@ public class ObtenerConversacionesDatosDeFilaTests
         filaRuido.AccionPorAprobar.Should().BeFalse();
         filaRuido.MensajesRuido.Should().Be(1);
         resultado.Single(c => c.Id == confirmado.ConversacionId).AccionPorAprobar.Should().BeTrue();
+        // Una clasificación sin motivo (Ninguno) no es ruido: esconder la propuesta real sería un falso negativo.
+        var filaSinMotivo = resultado.Single(c => c.Id == sinMotivo.ConversacionId);
+        filaSinMotivo.AccionPorAprobar.Should().BeTrue();
+        filaSinMotivo.MensajesRuido.Should().Be(0);
     }
 
     [Fact]
