@@ -285,6 +285,9 @@
   <data name="ErrorAsumirOutboundCerrado" xml:space="preserve">
     <value>Aquesta empresa no està disponible: una de les organitzacions implicades no té contractat Acredita. No s'ha canviat res.</value>
   </data>
+  <data name="MotivoSinAsumirOutboundCerrado" xml:space="preserve">
+    <value>No es pot assumir: una de les organitzacions implicades no té contractat Acredita.</value>
+  </data>
   <data name="SinPrincipalVacioTitulo" xml:space="preserve">
     <value>Totes les empreses tenen principal</value>
   </data>

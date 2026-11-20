@@ -340,8 +340,9 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     }
 
     /// <summary>
-    /// D3, R1: la celda de acciones de la fila cerrada no se queda vacía; dice el motivo con el texto que ya da el comando
-    /// cuando deniega «Asumir» (<c>ErrorAsumirOutboundCerrado</c>), como texto secundario. La fila abierta no lo lleva.
+    /// D3, R1: la celda de acciones de la fila cerrada no se queda vacía; dice el motivo
+    /// (<c>MotivoSinAsumirOutboundCerrado</c>) como texto secundario, sin el «no se ha cambiado nada» del error del clic.
+    /// La fila abierta no lo lleva.
     /// </summary>
     [Theory]
     [InlineData("es-ES")]
@@ -355,13 +356,13 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
         var pagina = Render<SolicitudesCartera>();
 
-        Textos["ErrorAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
+        Textos["MotivoSinAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
         var acciones = pagina.Find(
             $"table[data-sin-principal] tr[data-operacion='{cerrada.AsignacionOperacionId}'] td.sin-principal-acciones");
         var motivo = acciones.QuerySelector("[data-motivo='outbound-cerrado']");
         motivo.Should().NotBeNull();
         motivo!.ClassList.Should().Contain("sin-principal-motivo");
-        motivo.TextContent.Trim().Should().Be(Textos["ErrorAsumirOutboundCerrado"].Value);
+        motivo.TextContent.Trim().Should().Be(Textos["MotivoSinAsumirOutboundCerrado"].Value);
         acciones.QuerySelectorAll("button").Should().BeEmpty();
         pagina.FindAll($"table[data-sin-principal] tr[data-operacion='{abierta.AsignacionOperacionId}'] [data-motivo]")
             .Should().BeEmpty("la fila que se puede asumir ofrece «Asumir» y no un motivo");
