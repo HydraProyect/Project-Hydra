@@ -107,7 +107,8 @@ public partial class ComunicacionesGen2Tests
         cut.FindAll(".bandeja-cabecera-pagina input[type=search]").Should().ContainSingle();
         await AbrirTablaAsync(cut);
         cut.FindAll(".bandeja-cabecera-pagina input[type=search]").Should().ContainSingle();
-        cut.FindAll(".bandeja-filtros .bandeja-toggles .bandeja-toggle").Should().HaveCount(4);
+        cut.FindAll(".bandeja-filtros .bandeja-vista-sel .bandeja-vista-disp").Should().ContainSingle();
+        cut.FindAll(".bandeja-filtros .bandeja-canales .bandeja-canal").Should().HaveCount(3);
         cut.FindAll(".bandeja-filtros .bandeja-filtros-avanzados").Should().ContainSingle();
     }
 
@@ -120,8 +121,10 @@ public partial class ComunicacionesGen2Tests
 
         cut.FindAll(".bandeja-filtros .bandeja-nav-item").Select(b => b.TextContent.Trim())
             .Should().Equal("Clientes", "Mi buzón personal");
-        cut.FindAll(".bandeja-filtros .bandeja-toggles .bandeja-toggle").Select(b => b.TextContent.Trim())
-            .Should().Equal("Todas", "Mías", "Sin asignar", "Esperando respuesta del Interlocutor");
+        // Cabecera de la lista de main: título, recuento y «Tabla» (el selector «Vista» y los chips de canal los cubre VistasYCanales).
+        cut.Find(".bandeja-lista .bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
+        cut.Find(".bandeja-lista .bandeja-lis-cab small").TextContent.Trim().Should().Be("1 conversación");
+        cut.Find(".bandeja-lista .bandeja-lis-cab .bandeja-mini").TextContent.Trim().Should().Be("Tabla");
         var avanzados = cut.Find(".bandeja-filtros .bandeja-filtros-avanzados");
         avanzados.TagName.Should().Be("DETAILS");
         avanzados.QuerySelector("summary")!.TextContent.Trim().Should().Be("Más filtros");
@@ -135,7 +138,7 @@ public partial class ComunicacionesGen2Tests
     {
         var (cut, _) = RenderizarConUnaConversacion();
 
-        cut.FindAll(".bandeja-vista-w, .bandeja-crit-b, .bandeja-cartera-pie, .bandeja-nav-grupo-titulo, .bandeja-lista .bandeja-toggles")
+        cut.FindAll(".bandeja-vista-w, .bandeja-crit-b, .bandeja-cartera-pie, .bandeja-nav-grupo-titulo, .bandeja-lista .bandeja-toggles, .bandeja-lista .bandeja-vista-sel, .bandeja-lista .bandeja-canales")
             .Should().BeEmpty();
         cut.Find(".bandeja-layout").TextContent.Should().NotContain("Mi cartera").And.NotContain("Gestionar macros");
     }
@@ -180,7 +183,7 @@ public partial class ComunicacionesGen2Tests
 
         cut.FindAll(".bandeja-layout.bandeja-modo-personal").Should().ContainSingle();
         cut.FindAll(".bandeja-lista .bandeja-vista-personal-descripcion, .bandeja-vista-personal-descripcion").Should().NotBeEmpty();
-        cut.FindAll(".bandeja-toggles, .bandeja-filtros-avanzados, .bandeja-lis-cab").Should().BeEmpty();
+        cut.FindAll(".bandeja-vista-sel, .bandeja-canales, .bandeja-filtros-avanzados, .bandeja-lis-cab").Should().BeEmpty();
         cut.FindComponents<AtajosListaTeclado>().Should().BeEmpty();
         cut.FindAll(".bandeja-cabecera-pagina input[type=search]").Should().BeEmpty("el buscador solo aplica a las conversaciones");
         cut.FindAll(".composer-correo").Should().BeEmpty();

@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Totes</value></data>
   <data name="Mias" xml:space="preserve"><value>Meves</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant resposta de l'Interlocutor</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant resposta</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte, al Centre i al text dels missatges</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
@@ -66,4 +66,14 @@
   <data name="AlDia" xml:space="preserve"><value>Al dia</value></data>
   <data name="ErrorAbrirConversacion" xml:space="preserve"><value>No hem pogut obrir la conversa</value></data>
   <data name="ErrorAbrirConversacionAyuda" xml:space="preserve"><value>Torna-ho a provar.</value></data>
+  <data name="FueraDePlazo" xml:space="preserve"><value>Fora de termini</value></data>
+  <data name="VistaAccesible" xml:space="preserve"><value>Vista: {0}. Canviar de vista</value></data>
+  <data name="VistaElegir" xml:space="preserve"><value>Triar vista</value></data>
+  <data name="VistasPrincipales" xml:space="preserve"><value>Vistes principals</value></data>
+  <data name="MasVistas" xml:space="preserve"><value>Més vistes</value></data>
+  <data name="CanalGrupo" xml:space="preserve"><value>Canal</value></data>
+  <data name="CanalTodos" xml:space="preserve"><value>Tots</value></data>
+  <data name="CanalTodosAccesible" xml:space="preserve"><value>Tots els canals</value></data>
+  <data name="CanalCorreo" xml:space="preserve"><value>Correu</value></data>
+  <data name="CanalWhatsApp" xml:space="preserve"><value>WhatsApp</value></data>
 </root>

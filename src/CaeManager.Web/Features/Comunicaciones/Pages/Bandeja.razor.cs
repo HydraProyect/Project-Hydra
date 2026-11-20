@@ -50,6 +50,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 
@@ -170,10 +171,35 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private string _estadoFiltro = string.Empty;
     private string _mesFiltro = string.Empty; // input type="month" -> "yyyy-MM"
     private string _clienteIdFiltro = string.Empty;
-    private bool _soloAsignadasAMi;
-    private bool _soloSinAsignar;
-    private bool _soloEsperandoCliente;
-    private bool _soloFueraDeSla;
+
+    /// <summary>
+    /// Las vistas del selector «Vista» (lienzo «Pulida: bandeja de la cartera», L-6). Son excluyentes, como en el lienzo, y cada una
+    /// es un filtro de servidor que <see cref="ObtenerConversacionesQuery"/> ya tiene. Faltan las que ese filtro no puede expresar
+    /// hoy (Abiertas, Archivadas, Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados y No deseado): no se dibujan.
+    /// </summary>
+    private enum VistaLista { Todas, Mias, Esperando, SinAsignar, FueraDePlazo }
+
+    // shortcut: «Todas» ocupa el lugar de «Abiertas» como vista por defecto porque la query no tiene filtro de estados vivos;
+    // sustituirla por «Abiertas» cuando ObtenerConversacionesQuery lo admita y moverla a «Más vistas».
+    private static readonly VistaLista[] VistasPrincipales = [VistaLista.Todas, VistaLista.Mias, VistaLista.Esperando];
+    private static readonly VistaLista[] VistasMasVistas = [VistaLista.SinAsignar, VistaLista.FueraDePlazo];
+
+    private VistaLista _vistaLista = VistaLista.Todas;
+    private CanalConversacion? _canalFiltro;
+    private bool _vistasAbiertas;
+    private bool _masVistasAbiertas;
+    private ElementReference _disparadorVistas;
+
+    /// <summary>Recuento de cada vista con los demás filtros y sin el canal; se pide al abrir el selector, no en cada carga.</summary>
+    private Dictionary<VistaLista, int> _recuentosVista = [];
+
+    /// <summary>Recuento de la lista por canal: Todos, Correo, WhatsApp (ver <see cref="IndiceCanal"/>). Nulo mientras no se conoce.</summary>
+    private int?[] _recuentosCanal = new int?[3];
+
+    private static readonly CanalConversacion?[] CanalesDeLista = [null, CanalConversacion.Correo, CanalConversacion.WhatsApp];
+
+    private static int IndiceCanal(CanalConversacion? canal) => canal is null ? 0 : (int)canal.Value + 1;
+
     private bool _cambiandoPrioridad;
     private Task? _refrescoPlazos;
 
@@ -190,13 +216,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 });
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
-    }
-
-    private Task AlternarFueraDeSlaAsync()
-    {
-        _soloFueraDeSla = !_soloFueraDeSla;
-        _pagina = 1;
-        return CargarListaAsync();
     }
 
     private async Task CambiarPrioridadAsync(string valor)
@@ -240,9 +259,20 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>La última carga del detalle falló (maqueta 2026-11-01, E14): se pinta «No pudimos abrir la conversación» con «Reintentar» en vez de dejar el hilo anterior bajo la selección nueva.</summary>
     private bool _errorDetalle;
 
-    /// <summary>Título del encabezado de la lista (E9): el filtro rápido activo, como hasta ahora.</summary>
-    private string TituloLista =>
-        TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"].Value;
+    /// <summary>Título del encabezado de la lista (E9): la vista activa, como hasta ahora el filtro rápido.</summary>
+    private string TituloLista => NombreVista(_vistaLista);
+
+    private string NombreVista(VistaLista vista) => TextosLista[vista switch
+    {
+        VistaLista.Mias => "Mias",
+        VistaLista.Esperando => "EsperandoCliente",
+        VistaLista.SinAsignar => "SinAsignar",
+        VistaLista.FueraDePlazo => "FueraDePlazo",
+        _ => "Todas"
+    }].Value;
+
+    /// <summary>Lo que dice el disparador del selector «Vista»: «Mías · 12» (nombre de la vista y total de la lista).</summary>
+    private string TextoVistaActual => $"{TituloLista} · {_totalConversaciones}";
 
     /// <summary>La tabla de conversaciones es un modo secundario (maqueta 2026-11-01): solo se ve si se ha pedido con «Tabla».</summary>
     private bool _modoTabla;
@@ -742,38 +772,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         try
         {
-            // El input HTML type="month" entrega "yyyy-MM" — se parsea a mano
-            // para no depender de que el formato coincida con la cultura actual.
-            int? anio = null;
-            int? mes = null;
-            var partesMes = _mesFiltro.Split('-');
-            if (partesMes.Length == 2 && int.TryParse(partesMes[0], out var anioParseado) && int.TryParse(partesMes[1], out var mesParseado))
-            {
-                anio = anioParseado;
-                mes = mesParseado;
-            }
-
-            var resultado = await Mediator.Send(new ObtenerConversacionesQuery(
-                Intencion: Enum.TryParse<IntencionCae>(_intencionFiltro, out var intencion) ? intencion : null,
-                Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
-                Anio: anio,
-                Mes: mes,
-                ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
-                SoloAsignadasAMi: _soloAsignadasAMi,
-                SoloSinAsignar: _soloSinAsignar,
-                SoloEsperandoCliente: _soloEsperandoCliente,
-                SoloFueraDeSla: _soloFueraDeSla,
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Pagina: _pagina,
-                TamanoPagina: TamanoPaginaBandeja), _ciclo.Token);
+            var resultado = await Mediator.Send(ConsultaLista(_vistaLista, _canalFiltro, _pagina, TamanoPaginaBandeja), _ciclo.Token);
 
             // Guarda de carga vigente: si mientras esta consulta viajaba se
             // pidió otra —otro filtro, otra página, la otra vista—, lo que
             // vuelve aquí ya no es la lista que el gestor está mirando.
             if (carga != _cargaListaVigente) return;
 
-            // Sin filtro de Canal a propósito (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 10.2):
-            // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
+            // El canal es un filtro opcional de la lista (lienzo, chips de canal, L-10): con «Todos» —lo de siempre, § 10.2 de
+            // Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md— el gestor ve conversaciones sin separar «correo» y «WhatsApp».
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
             _cargaListaAplicada = carga;
@@ -799,20 +806,179 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 StateHasChanged();
             }
         }
+
+        // La lista ya se ve: los contadores de los chips de canal llegan después y un fallo suyo no tumba la lista.
+        if (carga == _cargaListaVigente && !_errorCargaLista) await CargarRecuentosCanalAsync(carga);
     }
 
     /// <summary>
-    /// Los ocho filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, Cliente empresarial y búsqueda), intención CAE y tres conmutadores de asignación.
+    /// La consulta de la lista con los filtros de la pantalla. Los recuentos piden la misma consulta con otra vista o con otro
+    /// canal y una sola fila, para que cada cifra salga de los mismos filtros que la lista (y de la misma visibilidad).
+    /// </summary>
+    private ObtenerConversacionesQuery ConsultaLista(VistaLista vista, CanalConversacion? canal, int pagina, int tamanoPagina)
+    {
+        // El input HTML type="month" entrega "yyyy-MM" — se parsea a mano
+        // para no depender de que el formato coincida con la cultura actual.
+        int? anio = null;
+        int? mes = null;
+        var partesMes = _mesFiltro.Split('-');
+        if (partesMes.Length == 2 && int.TryParse(partesMes[0], out var anioParseado) && int.TryParse(partesMes[1], out var mesParseado))
+        {
+            anio = anioParseado;
+            mes = mesParseado;
+        }
+
+        return new ObtenerConversacionesQuery(
+            Intencion: Enum.TryParse<IntencionCae>(_intencionFiltro, out var intencion) ? intencion : null,
+            Estado: string.IsNullOrEmpty(_estadoFiltro) ? null : Enum.Parse<EstadoConversacion>(_estadoFiltro),
+            Anio: anio,
+            Mes: mes,
+            ClienteId: Guid.TryParse(_clienteIdFiltro, out var clienteId) ? clienteId : null,
+            SoloAsignadasAMi: vista == VistaLista.Mias,
+            SoloSinAsignar: vista == VistaLista.SinAsignar,
+            SoloEsperandoCliente: vista == VistaLista.Esperando,
+            SoloFueraDeSla: vista == VistaLista.FueraDePlazo,
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            Canal: canal,
+            Pagina: pagina,
+            TamanoPagina: tamanoPagina);
+    }
+
+    /// <summary>
+    /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta de
+    /// una fila cada uno.
+    /// </summary>
+    // shortcut: los recuentos son consultas de una fila sobre ObtenerConversacionesQuery (dos más por carga de lista); un recuento por
+    // canal en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
+    private async Task CargarRecuentosCanalAsync(int carga)
+    {
+        try
+        {
+            var nuevos = new int?[3];
+            foreach (var canal in CanalesDeLista)
+            {
+                if (canal == _canalFiltro)
+                {
+                    nuevos[IndiceCanal(canal)] = _totalConversaciones;
+                    continue;
+                }
+
+                var resultado = await Mediator.Send(ConsultaLista(_vistaLista, canal, 1, 1), _ciclo.Token);
+                if (carga != _cargaListaVigente) return;
+                nuevos[IndiceCanal(canal)] = resultado.TotalElementos;
+            }
+
+            _recuentosCanal = nuevos;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudieron contar las conversaciones por canal.");
+        }
+    }
+
+    /// <summary>Cifra de cada vista del selector, con los demás filtros y sin el canal; la vista y el canal activos ya los tiene la lista.</summary>
+    private async Task CargarRecuentosVistaAsync()
+    {
+        try
+        {
+            var nuevos = new Dictionary<VistaLista, int>();
+            foreach (var vista in VistasPrincipales.Concat(VistasMasVistas))
+            {
+                if (vista == _vistaLista && _canalFiltro is null)
+                {
+                    nuevos[vista] = _totalConversaciones;
+                    continue;
+                }
+
+                var resultado = await Mediator.Send(ConsultaLista(vista, null, 1, 1), _ciclo.Token);
+                nuevos[vista] = resultado.TotalElementos;
+            }
+
+            _recuentosVista = nuevos;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudieron contar las conversaciones por vista.");
+        }
+    }
+
+    private async Task AlternarVistasAsync()
+    {
+        _vistasAbiertas = !_vistasAbiertas;
+        if (_vistasAbiertas) await CargarRecuentosVistaAsync();
+    }
+
+    private void CerrarVistas() => _vistasAbiertas = false;
+
+    private void AlternarMasVistas() => _masVistasAbiertas = !_masVistasAbiertas;
+
+    private async Task TeclaVistasAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape") return;
+        _vistasAbiertas = false;
+        await _disparadorVistas.FocusAsync();
+    }
+
+    private async Task ElegirVistaAsync(VistaLista vista)
+    {
+        _vistasAbiertas = false;
+        await _disparadorVistas.FocusAsync();
+        if (vista == _vistaLista) return;
+        _vistaLista = vista;
+        _pagina = 1;
+        await CargarListaAsync();
+    }
+
+    private Task ElegirCanalAsync(CanalConversacion? canal)
+    {
+        if (canal == _canalFiltro) return Task.CompletedTask;
+        _canalFiltro = canal;
+        _pagina = 1;
+        return CargarListaAsync();
+    }
+
+    /// <summary>La cifra de una vista del panel; 0 mientras no se conoce (el panel no pinta cifras en cero, como el lienzo).</summary>
+    private int RecuentoVista(VistaLista vista) => _recuentosVista.GetValueOrDefault(vista);
+
+    /// <summary>La cifra de un chip de canal, o nada mientras no se conoce.</summary>
+    private int? RecuentoCanal(CanalConversacion? canal) => _recuentosCanal[IndiceCanal(canal)];
+
+    /// <summary>
+    /// Nombre accesible de un chip de canal: «Todos los canales: 3 conversaciones» o «Correo: 1 conversación» (lienzo). Sin cifra,
+    /// solo el nombre.
+    /// </summary>
+    private string AccesibleCanal(CanalConversacion? canal)
+    {
+        var nombre = TextosLista[canal switch
+        {
+            CanalConversacion.Correo => "CanalCorreo",
+            CanalConversacion.WhatsApp => "CanalWhatsApp",
+            _ => "CanalTodosAccesible"
+        }].Value;
+        return RecuentoCanal(canal) is { } n
+            ? $"{nombre}: {TextosLista[n == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", n].Value}"
+            : nombre;
+    }
+
+    /// <summary>
+    /// Los filtros de la bandeja: cuatro que viajan en la URL (estado,
+    /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Todas» y el canal.
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrEmpty(_intencionFiltro) ||
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
-        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente || _soloFueraDeSla;
+        || _vistaLista != VistaLista.Todas || _canalFiltro is not null;
 
     /// <summary>
-    /// Los ocho de una vez y una sola recarga, por el mismo motivo que
+    /// Todos de una vez y una sola recarga, por el mismo motivo que
     /// documenta <see cref="AplicarFiltrosAsync"/>: encadenar navegaciones
     /// arriesga que cada una lea la URL sin el cambio de la anterior.
     /// </summary>
@@ -823,10 +989,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _mesFiltro = string.Empty;
         _clienteIdFiltro = string.Empty;
         _busqueda = string.Empty;
-        _soloAsignadasAMi = false;
-        _soloSinAsignar = false;
-        _soloEsperandoCliente = false;
-        _soloFueraDeSla = false;
+        _vistaLista = VistaLista.Todas;
+        _canalFiltro = null;
         return AplicarFiltrosAsync();
     }
 
@@ -859,43 +1023,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         return CargarListaAsync();
     }
 
-    private Task FiltrarAsignadasAMiAsync()
-    {
-        _soloAsignadasAMi = !_soloAsignadasAMi;
-        if (_soloAsignadasAMi) _soloSinAsignar = false;
-        _pagina = 1;
-        return CargarListaAsync();
-    }
-
-    private Task FiltrarSinAsignarAsync()
-    {
-        _soloSinAsignar = !_soloSinAsignar;
-        if (_soloSinAsignar) _soloAsignadasAMi = false;
-        _pagina = 1;
-        return CargarListaAsync();
-    }
-
-    private Task VerTodasAsync()
-    {
-        _soloAsignadasAMi = false;
-        _soloSinAsignar = false;
-        _pagina = 1;
-        return CargarListaAsync();
-    }
-
-    /// <summary>
-    /// "Esperando cliente" sigue siendo un estado derivado, no persistido
-    /// (§ 16.4) — pero el filtro ya no se aplica en memoria sobre la lista
-    /// cargada: con paginación en SQL, filtrar aquí dejaría páginas que
-    /// parecen vacías cuando en realidad hay coincidencias más adelante. Va
-    /// al servidor con la misma mecánica que SoloAsignadasAMi/SoloSinAsignar.
-    /// </summary>
-    private Task AlternarEsperandoCliente()
-    {
-        _soloEsperandoCliente = !_soloEsperandoCliente;
-        _pagina = 1;
-        return CargarListaAsync();
-    }
+    // «Esperando respuesta» sigue siendo un estado derivado, no persistido (§ 16.4) — pero el filtro no se aplica en memoria sobre la
+    // lista cargada: con paginación en SQL, filtrar aquí dejaría páginas que parecen vacías cuando en realidad hay coincidencias
+    // más adelante. Cada vista (ver VistaLista) va al servidor con su propio filtro de ObtenerConversacionesQuery.
 
     private Task CambiarPaginaBandejaAsync(int pagina)
     {

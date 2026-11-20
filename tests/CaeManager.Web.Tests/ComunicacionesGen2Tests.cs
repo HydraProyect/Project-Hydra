@@ -339,6 +339,10 @@ public partial class ComunicacionesGen2Tests : BunitContext
         public ResultadoPaginado<ConversacionListaDto> Pagina(ObtenerConversacionesQuery q)
         {
             var visibles = Conversaciones
+                .Where(c => q.Canal is null || c.Canal == q.Canal)
+                .Where(c => !q.SoloSinAsignar || c.EjecutivoAsignadoId is null)
+                .Where(c => !q.SoloEsperandoCliente || c.EsperandoCliente)
+                .Where(c => !q.SoloFueraDeSla || c.SlaRestante is { } restante && restante < TimeSpan.Zero)
                 .Where(c => q.ClienteId is null || c.ClienteId == q.ClienteId)
                 .Where(c => q.Estado is null || c.Estado == q.Estado)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
@@ -3190,7 +3194,14 @@ public partial class ComunicacionesGen2Tests : BunitContext
     private static int DetallesPedidos(MediadorControlado mediador, Guid conversacionId) =>
         mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == conversacionId);
 
-    private static int ListasPedidas(MediadorControlado mediador) => mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count();
+    /// <summary>
+    /// Las consultas de la lista: no cuentan las de una fila con las que la bandeja calcula las cifras de los chips de canal y del
+    /// panel «Vista» (<c>TamanoPagina == 1</c>), que cuelgan de cada carga y no son una lista pedida.
+    /// </summary>
+    private static IEnumerable<ObtenerConversacionesQuery> ConsultasDeLista(MediadorControlado mediador) =>
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina > 1);
+
+    private static int ListasPedidas(MediadorControlado mediador) => ConsultasDeLista(mediador).Count();
 
     private static (Escenario Escenario, ConversacionListaDto A, ConversacionListaDto B, ConversacionListaDto C) TresConversaciones()
     {
@@ -4835,7 +4846,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Hilo 20");
         await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
         cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Hilo 21");
-        var consulta = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last();
+        var consulta = ConsultasDeLista(mediador).Last();
         consulta.Pagina.Should().Be(2);
         consulta.ClienteId.Should().Be(escenario.Clientes[0].Id);
     }
