@@ -266,6 +266,11 @@
     display: contents;
 }
 
+/* display: contents se impone a la regla hidden del navegador: sin esto «Ocultar la revisión» no ocultaría nada. */
+.vz-revision[hidden] {
+    display: none;
+}
+
 .vz-nav {
     flex: none;
     width: 112px;

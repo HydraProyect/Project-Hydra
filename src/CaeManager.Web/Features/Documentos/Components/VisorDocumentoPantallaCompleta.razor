@@ -131,12 +131,9 @@
                 </div>
                 @if (Panel is not null)
                 {
-                    @* El contenedor es del visor, no del panel: es el destino de aria-controls (existe aunque el panel esté oculto) y corta las teclas del panel antes del diálogo, para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. Con display:contents no cambia la maquetación del cuerpo. *@
-                    <div id="vz-revision" class="vz-revision" @onkeydown="SinAccion" @onkeydown:stopPropagation="true">
-                        @if (_panelAbierto)
-                        {
-                            @Panel(ContextoDelPanel(actual, pendientes))
-                        }
+                    @* El contenedor es del visor, no del panel: es el destino de aria-controls y corta las teclas del panel antes del diálogo (el navegador respeta stopPropagation sin manejador; bUnit no, ver los tests), para que un panel que olvide detenerlas no cambie de adjunto ni haga zoom mientras se escribe en él. «Ocultar la revisión» solo lo marca hidden: el panel sigue montado y conserva lo que se haya escrito en él. Con display:contents no cambia la maquetación del cuerpo. *@
+                    <div id="vz-revision" class="vz-revision" hidden="@(!_panelAbierto)" @onkeydown:stopPropagation="true">
+                        @Panel(ContextoDelPanel(actual, pendientes))
                     </div>
                 }
             </div>
@@ -170,9 +167,10 @@
     // Como el Drawer: solo cierra el clic cuyo pulsado empezó en el fondo; un arrastre que nace dentro del panel (seleccionar texto de una hoja) y acaba fuera no.
     private bool _mouseDownEnFondo;
 
-    // Lo resuelto dentro del visor (por el panel) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque la lista: el estado
-    // vigente es el de aquí hasta que la lista llegue con el mismo.
-    // Cada entrada guarda también el estado que la lista tenía al resolver (Base): en cuanto la lista llega con otro estado, manda la lista.
+    // Lo resuelto dentro del visor (por el panel) se ve en cuanto ocurre, sin esperar a que quien lo abrió refresque la lista. Cada entrada
+    // guarda también el estado que la lista tenía al resolver (Base): el estado local vale mientras la lista siga con ese estado de partida,
+    // y en cuanto la lista llega con otro (el resuelto aquí u otro distinto) manda la lista. Límite: una lista que vuelve exactamente al
+    // estado de partida (otra persona deshace entre tanto) no se distingue de «aún no ha refrescado».
     private readonly Dictionary<Guid, (EstadoAdjuntoVisor Local, EstadoAdjuntoVisor Base)> _estados = [];
     private bool _panelAbierto = true;
 
@@ -208,11 +206,17 @@
     /// Panel de la derecha (el de revisión de adjuntos, que pone Comunicaciones), con el adjunto actual y las salidas del visor en
     /// <see cref="ContextoPanelVisor"/>. Sin valor no hay panel ni botón de mostrarlo: el visor es de lectura. El visor lo envuelve en un
     /// contenedor con <c>id="vz-revision"</c> (el destino de <c>aria-controls</c> del botón): el panel no debe repetir ese id. La misma
-    /// instancia se reutiliza al cambiar de adjunto, así que el panel debe guardar su estado por <see cref="AdjuntoVisor.Id"/>.
+    /// instancia se reutiliza al cambiar de adjunto y al ocultar el panel (queda montado y oculto), así que el panel debe guardar su estado
+    /// por <see cref="AdjuntoVisor.Id"/>.
     /// </summary>
     [Parameter] public RenderFragment<ContextoPanelVisor>? Panel { get; set; }
 
-    /// <summary>Se invoca cuando el panel resuelve un adjunto (asignado, rechazado o vuelto a pendiente), para que quien abrió el visor refresque su lista.</summary>
+    /// <summary>
+    /// Se invoca cuando el panel resuelve un adjunto (asignado, rechazado o vuelto a pendiente), para que quien abrió el visor refresque su
+    /// lista. Mientras no la refresque, el visor muestra lo resuelto aquí; al refrescar con el estado resuelto (o con cualquier estado distinto
+    /// del de partida) manda la lista. Límite conocido: si la lista vuelve exactamente al estado de partida, el visor sigue mostrando lo resuelto
+    /// aquí hasta cerrarse.
+    /// </summary>
     [Parameter] public EventCallback<ResolucionAdjuntoVisor> AdjuntoResuelto { get; set; }
 
     private bool Abierto => Visible && _lista.Count > 0;
@@ -376,9 +380,6 @@
         await AdjuntoResuelto.InvokeAsync(resolucion);
     }
 
-    private static void SinAccion()
-    {
-    }
 
     private ContextoPanelVisor ContextoDelPanel(AdjuntoVisor actual, int pendientes) =>
         new(actual with { Estado = EstadoDe(actual) }, pendientes, _lista.Count,

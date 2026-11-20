@@ -22,8 +22,10 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     {
         [Parameter, EditorRequired] public ContextoPanelVisor Contexto { get; set; } = default!;
 
-        /// <summary>Un panel bien hecho detiene las teclas; con false se comprueba que el visor las corta de todos modos.</summary>
-        [Parameter] public bool DetieneTeclas { get; set; } = true;
+        /// <summary>Se invoca al crearse la instancia: permite contar cuántas instancias monta el visor.</summary>
+        [Parameter] public Action? AlCrearse { get; set; }
+
+        protected override void OnInitialized() => AlCrearse?.Invoke();
 
         protected override void BuildRenderTree(RenderTreeBuilder b)
         {
@@ -34,8 +36,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
             b.AddAttribute(4, "data-pendientes", Contexto.Pendientes);
             b.AddAttribute(5, "data-total", Contexto.Total);
             b.AddAttribute(6, "onkeydown", Contexto.Tecla);
-            if (DetieneTeclas)
-                b.AddEventStopPropagationAttribute(7, "onkeydown", true);
+            b.AddEventStopPropagationAttribute(7, "onkeydown", true);
             Boton(b, "asignar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Asignado)));
             Boton(b, "rechazar", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Rechazado)));
             Boton(b, "reabrir", () => Contexto.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(Contexto.Adjunto.Id, EstadoAdjuntoVisor.Pendiente)));
@@ -59,9 +60,11 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     // El contexto que el visor entregó la última vez: permite simular una respuesta tardía o un doble clic sobre un adjunto que ya no es el actual.
     private ContextoPanelVisor? _ultimoContexto;
 
+    private int _instancias;
+
     private IRenderedComponent<VisorDocumentoPantallaCompleta> Pintar(
         IReadOnlyList<AdjuntoVisor> lista, bool conPanel = true, int indice = 0,
-        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null, bool detieneTeclas = true)
+        List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
@@ -80,7 +83,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
                     {
                         b.OpenComponent<PanelDePega>(0);
                         b.AddComponentParameter(1, nameof(PanelDePega.Contexto), ctx);
-                        b.AddComponentParameter(2, nameof(PanelDePega.DetieneTeclas), detieneTeclas);
+                        b.AddComponentParameter(2, nameof(PanelDePega.AlCrearse), (Action)(() => _instancias++));
                         b.CloseComponent();
                     };
                 });
@@ -90,6 +93,8 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     private static string Posicion(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find(".vz-cola-n").TextContent.Trim();
 
     private static AngleSharp.Dom.IElement Panel(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find("#vz-revision aside.pega");
+
+    private static AngleSharp.Dom.IElement Contenedor(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) => cut.Find("#vz-revision");
 
     private static AngleSharp.Dom.IElement BotonRevision(IRenderedComponent<VisorDocumentoPantallaCompleta> cut) =>
         cut.Find("button[aria-controls='vz-revision']");
@@ -119,17 +124,21 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         BotonRevision(cut).GetAttribute("aria-expanded").Should().Be("true");
         cut.Find("header.vz-cab").QuerySelector("button[aria-controls='vz-revision']").Should().NotBeNull();
 
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
+
         BotonRevision(cut).Click();
 
-        cut.FindAll("#vz-revision aside.pega").Should().BeEmpty();
-        // El destino de aria-controls sigue en el árbol aunque el panel esté oculto, y es del visor, no del panel.
+        // El destino de aria-controls sigue en el árbol, es del visor y queda oculto; el panel sigue montado (no pierde lo que se haya escrito en él).
         cut.FindAll("#vz-revision").Should().HaveCount(1);
+        Contenedor(cut).HasAttribute("hidden").Should().BeTrue();
+        _instancias.Should().Be(1);
         BotonRevision(cut).TextContent.Trim().Should().Be("Ver la revisión");
         BotonRevision(cut).GetAttribute("aria-expanded").Should().Be("false");
 
         BotonRevision(cut).Click();
 
-        Panel(cut).Should().NotBeNull();
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
+        _instancias.Should().Be(1);
         BotonRevision(cut).TextContent.Trim().Should().Be("Ocultar la revisión");
     }
 
@@ -286,7 +295,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         Panel(cut).QuerySelector("button.asignar")!.Click();
         cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-asignado");
         BotonRevision(cut).Click();
-        cut.FindAll("#vz-revision aside.pega").Should().BeEmpty();
+        Contenedor(cut).HasAttribute("hidden").Should().BeTrue();
 
         cut.Render(p => p.Add(x => x.Visible, false));
         cut.Render(p => p.Add(x => x.Visible, true));
@@ -295,6 +304,7 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         Posicion(cut).Should().Be("Documento 1 de 2");
         Panel(cut).GetAttribute("data-estado").Should().Be("Pendiente");
         BotonRevision(cut).TextContent.Trim().Should().Be("Ocultar la revisión");
+        Contenedor(cut).HasAttribute("hidden").Should().BeFalse();
     }
 
     [Fact]
@@ -339,9 +349,11 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
         await cut.InvokeAsync(() => contextoDeA.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Asignado)));
         Posicion(cut).Should().Be("Documento 2 de 3");
 
-        // Doble clic: la segunda llega con el contexto de A cuando ya se está en B.
-        await cut.InvokeAsync(() => contextoDeA.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Asignado)));
+        // Doble clic de otra acción sobre A (rechazar tras asignar): llega con el contexto de A cuando ya se está en B. El estado de A cambia,
+        // así que solo «no es el actual» evita que la cola salte.
+        await cut.InvokeAsync(() => contextoDeA.Resolver.InvokeAsync(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Rechazado)));
         Posicion(cut).Should().Be("Documento 2 de 3");
+        cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-rechazado");
     }
 
     [Fact]
@@ -397,20 +409,13 @@ public class VisorDocumentoPantallaCompletaPanelTests : BunitContext
     }
 
     [Fact]
-    public async Task Un_panel_que_no_detiene_las_teclas_no_las_hace_llegar_al_dialogo_del_visor()
+    public void El_contenedor_del_visor_declara_que_las_teclas_del_panel_no_suben_al_dialogo()
     {
-        var cierres = new List<bool>();
-        var cut = Pintar([Adj("A.pdf", paginas: 3), Adj("B.pdf")], alCambiar: cierres.Add, detieneTeclas: false);
+        var cut = Pintar([Adj("A.pdf")]);
 
-        // Cada tecla se atiende una sola vez (la del panel): el contenedor del visor corta antes del diálogo.
-        await TeclaPanelAsync(cut, "]");
-        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
-        cut.FindAll(".vz-pag")[2].GetAttribute("aria-current").Should().Be("false");
-
-        await TeclaPanelAsync(cut, "ArrowRight");
-        Posicion(cut).Should().Be("Documento 1 de 2");
-
-        await TeclaPanelAsync(cut, "Escape");
-        cierres.Should().Equal(false);
+        // bUnit no despacha una tecla a un elemento que solo lleva stopPropagation y ningún manejador, y un manejador vacío costaría un viaje
+        // por pulsación en producción: aquí solo se fija que el contenedor lo declara; que de verdad corta la propagación lo prueba el navegador, no bUnit.
+        Contenedor(cut).Attributes.Select(a => a.Name).Should()
+            .Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("keydown", StringComparison.OrdinalIgnoreCase));
     }
 }
