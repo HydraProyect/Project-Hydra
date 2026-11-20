@@ -108,6 +108,16 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.IEstadoLineaOutbound,
             CaeManager.Application.Comercial.LineaOutbound.EstadoLineaOutboundService>();
+        // «Inbound sin Outbound» (decisión del 2026-11-18): el criterio único que cierra Outbound a un Tenant solo Inbound
+        // con el papel de Tenant de origen. Lo consumen la guarda de comandos, el alcance y los endpoints mínimos de Outbound.
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound,
+            CaeManager.Application.Comercial.LineaOutbound.TenantSoloInboundService>();
+        // El criterio memoiza la respuesta como el alcance: la MISMA instancia Scoped se expone como IMemoPorContexto para
+        // que InvalidacionAlcanceBehavior la descarte en cada Command. Infrastructure lo vuelve a registrar con la
+        // caducidad configurada del alcance (CaducidadAlcanceOptions).
+        services.AddScoped<CriterioDeOutbound>();
+        services.AddScoped<ICriterioDeOutbound>(sp => sp.GetRequiredService<CriterioDeOutbound>());
+        services.AddScoped<IMemoPorContexto>(sp => sp.GetRequiredService<CriterioDeOutbound>());
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
         // Foto a PDF: fuera de MediatR, para no retener la puerta de acceso a datos del circuito mientras decodifica.

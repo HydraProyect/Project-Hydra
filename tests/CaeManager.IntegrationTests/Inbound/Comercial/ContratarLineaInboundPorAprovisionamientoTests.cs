@@ -97,11 +97,11 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
             "puede depender de una lectura previa de lo contratado");
 
         var primera = await EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
         primera.EsExitoso.Should().BeTrue(primera.EsFallido ? $"código: {primera.Error.Codigo}" : string.Empty);
 
         var segunda = await EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-            new ContratarLineaInboundCommand("cus_OtroPagador", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual));
+            new ContratarLineaInboundCommand("cus_OtroPagador", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, DeclaraSoloInbound: true));
         segunda.Error.Should().Be(ErroresContratarLineaInbound.YaContratada, "un solo Producto Contratado Inbound vigente por Tenant (D-B)");
 
         var filas = await FilasComoPropietarioAsync();
@@ -112,6 +112,8 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         fila.PagadorStripeCustomerId.Should().Be("cus_PagadorTce");
         fila.Tramo.Should().Be(TramoTrabajadoresActivos.De41A80);
         fila.Modalidad.Should().Be(ModalidadSuscripcionAlta.Anual);
+        fila.DeclaraSoloInbound.Should().BeTrue(
+            "opción A': el INSERT de tabla entera de cae_app_aprovisionamiento escribe la declaración en la fila Inbound");
         fila.Estado.Should().Be(EstadoProductoContratado.Vigente);
 
         // El guardado pasó por AuditoriaInterceptor con el actor de producción, con la conexión elevada: la fila de
@@ -137,7 +139,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         await using (var plaza = new NpgsqlCommand(InsertInbound(_tce.Id), retenedor, transaccion))
             await plaza.ExecuteNonQueryAsync();
 
-        var comando = new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual);
+        var comando = new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true);
         var tareas = Enumerable.Range(0, 2)
             .Select(_ => Task.Run(() => EnviarAsync(_sesionDeAprovisionamiento, rol: null, comando)))
             .ToArray();
@@ -307,7 +309,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
     public async Task Una_sesion_de_soporte_de_solo_lectura_no_contrata_la_linea_Inbound()
     {
         var resultado = await EnviarAsync(_sesionDeLectura, rol: null,
-            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
 
         // Lo deniega AutorizacionEscrituraBehavior antes del handler: SoporteLectura no tiene camino de escritura.
         resultado.Error.Codigo.Should().Be("Autorizacion.SesionPrivilegiadaSoloLectura",
@@ -321,7 +323,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         // AutorizacionEscrituraBehavior deja pasar el rol con escritura; el handler deniega, y aunque no lo hiciera,
         // el runtime no tiene INSERT (lo prueba el test de SQL directo de abajo).
         var resultado = await EnviarAsync(sesion: null, rol: "Administrador",
-            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
 
         resultado.Error.Should().Be(ErroresContratarLineaInbound.NoAutorizado);
         (await FilasComoPropietarioAsync()).Should().BeEmpty();

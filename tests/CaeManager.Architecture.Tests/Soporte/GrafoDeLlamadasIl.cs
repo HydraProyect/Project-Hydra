@@ -82,18 +82,21 @@ internal sealed class GrafoDeLlamadasIl
     /// <summary>
     /// Métodos analizados que alcanzan alguno de <paramref name="objetivos"/>: el menor punto fijo de
     /// «es objetivo, o su cuerpo referencia a uno que alcanza, o no tiene cuerpo y todas sus
-    /// implementaciones alcanzan».
+    /// implementaciones alcanzan». Un método de <paramref name="cortes"/> no cuenta nunca como que alcanza, aunque lo haga:
+    /// sirve para preguntar «alcanza el objetivo por un camino que no pase por estos métodos» (por ejemplo, una extensión
+    /// que ya aplica un recorte antes de llamar al objetivo).
     /// </summary>
-    public HashSet<ClaveMetodo> QueAlcanzan(IReadOnlyCollection<MethodBase> objetivos)
+    public HashSet<ClaveMetodo> QueAlcanzan(IReadOnlyCollection<MethodBase> objetivos, IReadOnlyCollection<MethodBase>? cortes = null)
     {
         var alcanzan = objetivos.Select(ClaveMetodo.De).ToHashSet();
+        var cortados = cortes?.Select(ClaveMetodo.De).ToHashSet() ?? [];
         bool crecio;
         do
         {
             crecio = false;
             foreach (var (metodo, referencias) in _llamadas)
             {
-                if (alcanzan.Contains(metodo)) continue;
+                if (alcanzan.Contains(metodo) || cortados.Contains(metodo)) continue;
 
                 // Sin implementaciones, All sería verdadero por vacío: una interfaz que nadie implementa
                 // en los ensamblados analizados no garantiza nada (control en los tests del grafo).

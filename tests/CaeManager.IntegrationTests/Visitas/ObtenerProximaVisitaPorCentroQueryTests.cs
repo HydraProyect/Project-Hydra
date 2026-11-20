@@ -59,7 +59,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
             new VisitaTrabajador(visita.Id, trabajador2.Id));
         await contexto.SaveChangesAsync();
 
-        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto);
+        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto, new AlcanceDatosServiceFalso());
         var resultado = await handler.Handle(new ObtenerProximaVisitaPorCentroQuery([centro.Id]), CancellationToken.None);
 
         resultado.Should().ContainKey(centro.Id);
@@ -98,7 +98,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
             new VisitaTrabajador(visitaLarga.Id, trabajador3.Id));
         await contexto.SaveChangesAsync();
 
-        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto);
+        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto, new AlcanceDatosServiceFalso());
         var resultado = await handler.Handle(new ObtenerProximaVisitaPorCentroQuery([centro.Id]), CancellationToken.None);
 
         var visitas = resultado[centro.Id];
@@ -127,7 +127,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
         contexto.Visitas.Add(visita);
         await contexto.SaveChangesAsync();
 
-        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto);
+        var handler = new ObtenerProximaVisitaPorCentroQueryHandler(contexto, new AlcanceDatosServiceFalso());
         var resultado = await handler.Handle(new ObtenerProximaVisitaPorCentroQuery([centro.Id]), CancellationToken.None);
 
         resultado[centro.Id][0].TrabajadoresCount.Should().Be(0);

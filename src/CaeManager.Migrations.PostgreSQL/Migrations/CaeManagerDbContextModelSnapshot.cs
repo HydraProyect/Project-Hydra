@@ -1496,6 +1496,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("DeclaraSoloInbound")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1555,6 +1558,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("ProductosContratados", null, t =>
                         {
+                            t.HasCheckConstraint("CK_ProductosContratados_DeclaraSoloInboundEnInbound", "NOT \"DeclaraSoloInbound\" OR \"Linea\" = 'Inbound'");
+
                             t.HasCheckConstraint("CK_ProductosContratados_Estado", "\"Estado\" IN ('Vigente', 'Finalizado')");
 
                             t.HasCheckConstraint("CK_ProductosContratados_EstadoYVigencia", "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR (\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");

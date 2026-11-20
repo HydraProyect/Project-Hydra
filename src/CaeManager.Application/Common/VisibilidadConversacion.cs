@@ -33,6 +33,7 @@ namespace CaeManager.Application.Common;
 /// </list></item>
 /// </list>
 /// Las dos anclas son excluyentes en el dominio; si una fila trajera las dos, se exigen las dos (falla cerrado).
+/// Con <see cref="SoloConEmpresa"/> (Tenant solo Inbound, D6=a), además, solo pasa el ancla Empresa.
 ///
 /// <para>
 /// El buzón personal ajeno (<c>ConexionIntegracion.GestorPropietarioId</c> de otro gestor) se cierra además fuera de
@@ -58,13 +59,15 @@ public sealed class VisibilidadConversacion
             (cliente == null || alcance.TodosLosClientes || alcance.Clientes.Contains(cliente.Value))
             && (empresa == null || alcance.TodasLasEmpresas || alcance.Empresas.Contains(empresa.Value))
             && (cliente != null || empresa != null || alcance.Triaje
-                || (buzon != null && alcance.BuzonesPersonalesPropios.Contains(buzon.Value)));
+                || (buzon != null && alcance.BuzonesPersonalesPropios.Contains(buzon.Value)))
+            && (!alcance.SoloConEmpresa || (cliente == null && empresa != null));
 
     private static readonly Func<VisibilidadConversacion, Guid?, Guid?, Guid?, bool> ReglaCompilada = Regla.Compile();
 
     private VisibilidadConversacion(
         IReadOnlyList<Guid>? clientes, IReadOnlyList<Guid>? empresas, bool triaje, IReadOnlyList<Guid> buzonesPersonalesPropios)
     {
+        SoloConEmpresa = AmbitoComunicacionesSoloInbound.Activo;
         TodosLosClientes = clientes is null;
         Clientes = clientes ?? [];
         TodasLasEmpresas = empresas is null;
@@ -72,6 +75,14 @@ public sealed class VisibilidadConversacion
         Triaje = triaje;
         BuzonesPersonalesPropios = buzonesPersonalesPropios;
     }
+
+    /// <summary>
+    /// Dentro de una petición de Comunicaciones acotada al Tenant solo Inbound (<see cref="AmbitoComunicacionesSoloInbound"/>,
+    /// D6=a del 2026-11-19, «hilos con sus Empresas contratistas»): solo los hilos anclados a una Empresa, sin Cliente
+    /// empresarial. Fuera quedan los anclados a un Cliente y los que no tienen ancla (triaje y buzón personal). Solo
+    /// estrecha la regla.
+    /// </summary>
+    public bool SoloConEmpresa { get; }
 
     /// <summary>Cartera de Clientes sin restricción (acceso total).</summary>
     public bool TodosLosClientes { get; }

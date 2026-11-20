@@ -41,17 +41,45 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// usuario y de su selección, que se resuelven en cada petición HTTP: el Router (<c>Routes</c> sin modo interactivo)
 /// evalúa la página en cada petición, también en la navegación mejorada, no dentro de un circuito.
 /// </para>
+///
+/// <para>
+/// <b>Endpoints mínimos de Outbound y Producto Contratado</b> (decisión del 2026-11-18, «Inbound sin Outbound»): un
+/// endpoint marcado con <see cref="EndpointDeOutboundExtensions.DeOutbound{TBuilder}"/> (exportaciones y archivos) se niega
+/// también con el papel de Tenant de origen en un Tenant cuyo Producto Contratado es solo Inbound
+/// (<see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/>), igual que los comandos y el alcance. Las páginas
+/// todavía no: qué ve ese Tenant en una página de Outbound (oculta, en gris con explicación o ruta mixta) es presentación
+/// y está pendiente de decisión; hasta entonces entra, pero sus comandos de Outbound se niegan y sus queries de Outbound
+/// salen vacías solo si consultan el alcance (<c>IAlcanceDatosService</c>). Una query de Outbound que no lo consulta lee
+/// lo que el filtro de Tenant y la RLS le dejan. Las de Application cuyo handler no recibe el alcance, el criterio ni el
+/// mediador están inventariadas, con su motivo, en <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de los tests de
+/// arquitectura; las lecturas que la página hace fuera del mediador, no. El criterio
+/// se resuelve solo para un endpoint marcado con el papel de Tenant de origen, y sin registrar falla al resolverlo.
+/// </para>
 /// </summary>
-public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(ICurrentUserService currentUserService) : IAuthorizationHandler
+public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
+    ICurrentUserService currentUserService, IServiceProvider servicios) : IAuthorizationHandler
 {
     public async Task HandleAsync(AuthorizationHandlerContext context)
     {
         if (!EsPaginaDeOutbound(context.Resource))
             return;
 
-        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(await currentUserService.ObtenerPapelActivoAsync()))
+        var papel = await currentUserService.ObtenerPapelActivoAsync();
+        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(papel))
+        {
+            context.Fail();
+            return;
+        }
+
+        if (papel == PapelActivo.TenantDeOrigen && EsEndpointDeOutbound(context.Resource)
+            && await servicios.GetRequiredService<ICriterioDeOutbound>().CierraPorSoloInboundAsync(papel))
             context.Fail();
     }
+
+    private static bool EsEndpointDeOutbound(object? recurso) =>
+        recurso is HttpContext http && http.GetEndpoint()?.Metadata is { } metadatos
+        && metadatos.GetMetadata<EndpointDeOutbound>() is not null
+        && metadatos.GetMetadata<EndpointAbiertoAlSoloInbound>() is null;
 
     public static bool EsPaginaDeOutbound(Type? pagina) =>
         pagina is not null && pagina.IsDefined(typeof(PaginaDeOutboundAttribute), inherit: false);
@@ -85,8 +113,29 @@ public sealed class EndpointDeOutbound
 
 public static class EndpointDeOutboundExtensions
 {
-    /// <summary>El endpoint es de Outbound: con papel Inbound recibe la denegación estándar aunque el rol cumpla.</summary>
+    /// <summary>
+    /// El endpoint es de Outbound: con papel Inbound, o con el de Tenant de origen en un Tenant solo Inbound
+    /// (<see cref="ICriterioDeOutbound"/>), recibe la denegación estándar aunque el rol cumpla.
+    /// </summary>
     public static TBuilder DeOutbound<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(EndpointDeOutbound.Instancia);
+
+    /// <summary>
+    /// Un endpoint de Outbound que sigue abierto al Tenant solo Inbound con el papel de Tenant de origen, como las
+    /// peticiones de las áreas de <c>PeticionDeOutbound.CerradaAlSoloInbound</c>: los adjuntos de Comunicaciones (D6 del
+    /// 2026-11-19, el Tenant TCE con solo Inbound conserva los hilos con sus Empresas contratistas). El papel Inbound se
+    /// sigue negando por <see cref="DeOutbound{TBuilder}"/>.
+    /// </summary>
+    public static TBuilder AbiertoAlSoloInbound<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(EndpointAbiertoAlSoloInbound.Instancia);
+}
+
+/// <summary>Marca de un endpoint de Outbound que no se cierra al Tenant solo Inbound (ver <c>AbiertoAlSoloInbound</c>).</summary>
+public sealed class EndpointAbiertoAlSoloInbound
+{
+    public static readonly EndpointAbiertoAlSoloInbound Instancia = new();
+
+    private EndpointAbiertoAlSoloInbound() { }
 }

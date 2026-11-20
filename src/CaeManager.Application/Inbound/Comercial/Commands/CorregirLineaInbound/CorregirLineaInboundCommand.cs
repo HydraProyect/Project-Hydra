@@ -13,7 +13,7 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.CorregirLineaInbound
 
 /// <summary>
 /// Corrección de la línea Inbound (opción B del 2026-11-15, D2 (A)): el Actor de Plataforma TALVEG cambia el Pagador
-/// TALVEG, el tramo o la modalidad de lo contratado. Lo contratado no se sobrescribe (DECISION_LOG 2026-11-05 (a): el
+/// TALVEG, el tramo, la modalidad o la declaración «solo Inbound» de lo contratado. Lo contratado no se sobrescribe (DECISION_LOG 2026-11-05 (a): el
 /// histórico queda en filas; <see cref="ProductoContratado"/> fija que no cambia después de contratar): el comando
 /// finaliza el Producto Contratado de <see cref="LineaProductoContratado.Inbound"/> vigente y contrata otro con los datos
 /// corregidos, vigente desde el mismo instante. Devuelve el Id del nuevo.
@@ -35,10 +35,22 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.CorregirLineaInbound
 /// <b>Autorización</b>: <see cref="AutoridadSobreLaLineaInbound"/>, con su ventana de revocación declarada. Escribe como
 /// <c>cae_app_aprovisionamiento</c>, con las políticas de la baja y del alta de la línea Inbound.
 /// </para>
+///
+/// <para>
+/// <b>Declaración «solo Inbound»</b> (opción A', DECISION_LOG e496f33): va en la fila de la línea Inbound, y la corrección
+/// contrata una fila nueva, así que el Actor de Plataforma TALVEG la declara otra vez en <see cref="DeclaraSoloInbound"/>.
+/// No se copia de la fila sustituida: el rol elevado solo lee las columnas del WHERE de la baja
+/// (<c>FinalizaLineaInboundPorAprovisionamiento</c>), y leerla exigiría ampliar sus privilegios. Sin marcar, el Tenant
+/// conserva Outbound, como en el alta.
+/// </para>
 /// </summary>
+/// <param name="DeclaraSoloInbound">
+/// La declaración «solo Inbound» de la fila corregida. Opcional: <c>false</c> deja al Tenant con Outbound.
+/// </param>
 [AreaDelEncargo("Comercial")]
 public record CorregirLineaInboundCommand(
-    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad)
+    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad,
+    bool DeclaraSoloInbound)
     : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CorregirLineaInboundCommandValidator : AbstractValidator<CorregirLineaInboundCommand>
@@ -116,7 +128,7 @@ public class CorregirLineaInboundCommandHandler(
 
             var corregido = ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
-                vigenteDesdeUtc: ahora, ahoraUtc: ahora);
+                vigenteDesdeUtc: ahora, ahoraUtc: ahora, declaraSoloInbound: request.DeclaraSoloInbound);
             productosContratados.Agregar(corregido);
 
             return await productosContratados.GuardarDetectandoInboundVigenteDuplicadoAsync(corregido, ct)

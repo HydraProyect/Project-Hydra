@@ -30,8 +30,27 @@ public class BajaYCorreccionLineaInboundCommandTests
     private readonly ProductosContratadosFalsos _productos = new();
     private readonly TransaccionDeComandoFalsa _transaccion = new();
 
-    private static CorregirLineaInboundCommand Correccion(string pagador = "cus_PagadorCorregido") =>
-        new(pagador, TramoTrabajadoresActivos.De11A40, ModalidadSuscripcionAlta.Mensual);
+    private static CorregirLineaInboundCommand Correccion(string pagador = "cus_PagadorCorregido", bool declara = false) =>
+        new(pagador, TramoTrabajadoresActivos.De11A40, ModalidadSuscripcionAlta.Mensual, declara);
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la corrección contrata una fila nueva y guarda en ella la declaración «solo Inbound»
+    /// que llega en el comando; no la copia de la sustituida, que el rol elevado no puede leer.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task La_correccion_persiste_la_declaracion_solo_Inbound_tal_como_llega(bool declara)
+    {
+        var resultado = await new CorregirLineaInboundCommandHandler(
+                new TenantActivo(_tenant), new SesionFija(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant)),
+                _productos, _transaccion)
+            .Handle(Correccion(declara: declara), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        _productos.Agregados.Should().ContainSingle().Which.DeclaraSoloInbound.Should().Be(declara);
+        new CorregirLineaInboundCommandValidator().Validate(Correccion(declara: declara)).IsValid.Should().BeTrue();
+    }
 
     public static TheoryData<string> Comandos() => new() { "baja", "correccion" };
 
@@ -213,8 +232,8 @@ public class BajaYCorreccionLineaInboundCommandTests
         var handler = new CorregirLineaInboundCommandHandler(
             new TenantActivo(_tenant), new SesionFija(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant)),
             _productos, _transaccion);
-        var tramo = new CorregirLineaInboundCommand("cus_X", (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Anual);
-        var modalidad = new CorregirLineaInboundCommand("cus_X", TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99);
+        var tramo = new CorregirLineaInboundCommand("cus_X", (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Anual, false);
+        var modalidad = new CorregirLineaInboundCommand("cus_X", TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99, false);
 
         (await handler.Handle(tramo, CancellationToken.None)).Error.Should().Be(ErroresCorregirLineaInbound.ContratoNoValido);
         (await handler.Handle(modalidad, CancellationToken.None)).Error.Should().Be(ErroresCorregirLineaInbound.ContratoNoValido);

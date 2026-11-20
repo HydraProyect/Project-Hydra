@@ -23,7 +23,8 @@ namespace CaeManager.Domain.Comercial;
 /// <see cref="VigenteDesdeUtc"/> y <see cref="VigenteHastaUtc"/> van en UTC;
 /// <see cref="EstadoProductoContratado.Vigente"/> no tiene fecha de fin y
 /// <see cref="EstadoProductoContratado.Finalizado"/> la tiene, no anterior al inicio; lo contratado
-/// (línea, Pagador TALVEG, tramo, modalidad e inicio) no cambia después de contratar, y Finalizado es final.
+/// (línea, Pagador TALVEG, tramo, modalidad, inicio y declaración «solo Inbound») no cambia después de contratar, y
+/// Finalizado es final; la declaración «solo Inbound» solo va marcada en la línea Inbound.
 /// La base repite los CHECK de valores y de coherencia entre estado y vigencia.
 /// </para>
 /// <para>
@@ -81,10 +82,21 @@ public class ProductoContratado : EntidadBase
     public EstadoProductoContratado Estado { get; private set; }
 
     /// <summary>
+    /// Declaración «solo Inbound» (opción A', decisión de Chris del 2026-11-19, DECISION_LOG e496f33): el Actor de
+    /// Plataforma TALVEG declara al contratar la línea <see cref="LineaProductoContratado.Inbound"/> que el Tenant
+    /// beneficiario contrata solo Inbound. Solo puede ir marcada en una fila de esa línea, y es opcional: sin marcar
+    /// (<c>false</c>, también en las filas anteriores a la columna), el Tenant conserva Outbound. Es una de las tres
+    /// condiciones de <c>TenantSoloInbound</c>, junto a la línea Inbound vigente y ninguna línea Outbound. Como el resto
+    /// de lo contratado, no cambia después de contratar: la corrección contrata una fila nueva con su propia declaración.
+    /// </summary>
+    public bool DeclaraSoloInbound { get; private set; }
+
+    /// <summary>
     /// Contrata un Producto Contratado, vigente desde <paramref name="vigenteDesdeUtc"/> y sin fecha de fin. El
     /// inicio no puede ser posterior a <paramref name="ahoraUtc"/>: un inicio futuro dejaría
     /// <see cref="EstadoProductoContratado.Vigente"/> algo que aún no está en vigor, y cómo se representa una
-    /// contratación con inicio diferido no está decidido.
+    /// contratación con inicio diferido no está decidido. <paramref name="declaraSoloInbound"/> solo admite <c>true</c>
+    /// en la línea <see cref="LineaProductoContratado.Inbound"/> (<see cref="DeclaraSoloInbound"/>).
     /// </summary>
     public static ProductoContratado Contratar(
         LineaProductoContratado linea,
@@ -92,10 +104,14 @@ public class ProductoContratado : EntidadBase
         TramoTrabajadoresActivos tramo,
         ModalidadSuscripcionAlta modalidad,
         DateTime vigenteDesdeUtc,
-        DateTime ahoraUtc)
+        DateTime ahoraUtc,
+        bool declaraSoloInbound = false)
     {
         if (!Enum.IsDefined(linea))
             throw new ArgumentOutOfRangeException(nameof(linea), linea, "Línea de producto desconocida.");
+        if (declaraSoloInbound && linea != LineaProductoContratado.Inbound)
+            throw new ArgumentException(
+                "La declaración «solo Inbound» solo se registra en la línea Inbound.", nameof(declaraSoloInbound));
         if (!Enum.IsDefined(tramo))
             throw new ArgumentOutOfRangeException(nameof(tramo), tramo, "Tramo desconocido.");
         if (!Enum.IsDefined(modalidad))
@@ -123,6 +139,7 @@ public class ProductoContratado : EntidadBase
             VigenteDesdeUtc = vigenteDesdeUtc,
             VigenteHastaUtc = null,
             Estado = EstadoProductoContratado.Vigente,
+            DeclaraSoloInbound = declaraSoloInbound,
         };
     }
 

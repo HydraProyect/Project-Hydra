@@ -86,6 +86,28 @@ public class AusentesDeEmpresaEnLaReclamacionTests
         pendientes.Should().ContainSingle().Which.Should().Be(AusenteDe(_plan));
     }
 
+    /// <summary>
+    /// D6=a (PR #2379, hallazgo A1): la macro de un hilo con Empresa (<c>RellenoMacroRespuesta</c>) pide estos pendientes. Dentro
+    /// de una petición de Comunicaciones acotada al Tenant solo Inbound, la cartera de Centros es vacía y no sale ninguno; con el
+    /// marco inactivo sale el mismo pendiente de arriba.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_el_marco_de_Comunicaciones_solo_Inbound_los_pendientes_de_Empresa_no_cruzan_Centros(bool soloInbound)
+    {
+        ElCentroExigeSinBloquear(_plan);
+
+        IReadOnlyList<DocumentoPendienteDto> pendientes;
+        using (CaeManager.Application.Common.AmbitoComunicacionesSoloInbound.Fijar(acotada: soloInbound))
+            pendientes = await PendientesDeLaContratistaAsync();
+
+        if (soloInbound)
+            pendientes.Should().BeEmpty();
+        else
+            pendientes.Should().ContainSingle().Which.Should().Be(AusenteDe(_plan));
+    }
+
     [Fact]
     public async Task Lo_que_el_tipo_exige_por_defecto_sin_fila_del_Centro_tambien_es_pendiente()
     {

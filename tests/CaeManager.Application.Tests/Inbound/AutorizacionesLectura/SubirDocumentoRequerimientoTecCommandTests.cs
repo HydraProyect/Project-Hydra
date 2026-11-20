@@ -490,7 +490,10 @@ public class SubirDocumentoRequerimientoTecCommandTests
     /// <summary>Pasa por la guarda de servicio real (sin el marcador, DN-2) y después por el handler.</summary>
     private static Task<Result<Guid>> PorLaGuarda(
         SubirDocumentoRequerimientoTecCommandHandler handler, SubirDocumentoRequerimientoTecCommand comando, ICurrentUserService usuario) =>
-        new GuardaPorServicioBehavior<SubirDocumentoRequerimientoTecCommand, Result<Guid>>(usuario)
+        // El comando es de Inbound, no de Outbound: el criterio de Outbound no interviene (un proveedor vacío basta).
+        new GuardaPorServicioBehavior<SubirDocumentoRequerimientoTecCommand, Result<Guid>>(usuario,
+                new CriterioDeOutbound(Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions
+                    .BuildServiceProvider(new Microsoft.Extensions.DependencyInjection.ServiceCollection())))
             .Handle(comando, _ => handler.Handle(comando, CancellationToken.None), CancellationToken.None);
 
     [Fact]

@@ -144,8 +144,11 @@ public class PendientesDeReclamacionService(
         CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        // Centros y Clientes empresariales por las extensiones: Comunicaciones llega aquí desde la macro de una respuesta
+        // (RellenoMacroRespuesta), y dentro de una petición acotada al Tenant solo Inbound (D6=a) esas dos carteras son
+        // vacías. Fuera de ese marco son las mismas listas de IAlcanceDatosService.
+        var centroIdsVisibles = await alcanceDatos.CentrosVisiblesAsync(cancellationToken);
+        var clienteIdsVisibles = await alcanceDatos.ClientesEmpresarialesVisiblesAsync(cancellationToken);
 
         // Los pares Trabajador × Centro donde el lote por vencimiento ofrecería algo: Asignación activa, Centro con gestión
         // CAE (P1-X2) y todo dentro del alcance visible. Mismo join que ObtenerLoteReclamacionQuery.
@@ -295,7 +298,9 @@ public class PendientesDeReclamacionService(
         Guid? empresaId, IReadOnlyList<Guid>? empresaIdsVisibles, CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        // Por la extensión, como en ListarParaClientesAsync: la macro de un hilo con Empresa llega aquí, y dentro de una
+        // petición de Comunicaciones acotada al Tenant solo Inbound (D6=a) la cartera de Centros es vacía.
+        var centroIdsVisibles = await alcanceDatos.CentrosVisiblesAsync(cancellationToken);
 
         var filas = await (
             from asignacion in asignacionesContext.Asignaciones

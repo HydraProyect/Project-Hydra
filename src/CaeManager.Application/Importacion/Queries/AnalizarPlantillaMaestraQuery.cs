@@ -13,11 +13,15 @@ namespace CaeManager.Application.Importacion.Queries;
 /// con el mismo predicado): no usa <see cref="IAutorizacionEscrituraEfectiva"/>, que concede también a una Sesión Privilegiada de Aprovisionamiento y
 /// solo es seguro tras los behaviors de un <c>IComandoDeAprovisionamiento</c>; una Sesión Privilegiada no concede sobre lecturas de
 /// Tenant. El cupo del limitador de análisis lo reserva la página (I-2), como en el resto de plantillas.
+/// Como no consulta el alcance, el cierre del Tenant solo Inbound («Inbound sin Outbound», 2026-11-18) lo pregunta él mismo a
+/// <see cref="ICriterioDeOutbound"/> con el papel activo: sin eso, su <c>YaExiste</c> diría qué Empresas, Centros y
+/// Trabajadores de Outbound tiene el Tenant aunque la importación (un comando) ya se le niegue.
 /// </summary>
 [AreaDelEncargo("Importacion")]
 public record AnalizarPlantillaMaestraQuery(byte[] ContenidoArchivo) : IRequest<Result<PlanImportacionMaestraDto>>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
-public class AnalizarPlantillaMaestraQueryHandler(IPlantillaMaestraService servicio, ICurrentUserService currentUserService)
+public class AnalizarPlantillaMaestraQueryHandler(
+    IPlantillaMaestraService servicio, ICurrentUserService currentUserService, ICriterioDeOutbound criterioDeOutbound)
     : IRequestHandler<AnalizarPlantillaMaestraQuery, Result<PlanImportacionMaestraDto>>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles: mismo motivo que en AutorizacionEscrituraBehavior.
@@ -28,6 +32,11 @@ public class AnalizarPlantillaMaestraQueryHandler(IPlantillaMaestraService servi
         if (await currentUserService.ObtenerRolEfectivoAsync() != RolAdministrador)
             return Result.Fallo<PlanImportacionMaestraDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede analizar la plantilla maestra."));
+
+        if (await criterioDeOutbound.CierraPorSoloInboundAsync(await currentUserService.ObtenerPapelActivoAsync(), cancellationToken))
+            return Result.Fallo<PlanImportacionMaestraDto>(Error.Crear(
+                "Importacion.SinLineaOutbound",
+                "Tu organización tiene contratado Valida y no Acredita: analizar la plantilla maestra es de Acredita."));
 
         using var stream = new MemoryStream(request.ContenidoArchivo);
         return await servicio.AnalizarAsync(stream, cancellationToken);

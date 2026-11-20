@@ -65,6 +65,73 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         (await AutorizarAsync(Con(Roles.GestorCae), PeticionA(), new UsuarioConPapel(PapelActivo.Inbound))).Succeeded.Should().BeTrue();
     }
 
+    /// <summary>
+    /// «Inbound sin Outbound» (decisión del 2026-11-18): un endpoint mínimo de Outbound se niega al papel de Tenant de origen
+    /// cuando el Producto Contratado del Tenant activo es solo Inbound, y no cambia nada si no lo es (el Outbound histórico
+    /// sin líneas o el Tenant con las dos: <see cref="CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound"/>
+    /// dice «no»). Con el papel Outbound o sin papel no se consulta el Producto Contratado.
+    /// </summary>
+    [Theory]
+    [InlineData(PapelActivo.TenantDeOrigen, true, false, 1)]
+    [InlineData(PapelActivo.TenantDeOrigen, false, true, 1)]
+    [InlineData(PapelActivo.Outbound, true, true, 0)]
+    [InlineData(PapelActivo.SinPapel, true, true, 0)]
+    public async Task Un_endpoint_minimo_de_Outbound_se_niega_al_Tenant_de_origen_solo_Inbound(
+        PapelActivo papel, bool soloInbound, bool entra, int lecturas)
+    {
+        var soloInboundFijo = new SoloInboundFijo(soloInbound);
+
+        var resultado = await AutorizarAsync(Con(Roles.GestorCae), PeticionA(EndpointDeOutbound.Instancia),
+            new UsuarioConPapel(papel), soloInbound: soloInboundFijo);
+
+        resultado.Succeeded.Should().Be(entra);
+        soloInboundFijo.Lecturas.Should().Be(lecturas);
+    }
+
+    /// <summary>
+    /// D6 del 2026-11-19: los adjuntos de Comunicaciones siguen abiertos al Tenant de origen solo Inbound (conserva los
+    /// hilos con sus Empresas contratistas); el papel Inbound se sigue negando.
+    /// </summary>
+    [Fact]
+    public async Task Un_endpoint_de_Outbound_abierto_al_solo_Inbound_no_se_niega_al_Tenant_de_origen_solo_Inbound()
+    {
+        var abierto = PeticionA(EndpointDeOutbound.Instancia, EndpointAbiertoAlSoloInbound.Instancia);
+
+        (await AutorizarAsync(Con(Roles.GestorCae), abierto, new UsuarioConPapel(PapelActivo.TenantDeOrigen),
+            soloInbound: new SoloInboundFijo(true))).Succeeded.Should().BeTrue();
+        (await AutorizarAsync(Con(Roles.GestorCae), abierto, new UsuarioConPapel(PapelActivo.Inbound)))
+            .Succeeded.Should().BeFalse("la marca solo abre al Tenant solo Inbound, no al papel Inbound");
+    }
+
+    [Fact]
+    public void El_adjunto_de_Comunicaciones_lleva_las_dos_marcas()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+        // Solo para que el enlace de parámetros los infiera como servicios; el test no ejecuta el endpoint.
+        builder.Services.AddSingleton<MediatR.IMediator>(_ => null!);
+        builder.Services.AddSingleton<IFileStorageService>(_ => null!);
+        var app = builder.Build();
+        Features.Comunicaciones.ComunicacionesEndpoints.MapComunicacionesEndpoints(app);
+
+        var adjunto = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(fuente => fuente.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == "/comunicaciones/adjuntos/{id:guid}/archivo");
+
+        adjunto.Metadata.GetMetadata<EndpointDeOutbound>().Should().NotBeNull();
+        adjunto.Metadata.GetMetadata<EndpointAbiertoAlSoloInbound>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Un_endpoint_sin_la_marca_no_mira_el_Producto_Contratado()
+    {
+        var soloInboundFijo = new SoloInboundFijo(true);
+
+        (await AutorizarAsync(Con(Roles.GestorCae), PeticionA(), new UsuarioConPapel(PapelActivo.TenantDeOrigen),
+            soloInbound: soloInboundFijo)).Succeeded.Should().BeTrue();
+        soloInboundFijo.Lecturas.Should().Be(0);
+    }
+
     public static TheoryData<Type> PaginasSinMarca =>
     [
         typeof(Features.Usuarios.Pages.Usuarios),
@@ -121,12 +188,21 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 
     private static async Task<AuthorizationResult> AutorizarAsync(
-        ClaimsPrincipal principal, object? recurso, UsuarioConPapel usuario, AuthorizationPolicy? politica = null)
+        ClaimsPrincipal principal, object? recurso, UsuarioConPapel usuario, AuthorizationPolicy? politica = null,
+        SoloInboundFijo? soloInbound = null)
     {
         var servicios = new ServiceCollection();
         servicios.AddLogging();
         servicios.AddAuthorizationCore();
         servicios.AddSingleton<ICurrentUserService>(usuario);
+        // Sin soloInbound no se registra el criterio de Outbound: si el handler lo resolviera (una página, o un papel que
+        // no es el de Tenant de origen), la resolución fallaría y el test con él.
+        if (soloInbound is not null)
+        {
+            servicios.AddSingleton<ITenantActual>(new TenantFijo());
+            servicios.AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(soloInbound);
+            servicios.AddScoped<ICriterioDeOutbound, CriterioDeOutbound>();
+        }
         servicios.AddScoped<IAuthorizationHandler, PaginaDeOutboundPorPapelAuthorizationHandler>();
 
         await using var proveedor = servicios.BuildServiceProvider();
@@ -146,6 +222,23 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         var http = new DefaultHttpContext();
         http.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(metadatos), "prueba"));
         return http;
+    }
+
+    private sealed class TenantFijo : ITenantActual
+    {
+        public Guid? TenantId { get; } = Guid.NewGuid();
+    }
+
+    /// <summary>El Producto Contratado del Tenant activo es o no solo Inbound; cuenta las lecturas.</summary>
+    private sealed class SoloInboundFijo(bool soloInbound) : CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound
+    {
+        public int Lecturas { get; private set; }
+
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default)
+        {
+            Lecturas++;
+            return Task.FromResult(soloInbound);
+        }
     }
 
     /// <summary>Una persona cuyo papel activo es <paramref name="papel"/>; cuenta cuántas veces se le pregunta.</summary>
