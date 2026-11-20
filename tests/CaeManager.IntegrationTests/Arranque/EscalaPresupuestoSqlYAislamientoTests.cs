@@ -584,7 +584,13 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Subcontratas", 20, true },
         { "Clientes", 31, true }, // medido: 28
         { "Visitas", 11, true }, // medido: 9
-        { "Conversaciones", 18, true }, // medido: 16
+        // Antes medido: 16 (techo 18). L-12 añade a la fila adjuntos (+1, agrupado por mensaje), «acción por aprobar» (+1, Visita y
+        // Gestión en un solo UNION) y el buzón (+0, left join de la consulta principal). El nombre de la persona asignada (directorio
+        // de usuarios, una llamada por página) NO se mide con esta siembra: PilotoOutboundSeeder no asigna conversaciones, así que ese
+        // camino no emite sentencias aquí. La cifra exacta no consta: el log de CI de la cabeza 799619ea8 (run 44671076559) no
+        // imprime la salida del test (solo la enseña si falla), así que el techo vuelve a 18 hasta que un rojo la muestre y se fije
+        // en medido + 2 (// medido: X (CI <run>)).
+        { "Conversaciones", 18, true },
         { "Conversación", 22, true }, // medido: 20
         { "Gestiones", 5, false }, // medido: 3; el Tenant medido no tiene Gestiones
         { "Alertas", 11, false }, // medido: 10 (9 + la sentencia de sondeo del lector); sin alertas en el Tenant medido
