@@ -5,9 +5,14 @@ using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Dokify;
 using CaeManager.Web.Services;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Sentry;
+using Sentry.AspNetCore;
 using Xunit;
 
 namespace CaeManager.Web.Tests;
@@ -53,6 +58,36 @@ public class PrivacidadDeSentryTests
             sinConfigurar[destino].Should().Contain("sentry-trace", $"control: el SDK por defecto propaga a {destino}");
             configurado[destino].Should().NotContain("sentry-trace", destino).And.NotContain("baggage", destino);
         }
+    }
+
+    [Fact]
+    public async Task Con_un_host_real_el_enlace_de_configuracion_no_vuelve_a_llenar_la_lista_de_propagacion()
+    {
+        // La configuración trae Sentry:TracePropagationTargets:0 = ".*" (como la traería una variable de entorno o un
+        // appsettings): el enlace de la sección "Sentry" corre sobre SentryAspNetCoreOptions y no debe pisar a Configurar.
+        var enlazada = await ListaDePropagacionDelHostAsync(PrivacidadDeSentry.Configurar);
+        var control = await ListaDePropagacionDelHostAsync(_ => { });
+
+        control.Should().Contain(".*", "control: sin Configurar, el enlace de configuración llena la lista y el test podría fallar");
+        enlazada.Should().BeEmpty();
+        SentrySdk.IsEnabled.Should().BeFalse("el host de la prueba deja el SDK global cerrado para el resto de las pruebas de la colección");
+    }
+
+    [Fact]
+    public void Si_la_expresion_regular_agota_su_tiempo_la_miga_sale_con_el_mensaje_vacio()
+    {
+        // Sin correos ni URLs, pero con una sola «palabra» enorme: la expresión del correo prueba cada posición y recorre
+        // hasta el final, cuadrático; con un tope de 100 ms agota su tiempo con margen de varios órdenes de magnitud.
+        var mensaje = new string('a', 1_000_000);
+        var original = new Breadcrumb(mensaje, "default", null, "CaeManager.Infrastructure", BreadcrumbLevel.Info);
+
+        var filtrada = PrivacidadDeSentry.FiltrarMigaDePan(original, new SentryHint());
+
+        filtrada.Should().NotBeNull("la miga se conserva; lo que no sale es un mensaje que no se pudo revisar");
+        // Longitud y no el texto: si falla, el mensaje de FluentAssertions no vuelca un megabyte.
+        (filtrada!.Message ?? "x").Length.Should().Be(0, "fallo cerrado: el timeout de la expresión no deja salir el mensaje original");
+        filtrada.Category.Should().Be(original.Category);
+        filtrada.Level.Should().Be(original.Level);
     }
 
     [Theory]
@@ -142,6 +177,37 @@ public class PrivacidadDeSentryTests
         }
 
         return new Dictionary<string, string[]>(cabeceras);
+    }
+
+    /// <summary>
+    /// Un <c>WebApplication</c> real (sin arrancar) con <c>UseSentry</c> como lo llama Program.cs y el DSN y el destino
+    /// de la traza en la configuración; devuelve la lista de propagación que resuelve <c>IOptions</c>.
+    /// </summary>
+    private static async Task<List<string>> ListaDePropagacionDelHostAsync(Action<SentryOptions> configurar)
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Testing",
+            ContentRootPath = AppContext.BaseDirectory,
+        });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sentry:Dsn"] = "https://public@sentry.invalid/1",
+            ["Sentry:TracePropagationTargets:0"] = ".*",
+        });
+        builder.WebHost.UseSentry(o => configurar(o));
+
+        await using var app = builder.Build();
+        try
+        {
+            return [.. app.Services.GetRequiredService<IOptions<SentryAspNetCoreOptions>>().Value.TracePropagationTargets.Select(t => t.ToString()!)];
+        }
+        finally
+        {
+            // El host puede dejar iniciado el SDK global: se cierra para que no contamine a las demás pruebas de la colección.
+            if (SentrySdk.IsEnabled)
+                SentrySdk.Close();
+        }
     }
 
     private static IDisposable IniciarSdk(Action<SentryOptions> configurar) =>
