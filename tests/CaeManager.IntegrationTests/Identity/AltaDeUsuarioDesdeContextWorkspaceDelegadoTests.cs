@@ -302,7 +302,7 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         serviciosMediator.AddSingleton<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal>(new AsignacionAutomaticaInerte());
         // El handler del alta recibe la guarda de D3 (Outbound cerrado a un Tenant TEC sin línea Outbound vigente) por
         // constructor, así que se registra el servicio REAL para poder resolverlo, no un doble que lo deje todo pasar. Aquí no
-        // se ejerce: estos escenarios no piden cartera (TenantsCartera es nulo) y el handler solo consulta la guarda al dar
+        // se ejerce: estos escenarios no piden cartera (TenantsCartera es nulo o vacío) y el handler solo consulta la guarda al dar
         // Asignaciones de Cartera. Mismas implementaciones y lifetimes que AddApplication() / AddInfrastructure():
         // IOutboundCerradoTenantTec → IEstadoLineaOutbound → ILineaOutboundQueryContext (el DbContext) + TimeProvider.System.
         serviciosMediator.AddSingleton(TimeProvider.System);

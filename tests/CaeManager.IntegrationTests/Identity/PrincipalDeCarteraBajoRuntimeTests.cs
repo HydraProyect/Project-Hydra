@@ -733,7 +733,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             {
                 var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelUnipersonal, ct);
                 var automatica = new AsignacionAutomaticaDePrincipal(
-                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
                 return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
             }));
         (await Task.WhenAny(escalado, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(escalado,
@@ -756,7 +757,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             {
                 var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelUnipersonal, ct);
                 var automatica = new AsignacionAutomaticaDePrincipal(
-                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
                 return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
             }));
         asignada.EsExitoso.Should().BeTrue(asignada.EsFallido ? asignada.Error.Codigo : null);
@@ -785,7 +787,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 using (AmbitoTenantExplicito.Establecer(_operadorUnipersonal.Id))
                     cuentasVistas = await directorio.ObtenerCuentasActivasConRolAsync(_operadorUnipersonal.Id, Roles.Administrador, ct);
                 var automatica = new AsignacionAutomaticaDePrincipal(
-                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
                 return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
             }));
 
@@ -809,7 +812,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             {
                 var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionSinNadie, ct);
                 var automatica = new AsignacionAutomaticaDePrincipal(
-                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
                 return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
             }));
 
@@ -825,7 +829,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
                 {
                     var automatica = new AsignacionAutomaticaDePrincipal(
-                        new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                        new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
                     return await automatica.AlPrimerElegibleAsync(cuenta, _operadorUnipersonal.Id, ct)
                         ? Result.Exito()
                         : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
@@ -1149,7 +1154,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new AsumirPrincipalDeOperacionCommandHandler(
                     usuario, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
-                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new AsumirPrincipalDeOperacionCommand(operacionId), CancellationToken.None);
         });
 

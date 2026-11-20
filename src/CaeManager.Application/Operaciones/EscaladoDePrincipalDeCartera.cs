@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 
 namespace CaeManager.Application.Operaciones;
@@ -126,11 +127,20 @@ public static class EscaladoDePrincipalDeCartera
     /// elegible del Operador CAE, recibe la cartera principal de cada operación suya que siga
     /// sin principal vivo (las que tienen principal no se tocan: lo comprueba la escritura).
     /// Mismas condiciones y mismo significado del <c>false</c> que <see cref="AsignarAlUnicoAsync"/>.
+    ///
+    /// <para>
+    /// D3, R1 y R2 (DECISION_LOG 2026-11-20, puntos 5 y 6): es asumir sin una baja previa que lo
+    /// justifique, así que no se asigna nada si Outbound está cerrado para el Tenant de origen del
+    /// Operador CAE, y se salta cada operación cuyo Tenant beneficiario lo tenga cerrado
+    /// (<see cref="IOutboundCerradoTenantTec"/>). Cada Tenant se lee con él como Tenant activo. La
+    /// cuenta se confirma igual: la operación cerrada queda sin principal.
+    /// </para>
     /// </summary>
     public static async Task<bool> AsignarAlPrimerElegibleAsync(
         ICatalogoIncorporacionCartera catalogo,
         IDirectorioUsuariosService directorioUsuarios,
         IBloqueoCarteraUsuario bloqueoCartera,
+        IOutboundCerradoTenantTec outboundCerrado,
         Guid usuarioId,
         Guid operadorTenantId,
         CancellationToken cancellationToken)
@@ -144,7 +154,39 @@ public static class EscaladoDePrincipalDeCartera
         if (!await EsElUnicoElegibleAsync(usuarioId, operadorTenantId, directorioUsuarios, bloqueoCartera, cancellationToken))
             return true;
 
+        var abiertas = await SinLasDeOutboundCerradoAsync(outboundCerrado, operaciones, operadorTenantId, cancellationToken);
+
         return await RelevoDePrincipalDeCartera.RelevarAsync(
-            catalogo, operaciones, operadorTenantId, usuarioId, cancellationToken);
+            catalogo, abiertas, operadorTenantId, usuarioId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Las operaciones de <paramref name="operaciones"/> en las que se puede asumir un principal sin
+    /// baja previa (D3, R1 y R2): ninguna si Outbound está cerrado para el Tenant de origen del
+    /// Operador CAE; si no, las de Tenant beneficiario abierto.
+    /// </summary>
+    private static async Task<List<OperacionConPrincipal>> SinLasDeOutboundCerradoAsync(
+        IOutboundCerradoTenantTec outboundCerrado,
+        IReadOnlyCollection<OperacionConPrincipal> operaciones,
+        Guid operadorTenantId,
+        CancellationToken cancellationToken)
+    {
+        using (AmbitoTenantExplicito.Establecer(operadorTenantId))
+        {
+            if (await outboundCerrado.EstaCerradoAsync(operadorTenantId, cancellationToken))
+                return [];
+        }
+
+        var abiertas = new List<OperacionConPrincipal>(operaciones.Count);
+        foreach (var operacion in operaciones)
+        {
+            using (AmbitoTenantExplicito.Establecer(operacion.PropietarioTenantId))
+            {
+                if (!await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, cancellationToken))
+                    abiertas.Add(operacion);
+            }
+        }
+
+        return abiertas;
     }
 }

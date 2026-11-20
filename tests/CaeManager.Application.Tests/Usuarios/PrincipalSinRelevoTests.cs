@@ -1,5 +1,6 @@
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
@@ -30,6 +31,7 @@ public class PrincipalSinRelevoTests
         public BloqueoCarteraUsuarioFalso Bloqueo { get; } = new();
         public DirectorioRolesEnOrigen Roles { get; } = new();
         public Guid? TenantOrigen { get; init; } = Operador;
+        public OutboundCerradoTenantTecFijo Outbound { get; init; } = OutboundCerradoTenantTecFijo.Abierto();
 
         // Sin fijarlo, la sesión de quien actúa tiene el rol que su cuenta tiene en Identity
         // (lo normal: el rol con el que abrió sesión); fijarlo simula una sesión que diverge.
@@ -68,7 +70,7 @@ public class PrincipalSinRelevoTests
         public CurrentUserServicePorAmbito Sesion => new(Actor, TenantOrigen, RolDeSesion, RolDeSesion);
 
         public Task<Domain.Common.Result> AsumirAsync(Guid? operacion = null) =>
-            new AsumirPrincipalDeOperacionCommandHandler(Sesion, Roles, Catalogo, Transaccion, Bloqueo)
+            new AsumirPrincipalDeOperacionCommandHandler(Sesion, Roles, Catalogo, Transaccion, Bloqueo, Outbound)
                 .Handle(new AsumirPrincipalDeOperacionCommand(operacion ?? Operacion), default);
 
         public Task<AlertaDePrincipal> AlertaAsync() =>
@@ -195,7 +197,7 @@ public class PrincipalSinRelevoTests
         var nueva = e.Cuenta(rol);
 
         (await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(
-            e.Catalogo, e.Roles, e.Bloqueo, nueva, Operador, default)).Should().BeTrue();
+            e.Catalogo, e.Roles, e.Bloqueo, e.Outbound, nueva, Operador, default)).Should().BeTrue();
 
         e.Principal().Should().Be(nueva);
         e.Principal(conPrincipal).Should().Be(gestor, "una operación con principal no se toca");
@@ -208,7 +210,7 @@ public class PrincipalSinRelevoTests
         var e = new Escenario();
         var gestor = e.Cuenta("GestorCae");
 
-        await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(e.Catalogo, e.Roles, e.Bloqueo, gestor, Operador, default);
+        await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(e.Catalogo, e.Roles, e.Bloqueo, e.Outbound, gestor, Operador, default);
 
         e.Catalogo.CarterasVivas.Should().BeEmpty();
     }
@@ -220,9 +222,92 @@ public class PrincipalSinRelevoTests
         e.Cuenta("Administrador");
         var segunda = e.Cuenta("CoordinadorCae");
 
-        await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(e.Catalogo, e.Roles, e.Bloqueo, segunda, Operador, default);
+        await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(e.Catalogo, e.Roles, e.Bloqueo, e.Outbound, segunda, Operador, default);
 
         e.Catalogo.CarterasVivas.Should().BeEmpty("con más de un elegible decide una persona con «Asumir»");
+    }
+
+    /// <summary>
+    /// D3, R1 y R2 (DECISION_LOG 2026-11-20, puntos 5 y 6): el primer usuario elegible asume sin una baja previa, así
+    /// que no recibe nada con el Tenant de origen del Operador CAE cerrado, y se salta la operación cuyo Tenant
+    /// beneficiario está cerrado sin dejar de recibir la abierta. Cada Tenant se pregunta con él como Tenant activo. Por
+    /// el puerto (<see cref="AsignacionAutomaticaDePrincipal"/>), como lo llaman el alta, la edición y el cambio de rol.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_el_primer_usuario_elegible_no_asume_operaciones_con_Outbound_cerrado(
+        bool beneficiarioCerrado, bool operadorCerrado)
+    {
+        var otroPropietario = Guid.NewGuid();
+        var otraOperacion = Guid.NewGuid();
+        var e = new Escenario
+        {
+            Outbound = new OutboundCerradoTenantTecFijo(
+                t => (beneficiarioCerrado && t == Propietario) || (operadorCerrado && t == Operador)),
+        };
+        e.Catalogo.Asignables.Add((Operador, new TenantCandidatoIncorporacion(otroPropietario, "Obras Sur", otraOperacion)));
+        var nueva = e.Cuenta("CoordinadorCae");
+
+        (await new AsignacionAutomaticaDePrincipal(e.Catalogo, e.Roles, e.Bloqueo, e.Outbound)
+            .AlPrimerElegibleAsync(nueva, Operador, default)).Should().BeTrue("la cuenta se confirma igual");
+
+        e.Principal().Should().Be(beneficiarioCerrado || operadorCerrado ? null : nueva);
+        e.Catalogo.CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == otraOperacion && c.Cartera.EsPrincipal)
+            .Should().Be(!operadorCerrado, "la operación de Tenant beneficiario abierto solo se cierra por el Operador CAE");
+        e.Outbound.Ambitos.Should().OnlyContain(p => p.Preguntado == p.Ambito, "cada Tenant se lee con él como Tenant activo");
+    }
+
+    // ---------- «Asumir» con Outbound cerrado (D3, R1 y R2) ----------
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5) y R2 (punto 6): «Asumir» es asumir una operación sin una baja previa
+    /// que lo justifique (una que nunca tuvo principal, o con la cartera del principal Expirada sin relevo: para el comando
+    /// las dos son una operación sin principal vivo), y se deniega con el Tenant beneficiario cerrado, con el Tenant de
+    /// origen del Operador CAE externo cerrado o con los dos, emita o no una Asignación de Cartera nueva. No se guarda nada.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    public async Task D3_asumir_sin_baja_previa_se_deniega_con_Outbound_cerrado(
+        bool beneficiarioCerrado, bool operadorCerrado, bool yaTieneCartera)
+    {
+        var e = new Escenario
+        {
+            Outbound = new OutboundCerradoTenantTecFijo(
+                t => (beneficiarioCerrado && t == Propietario) || (operadorCerrado && t == Operador)),
+        };
+        e.Cuenta("CoordinadorCae", id: Actor);
+        e.Cuenta("CoordinadorCae");
+        if (yaTieneCartera) e.Cartera(Actor, rol: "CoordinadorCae");
+        e.Cartera(Apoyo);
+
+        (await e.AsumirAsync()).Error.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+
+        e.Principal().Should().BeNull("la operación cerrada sin candidato se queda sin principal (coste aceptado)");
+        e.Catalogo.CambiosDeMarca.Should().BeEmpty();
+        e.Catalogo.CarterasVivas.Count.Should().Be(yaTieneCartera ? 2 : 1, "no se emite ninguna Asignación de Cartera");
+        e.Transaccion.Confirmadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task D3_asumir_con_los_dos_abiertos_no_cambia_y_pregunta_por_los_dos()
+    {
+        var e = new Escenario();
+        e.Cuenta("CoordinadorCae", id: Actor);
+        e.Cuenta("CoordinadorCae");
+
+        (await e.AsumirAsync()).EsExitoso.Should().BeTrue();
+
+        e.Principal().Should().Be(Actor);
+        e.Outbound.Ambitos.Should().BeEquivalentTo(
+            [(Operador, (Guid?)Operador), (Propietario, (Guid?)Propietario)],
+            "el Tenant de origen del Operador CAE y el Tenant beneficiario, cada uno como Tenant activo");
     }
 
     // ---------- «Asumir» ----------
