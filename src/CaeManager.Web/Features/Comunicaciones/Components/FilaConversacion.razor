@@ -25,11 +25,27 @@
         </div>
         <div class="bandeja-fila-linea2">
             <span class="bandeja-fila-asunto" title="@Conversacion.Asunto">@Conversacion.Asunto</span>
+            @* Clip de adjuntos (lienzo L-12), solo el icono como en el lienzo; el número va en el nombre accesible y en el título. Cuenta también las imágenes en línea de la firma (la ingesta no pide isInline): hueco conocido, se corrige en el dato. *@
+            @if (Conversacion.TotalAdjuntos > 0)
+            {
+                var conAdjuntos = TextosPlazo["ConAdjuntos", Conversacion.TotalAdjuntos].Value;
+                <span class="fila-adjuntos" role="img" aria-label="@conAdjuntos" title="@conAdjuntos">
+                    <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" />
+                </span>
+            }
         </div>
         @* Tercera línea (maqueta 2026-11-01, `.f3`, 12/16): plazo, prioridad, estado y, a la derecha, el Nº de ticket. Envuelve en vez de
            desbordar: la lista mide 240-304 px y no caben todas las piezas en una sola fila. La vista previa pasa a su propia fila. *@
         <div class="bandeja-fila-linea3 fila-linea-meta">
             <IndicadorPlazo SlaRestante="Conversacion.SlaRestante" VencimientoSlaUtc="Conversacion.VencimientoSlaUtc" Prioridad="Conversacion.Prioridad" />
+            @* Insignia de sistema (cian) del lienzo: hay una propuesta de Vega sin resolver sobre el hilo. El servidor decide el booleano; la fila no lo recalcula. *@
+            @if (Conversacion.AccionPorAprobar)
+            {
+                <span class="fila-por-aprobar" title="@TextosPlazo["AccionPorAprobarTitulo"]">
+                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+                    <span class="fila-por-aprobar-tx">@TextosPlazo["AccionPorAprobar"]</span>
+                </span>
+            }
             <span class="fila-prioridad fila-prioridad-@Conversacion.Prioridad.ToString().ToLowerInvariant()"><span class="fila-prioridad-punto" aria-hidden="true"></span>@TextosPrioridades[Conversacion.Prioridad.ToString()]</span>
             <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
             @if (Conversacion.MensajesRuido > 0)
@@ -38,10 +54,26 @@
                     @Conversacion.MensajesRuido mensaje@(Conversacion.MensajesRuido == 1 ? "" : "s") de ruido
                 </Badge>
             }
-            @* NumeroTicket 0 es «sin número» (conversación anterior a la numeración): no se pinta. Sin prefijo del Tenant hasta que exista su origen. *@
-            @if (Conversacion.NumeroTicket > 0)
+            @* Grupo derecho (lienzo L-12): buzón en forma corta, persona asignada y Nº de ticket. Si no hay nada que enseñar, no se pinta. *@
+            @if (BuzonCorto is not null || Asignada is not null || Conversacion.NumeroTicket > 0)
             {
-                <span class="fila-ticket" title="@TextosPlazo["TituloTicket"]">@TextosPlazo["NumeroTicket", Conversacion.NumeroTicket]</span>
+                <span class="fila-linea-derecha">
+                    @if (BuzonCorto is not null)
+                    {
+                        <span class="fila-buzon" title="@BuzonCorto">@BuzonCorto</span>
+                    }
+                    @* Solo si el directorio dejó ver el nombre: sin nombre no se enseña a nadie (ni siquiera «Sin asignar»: la fila no distingue «nadie» de «no visible»). *@
+                    @if (Asignada is { } asignada)
+                    {
+                        var asignadaA = TextosPlazo["AsignadaA", asignada.Nombre].Value;
+                        <span class="fila-asignada" role="img" aria-label="@asignadaA" title="@asignadaA">@asignada.Iniciales</span>
+                    }
+                    @* NumeroTicket 0 es «sin número» (conversación anterior a la numeración): no se pinta. Sin prefijo del Tenant hasta que exista su origen. *@
+                    @if (Conversacion.NumeroTicket > 0)
+                    {
+                        <span class="fila-ticket" title="@TextosPlazo["TituloTicket"]">@TextosPlazo["NumeroTicket", Conversacion.NumeroTicket]</span>
+                    }
+                </span>
             }
             <span class="bandeja-fila-preview fila-vista-previa">@Conversacion.PreviewUltimoMensaje</span>
         </div>
@@ -55,6 +87,30 @@
     /// <summary>Fila marcada por j/k (todavía no abierta): lleva la clase que <c>atajos-lista.js</c> usa para darle foco de DOM.</summary>
     [Parameter] public bool Enfocada { get; set; }
     [Parameter] public EventCallback<Guid> OnSeleccionar { get; set; }
+
+    /// <summary>
+    /// Buzón en forma corta: «Mi buzón personal» si el hilo entró por el buzón personal del usuario; si no, el nombre de la conexión. Null si el hilo no
+    /// está atado a ninguna (creado a mano o sembrado).
+    /// </summary>
+    // shortcut: se enseña siempre que hay buzón; el lienzo lo oculta si la Empresa gestionada tiene uno solo, dato que la fila no recibe, cuando el DTO de lista lo traiga
+    private string? BuzonCorto =>
+        Conversacion.BuzonEsPersonal ? TextosPlazo["BuzonPersonal"].Value
+        : string.IsNullOrWhiteSpace(Conversacion.BuzonNombre) ? null
+        : Conversacion.BuzonNombre.Trim();
+
+    /// <summary>
+    /// Persona asignada, con sus iniciales. El DTO la nombra «Ejecutivo» (deuda terminológica: es el Gestor CAE asignado; el renombrado es otro incremento).
+    /// Null si el nombre no llega (el directorio no deja verla desde el Tenant activo) o no tiene ninguna letra.
+    /// </summary>
+    // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
+    private (string Nombre, string Iniciales)? Asignada =>
+        string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
+        // Mismas iniciales que el respaldo de AvatarUsuario (InicialesDeUsuario.De): la inicial de cada palabra, cortando también en guion, punto y arroba, y
+        // «?» si no hay ninguna letra (entonces la fila no enseña persona). No AvatarTenant.Iniciales, que es el de una Empresa o un Tenant y parte solo
+        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR.
+        // shortcut: la fila pinta las iniciales de respaldo de AvatarUsuario, no el avatar elegido, porque ConversacionListaDto no trae la clave de avatar; mejorarlo en un incremento propio que añada esa clave al DTO de lista y use AvatarUsuario
+        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
+        : null;
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)

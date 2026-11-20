@@ -137,7 +137,7 @@ public class FilaConversacionPlazoTests : BunitContext
         linea.QuerySelector(".plazo-conversacion")!.TextContent.Trim().Should().StartWith("Por vencer");
         linea.QuerySelector(".fila-prioridad")!.TextContent.Trim().Should().Be("Normal");
         linea.QuerySelector(".fila-ticket")!.TextContent.Trim().Should().Be("Nº 10479");
-        // Bloqueados o fuera de alcance: monograma de Empresa gestionada, casilla de lote y buzón.
+        // Bloqueados o fuera de alcance: monograma de Empresa gestionada y casilla de lote (el buzón corto lo fija FilaConversacionDatosLienzoTests).
         fila.FindAll("input[type=checkbox]").Should().BeEmpty();
     }
 
