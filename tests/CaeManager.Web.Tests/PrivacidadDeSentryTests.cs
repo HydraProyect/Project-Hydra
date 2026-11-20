@@ -204,6 +204,162 @@ public class PrivacidadDeSentryTests
         PrivacidadDeSentry.FiltrarEvento(relativa).Request.Url.Should().Be("[url]", "fallo cerrado: una URL que no se interpreta no sale");
     }
 
+    // Cabeceras que nunca salen: las de credenciales o sesión, las de IP del proxy, las de clave de un tercero y las
+    // propias de la app (Tenant, ticket de entrega y revisión desplegada).
+    private static readonly Dictionary<string, string> CabecerasProhibidas = new(StringComparer.Ordinal)
+    {
+        ["Cookie"] = "sesion=valor-cookie-secreto",
+        ["authorization"] = "Bearer token-secreto-de-prueba",
+        ["X-Forwarded-For"] = "203.0.113.7",
+        ["x-real-ip"] = "198.51.100.9",
+        ["X-Api-Key"] = "clave-api-secreta",
+        ["Ocp-Apim-Subscription-Key"] = "clave-suscripcion-secreta",
+        ["X-Csrf-Token"] = "token-csrf-secreto",
+        ["X-Tenant-Beneficiario"] = Guid,
+        ["X-Ticket-Entrega"] = "ticket-entrega-secreto",
+        ["X-Talveg-Revision"] = "revision-secreta",
+    };
+
+    // Las de la lista blanca, con mayúsculas y minúsculas mezcladas: la comparación no las distingue.
+    private static readonly Dictionary<string, string> CabecerasPermitidasMezcladas = new(StringComparer.Ordinal)
+    {
+        ["user-agent"] = "Mozilla/5.0 (prueba)",
+        ["ACCEPT"] = "text/html",
+        ["Accept-Language"] = "es-ES",
+        ["content-TYPE"] = "application/json",
+    };
+
+    [Fact]
+    public void El_evento_sale_solo_con_las_cabeceras_de_la_lista_blanca_sin_distinguir_mayusculas()
+    {
+        var evento = new SentryEvent();
+        evento.Request.Url = "https://app.talveg.test/empresas/" + Guid;
+        evento.Request.Cookies = "sesion=valor-cookie-secreto";
+        foreach (var (nombre, valor) in CabecerasProhibidas.Concat(CabecerasPermitidasMezcladas))
+            evento.Request.Headers[nombre] = valor;
+        evento.Request.Headers["REFERER"] = "https://app.talveg.test/buzones/" + Correo;
+        evento.Contexts[Sentry.Protocol.Response.Type] = new Sentry.Protocol.Response { StatusCode = 500 };
+        evento.Contexts.Response.Cookies = "sesion=valor-cookie-secreto";
+        evento.Contexts.Response.Headers["Set-Cookie"] = "sesion=valor-cookie-secreto";
+        evento.Contexts.Response.Headers["x-tenant-efectivo"] = Guid;
+        evento.Contexts.Response.Headers["Content-Type"] = "text/html";
+
+        var filtrado = PrivacidadDeSentry.FiltrarEvento(evento);
+
+        filtrado.Request.Headers.Should().Equal(new Dictionary<string, string>(CabecerasPermitidasMezcladas)
+        {
+            ["REFERER"] = "https://app.talveg.test/",
+        });
+        filtrado.Request.Cookies.Should().BeNull();
+        filtrado.Contexts.Response.Headers.Should().Equal(new Dictionary<string, string> { ["Content-Type"] = "text/html" });
+        filtrado.Contexts.Response.Cookies.Should().BeNull();
+        filtrado.Contexts.Response.StatusCode.Should().Be(500, "el código de estado se conserva");
+
+        var sinRespuesta = new SentryEvent();
+        sinRespuesta.Request.Headers["Cookie"] = "sesion=valor-cookie-secreto";
+        PrivacidadDeSentry.FiltrarEvento(sinRespuesta).Contexts.ContainsKey(Sentry.Protocol.Response.Type)
+            .Should().BeFalse("el filtro no añade un contexto de respuesta a un evento que no lo traía");
+    }
+
+    [Fact]
+    public async Task Con_la_configuracion_real_el_evento_de_la_peticion_del_ambito_sale_solo_con_la_lista_blanca_y_sin_ella_con_todo()
+    {
+        // Sentry.AspNetCore pone la petición entrante en el ámbito, y el ámbito la copia en cada evento: es la vía por la
+        // que una cabecera de la petición llega al SetBeforeSend.
+        var configurado = await JsonDeEventoConCabecerasEnElAmbitoAsync(PrivacidadDeSentry.Configurar);
+        var control = await JsonDeEventoConCabecerasEnElAmbitoAsync(_ => { });
+
+        // Control: sin la configuración, el SDK 6.7.0 solo tacha el valor de «authorization» ("[Filtered]") y manda el
+        // resto, Cookie y X-Forwarded-For incluidas.
+        control.Should().Contain("\"authorization\":\"[Filtered]\"");
+        foreach (var (nombre, valor) in CabecerasProhibidas)
+        {
+            control.Should().Contain($"\"{nombre}\":", "control: sin la configuración, el JSON que se enviaría lleva la cabecera");
+            configurado.Should().NotContain($"\"{nombre}\":").And.NotContain(valor);
+        }
+
+        control.Should().Contain("valor-cookie-secreto", "control: sin la configuración, las cookies del ámbito salen");
+        configurado.Should().NotContain("valor-cookie-secreto");
+        foreach (var valor in CabecerasProhibidas.Values.Where(v => v != CabecerasProhibidas["authorization"]))
+            control.Should().Contain(valor, "control: sin la configuración, el valor sale tal cual");
+
+        foreach (var (nombre, valor) in CabecerasPermitidasMezcladas)
+            configurado.Should().Contain(nombre).And.Contain(valor, "la cabecera de la lista blanca se conserva");
+    }
+
+    [Fact]
+    public async Task Aunque_la_configuracion_encienda_trazas_logs_y_pii_la_configuracion_real_los_apaga_y_sin_ella_no()
+    {
+        // Como lo traerían appsettings o las variables de entorno Sentry__TracesSampleRate, Sentry__EnableLogs y
+        // Sentry__SendDefaultPii; el muestreador, como lo pondría una línea de Program.cs anterior a Configurar.
+        var configuracion = new Dictionary<string, string?>
+        {
+            ["Sentry:TracesSampleRate"] = "1.0",
+            ["Sentry:EnableLogs"] = "true",
+            ["Sentry:SendDefaultPii"] = "true",
+        };
+        static double? Muestrea(TransactionSamplingContext _) => 1.0;
+
+        var control = await OpcionesDelHostAsync(o => o.TracesSampler = Muestrea, configuracion);
+        control.TracesSampleRate.Should().Be(1.0, "control: el enlace de la sección «Sentry» enciende las trazas");
+        control.EnableLogs.Should().BeTrue("control: el enlace enciende los logs");
+        control.SendDefaultPii.Should().BeTrue("control: el enlace enciende los datos personales por defecto");
+        control.TracesSampler.Should().NotBeNull();
+
+        var opciones = await OpcionesDelHostAsync(o =>
+        {
+            o.TracesSampler = Muestrea;
+            PrivacidadDeSentry.Configurar(o);
+        }, configuracion);
+
+        opciones.TracesSampleRate.Should().BeNull("sin transacciones, que no pasan por SetBeforeSend");
+        opciones.TracesSampler.Should().BeNull();
+        opciones.EnableLogs.Should().BeFalse("sin logs, que no pasan por SetBeforeSend");
+        opciones.SendDefaultPii.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Si_un_filtro_lanza_el_descarte_se_cuenta_solo_con_el_tipo_y_la_excepcion_y_si_termina_no()
+    {
+        var medidas = new ConcurrentQueue<(long Valor, KeyValuePair<string, object?>[] Etiquetas)>();
+        using var oyente = new System.Diagnostics.Metrics.MeterListener();
+        oyente.InstrumentPublished = (instrumento, o) =>
+        {
+            if (instrumento.Meter.Name == CaeManager.Application.Common.Observabilidad.NombreOrigen
+                && instrumento.Name == PrivacidadDeSentry.NombreMetricaDescartes)
+                o.EnableMeasurementEvents(instrumento);
+        };
+        oyente.SetMeasurementEventCallback<long>((_, valor, etiquetas, _) => medidas.Enqueue((valor, etiquetas.ToArray())));
+        oyente.Start();
+
+        const string url = "https://graph.microsoft.com/v1.0/users/" + Correo + "/messages?$top=1";
+        const string mensaje = "Mensaje del evento para " + Correo;
+        SentryEvent Evento()
+        {
+            var evento = new SentryEvent { Message = mensaje };
+            evento.Request.Url = url;
+            return evento;
+        }
+
+        PrivacidadDeSentry.FiltrarEventoConFalloCerrado(Evento(), new SentryHint(), (e, _) => e).Should().NotBeNull();
+        PrivacidadDeSentry.FiltrarMigaDePanConFalloCerrado(new Breadcrumb(mensaje, "default"), new SentryHint(), PrivacidadDeSentry.FiltrarMigaDePan)
+            .Should().NotBeNull();
+        medidas.Should().BeEmpty("control: sin excepción no hay descarte que contar");
+
+        PrivacidadDeSentry.FiltrarEventoConFalloCerrado(Evento(), new SentryHint(), (_, _) => throw new InvalidOperationException("roto en " + url + " " + mensaje))
+            .Should().BeNull("fallo cerrado: el evento no se envía");
+        PrivacidadDeSentry.FiltrarMigaDePanConFalloCerrado(new Breadcrumb(mensaje, "default"), new SentryHint(), (_, _) => throw new ArgumentException("roto en " + url))
+            .Should().BeNull("fallo cerrado: la miga no se guarda");
+
+        medidas.Select(m => (m.Valor, Etiquetas: string.Join(";", m.Etiquetas.Select(e => $"{e.Key}={e.Value}"))))
+            .Should().Equal(
+                (1L, "tipo=evento;excepcion=InvalidOperationException"),
+                (1L, "tipo=miga;excepcion=ArgumentException"));
+        medidas.SelectMany(m => m.Etiquetas).Select(e => e.Value?.ToString() ?? string.Empty)
+            .Should().NotContain(v => v.Contains(Correo) || v.Contains("graph.microsoft.com") || v.Contains("Mensaje") || v.Contains("roto"),
+                "la señal no lleva la URL, el mensaje ni nada del evento o de la excepción");
+    }
+
     [Fact]
     public async Task Con_la_configuracion_real_las_migas_del_sdk_salen_sin_urls_ni_correos_en_su_mensaje()
     {
@@ -432,6 +588,33 @@ public class PrivacidadDeSentryTests
 
     private sealed record EventoEnviado(string? Url, string? QueryString, string? Method, int StatusCode);
 
+    /// <summary>
+    /// Un evento capturado con la petición, sus cookies y todas las cabeceras de prueba en el ámbito, como las deja
+    /// Sentry.AspNetCore: devuelve el JSON del único sobre que llega al transporte (el que se enviaría).
+    /// </summary>
+    private static async Task<string> JsonDeEventoConCabecerasEnElAmbitoAsync(Action<SentryOptions> configurar)
+    {
+        var transporte = new TransporteQueAnota();
+        using (IniciarSdk(configurar, transporte))
+        {
+            SentrySdk.ConfigureScope(ambito =>
+            {
+                ambito.Request.Url = "https://app.talveg.test/empresas";
+                ambito.Request.Method = "POST";
+                ambito.Request.Cookies = "sesion=valor-cookie-secreto";
+                foreach (var (nombre, valor) in CabecerasProhibidas.Concat(CabecerasPermitidasMezcladas))
+                    ambito.Request.Headers[nombre] = valor;
+            });
+            SentrySdk.CaptureException(new InvalidOperationException("fallo de prueba"));
+            await SentrySdk.FlushAsync(TimeSpan.FromSeconds(10));
+        }
+
+        var sobre = transporte.Sobres.Should().ContainSingle("la excepción genera un único evento").Subject;
+        using var flujo = new MemoryStream();
+        await sobre.SerializeAsync(flujo, null);
+        return System.Text.Encoding.UTF8.GetString(flujo.ToArray());
+    }
+
     private static async Task<Dictionary<string, string[]>> CabecerasEnviadasAsync(Action<SentryOptions> configurar)
     {
         var cabeceras = new ConcurrentDictionary<string, string[]>();
@@ -451,22 +634,35 @@ public class PrivacidadDeSentryTests
     /// </summary>
     private static async Task<List<string>> ListaDePropagacionDelHostAsync(Action<SentryOptions> configurar)
     {
+        var opciones = await OpcionesDelHostAsync(configurar, new Dictionary<string, string?>
+        {
+            ["Sentry:TracePropagationTargets:0"] = "control.invalid",
+        });
+        return [.. opciones.TracePropagationTargets.Select(t => t.ToString()!)];
+    }
+
+    /// <summary>
+    /// Un <c>WebApplication</c> real (sin arrancar) con <c>UseSentry</c> como lo llama Program.cs, el DSN y
+    /// <paramref name="configuracion"/> en la sección «Sentry»; devuelve las opciones que resuelve <c>IOptions</c>.
+    /// </summary>
+    private static async Task<SentryAspNetCoreOptions> OpcionesDelHostAsync(
+        Action<SentryOptions> configurar, Dictionary<string, string?> configuracion)
+    {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Testing",
             ContentRootPath = AppContext.BaseDirectory,
         });
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(configuracion)
         {
             ["Sentry:Dsn"] = "https://public@sentry.invalid/1",
-            ["Sentry:TracePropagationTargets:0"] = "control.invalid",
         });
         builder.WebHost.UseSentry(o => configurar(o));
 
         await using var app = builder.Build();
         try
         {
-            return [.. app.Services.GetRequiredService<IOptions<SentryAspNetCoreOptions>>().Value.TracePropagationTargets.Select(t => t.ToString()!)];
+            return app.Services.GetRequiredService<IOptions<SentryAspNetCoreOptions>>().Value;
         }
         finally
         {
