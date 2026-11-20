@@ -141,7 +141,12 @@ public class VistaUnificadaComunicacionesTests
             codigo.Should().NotContain("PredicadoVistaUnificada.ConjuntoAsync", $"{nombre} no calcula el conjunto por su cuenta");
             codigo.Should().NotContain("ConversacionesVisibles.FiltrarAsync", $"{nombre} no aplica la visibilidad por su cuenta");
             codigo.Should().NotContain("EsPlataforma", $"{nombre} no repite las exclusiones de plano");
+            Regex.IsMatch(codigo, @"\.Conversaciones\b").Should().BeFalse(
+                $"{nombre} no lee conversaciones por otro camino que la lectura común (sin ConversacionesVisibles se colaría el buzón personal ajeno)");
         }
+
+        Regex.IsMatch(SinComentarios(File.ReadAllText(Path.Combine(carpeta, "EntradaVistaUnificada.cs"))), @"\.Conversaciones\b")
+            .Should().BeTrue("control del instrumento: el patrón tiene que ver la lectura de la entrada común");
     }
 
     /// <summary>Los puntos de entrada que suman la vía heredada (<c>TenantsBeneficiariosAutorizados</c> y Mi trabajo).</summary>

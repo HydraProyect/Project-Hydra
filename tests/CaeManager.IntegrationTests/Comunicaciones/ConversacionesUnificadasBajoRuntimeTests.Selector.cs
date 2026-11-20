@@ -23,12 +23,13 @@ public partial class ConversacionesUnificadasBajoRuntimeTests
     {
         var selector = await EnviarSelectorAsync();
 
-        var dentro = selector.Tenants.Should().ContainSingle(t => t.TenantId == _tenantDentro).Subject;
+        selector.Tenants.Select(t => t.TenantId).Should().Equal(new[] { _tenantDentro },
+            "el conjunto exacto: ni el Tenant sin vínculo, ni el de cartera vencida aunque conserve la delegación heredada, "
+            + "ni el Tenant de origen, que en este escenario no tiene operación sobre sí mismo");
+        var dentro = selector.Tenants[0];
         dentro.TenantNombre.Should().Be("Tenant beneficiario dentro");
         dentro.EsOrigen.Should().BeFalse();
         dentro.Abiertas.Should().Be(1, "cuenta la conversación del Cliente empresarial y no la del buzón personal ajeno");
-        selector.Tenants.Should().NotContain(t => t.TenantId == _tenantFuera || t.TenantId == _tenantCaducada,
-            "ni el Tenant sin vínculo ni el de cartera vencida, aunque conserve la delegación heredada");
         selector.NoConsultados.Should().BeEmpty("un Tenant de fuera no se distingue de uno inexistente");
 
         var lista = await EnviarAsync(new ObtenerConversacionesUnificadasQuery());
@@ -58,10 +59,10 @@ public partial class ConversacionesUnificadasBajoRuntimeTests
         var selector = await EnviarSelectorAsync();
 
         selector.NoConsultados.Should().BeEmpty();
-        selector.Tenants.Where(t => t.TenantId != _tenantOrigen)
-            .Select(t => (t.TenantId, t.Abiertas))
+        selector.Tenants.Select(t => (t.TenantId, t.Abiertas))
             .Should().BeEquivalentTo(new[] { (_tenantDentro, 2), (otro, 2), (vacio, 0) },
-                "Abiertas es el grupo de DN-O, y un Tenant autorizado sin conversaciones sale con cero, no se omite");
+                "conjunto exacto, sin el Tenant de origen no gestionado: Abiertas es el grupo de DN-O, y un Tenant "
+                + "autorizado sin conversaciones sale con cero, no se omite");
         foreach (var tenant in selector.Tenants)
         {
             var filas = await RecorrerAsync([tenant.TenantId], GrupoEstadoConversacion.Abiertas);

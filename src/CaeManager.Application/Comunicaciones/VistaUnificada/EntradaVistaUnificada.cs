@@ -67,6 +67,8 @@ public static class EntradaVistaUnificada
     /// Operación; en el de origen, solo con rol efectivo. Si no, <c>null</c>: el Tenant queda como no consultado, nunca
     /// como vacío. Después, la regla de visibilidad de la lista de un Tenant (<see cref="ConversacionesVisibles.FiltrarAsync"/>,
     /// R-3a), la cota <c>T0</c> y, si llega, el grupo de estados (DN-O), todo sumado con AND: ningún filtro amplía.
+    /// La consulta queda sin ejecutar y ligada al ámbito: quien la ejecuta vuelve a llamar a
+    /// <see cref="AmbitoTenantAutorizado.ExigirAbierto"/> justo antes, dentro del mismo callback.
     /// </summary>
     public static async Task<IQueryable<Conversacion>?> ConversacionesDelTenantAsync(
         AmbitoTenantAutorizado ambito, bool esOrigen, DateTime cota, GrupoEstadoConversacion? grupoEstado,

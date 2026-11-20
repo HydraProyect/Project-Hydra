@@ -104,6 +104,9 @@ public class ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler(
         var consulta = await EntradaVistaUnificada.ConversacionesDelTenantAsync(
             ambito, esOrigen, cota, GrupoEstadoConversacion.Abiertas, comunicacionesContext, integracionesContext,
             alcanceDatos, currentUserService, tenantActual, cancellationToken);
-        return consulta is null ? null : await consulta.CountAsync(cancellationToken);
+        if (consulta is null)
+            return null;
+        ambito.ExigirAbierto();
+        return await consulta.CountAsync(cancellationToken);
     }
 }

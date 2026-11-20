@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.VistaUnificada;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Comercial;
@@ -103,6 +104,20 @@ public class EntradaVistaUnificadaTests
 
         await sinUsuario.Should().ThrowAsync<UnauthorizedAccessException>().WithMessage("*sesión de usuario*");
         await sinOrigen.Should().ThrowAsync<UnauthorizedAccessException>().WithMessage("*sesión de usuario*");
+    }
+
+    [Fact]
+    public async Task Un_grupo_de_estados_fuera_del_enum_se_rechaza_antes_de_recorrer_ningun_Tenant()
+    {
+        var handler = new ObtenerConversacionesUnificadasQueryHandler(
+            null!, null!, null!, null!, null!, null!, null!, null!,
+            NullLogger<ObtenerConversacionesUnificadasQueryHandler>.Instance);
+
+        var accion = () => handler.Handle(
+            new ObtenerConversacionesUnificadasQuery(GrupoEstado: (GrupoEstadoConversacion)7), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<ArgumentOutOfRangeException>(
+            "un grupo desconocido no puede llegar al recorrido, donde cada Tenant acabaría como «no consultado»");
     }
 
     /// <summary>

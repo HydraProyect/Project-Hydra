@@ -137,6 +137,9 @@ public class ObtenerConversacionesUnificadasQueryHandler(
     public async Task<PaginaConversacionesUnificadasDto> Handle(
         ObtenerConversacionesUnificadasQuery request, CancellationToken cancellationToken)
     {
+        // Un grupo fuera del enum se rechaza aquí, no Tenant a Tenant: dentro del recorrido acabaría como «no consultado».
+        if (request.GrupoEstado is { } grupo && !Enum.IsDefined(grupo))
+            throw new ArgumentOutOfRangeException(nameof(request), grupo, "Grupo de estados desconocido.");
         var (identidad, conjunto) = await EntradaVistaUnificada.AbrirAsync(
             request.TenantIds, currentUserService, operaciones, tenants, coordenadaSesionPrivilegiada, vistaDemo,
             cancellationToken);
@@ -203,6 +206,7 @@ public class ObtenerConversacionesUnificadasQueryHandler(
                                            || (c.FechaUltimoMensajeUtc == fecha && c.Id.CompareTo(id) < 0));
         }
 
+        ambito.ExigirAbierto();
         var filas = await consulta
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ThenByDescending(c => c.Id)
