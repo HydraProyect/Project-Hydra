@@ -266,6 +266,13 @@ public class UsosDeEsPlataformaCongeladosTests
                 "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
                 "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),
 
+        // D-6 b, R-3 (2026-11-20): exclusión de plano del Soporte TALVEG en la vista unificada de Comunicaciones (§ 4.2).
+        // Solo impide: con Tenant de origen de plataforma la vista lanza; no concede nada a nadie.
+        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerConversacionesUnificadasQuery.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "Rechaza la vista unificada de Comunicaciones si el Tenant de origen es de plataforma (Soporte TALVEG, " +
+                "§ 4.2 del diseño D-6 b); mitad negativa, no autoriza"),
+
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
             new(3, CategoriaUso.ReglaComercial,

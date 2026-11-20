@@ -401,6 +401,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IGestionesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IVisitasQueryContext"),
+        // Vista unificada entre Tenants (D-6 b, R-3, 2026-11-20): el buzón de cada fila y la regla del buzón personal
+        // (Integraciones), y el conjunto de la vista y su re-comprobación por Tenant (Operaciones y Tenants).
+        ("Comunicaciones.ObtenerConversacionesUnificadasQueryHandler", "IIntegracionesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesUnificadasQueryHandler", "IOperacionesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesUnificadasQueryHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IDocumentosQueryContext"),

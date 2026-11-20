@@ -300,6 +300,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        // D-6 b, 2026-11-20 (R-3): la única fábrica del ámbito de la vista unificada de Comunicaciones.
+        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/AmbitoTenantAutorizado.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "tenantId re-comprobado justo antes con PredicadoVistaUnificada.AutorizaAsync y un ahora nuevo (origen solo si OrigenGestionadoAsync; si no, Asignación de Operación Outbound vigente y, para el Gestor CAE, Asignación de Cartera vigente), sin vía heredada (marca AmbitoSinViaHeredada) y solo lectura"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerGestionesPorDiaCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),

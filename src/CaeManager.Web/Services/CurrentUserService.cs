@@ -322,8 +322,12 @@ public class CurrentUserService(
             usuarioId.Value, tenantOrigenId.Value, tenantAmbito, PerfilQueDecideAlcance(await ObtenerUsuarioAsync()),
             DateTime.UtcNow, CancellationToken.None);
 
-        return operacionId is not null
-            ? (await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen), null)
+        // D-6 b (§ 4.3, M1): dentro del ámbito de la vista unificada de Comunicaciones (AmbitoSinViaHeredada), sin
+        // operación que autorice no hay rol, ni efectivo ni heredado: la vista nunca usa la vía heredada (DN-2 (a)).
+        if (operacionId is not null)
+            return (await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen), null);
+        return AmbitoSinViaHeredada.Activo
+            ? (RolEfectivoPorOperacion.Ninguno, null)
             : await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
     }
 

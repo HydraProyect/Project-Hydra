@@ -106,7 +106,10 @@ public class AlcanceDatosService(
     /// Inbound (<see cref="AmbitoPeticionInbound"/>, B-03): con papel Inbound, el alcance de dentro no vale fuera. Y lo
     /// mismo dentro y fuera de una petición de Outbound (<see cref="AmbitoPeticionOutbound"/>, «Inbound sin Outbound»): a
     /// un Tenant solo Inbound con el papel de Tenant de origen, el alcance de una petición del Núcleo no vale para una de
-    /// Outbound, que no tiene ninguno. Las ocho combinaciones dan máscaras distintas (0, A5, 5A, FF, 3C, 99, 66, C3).
+    /// Outbound, que no tiene ninguno. Y lo mismo dentro y fuera de la marca «sin vía heredada»
+    /// (<see cref="AmbitoSinViaHeredada"/>, D-6 b): un alcance calculado con el rol heredado en el fan-out de Mi trabajo no
+    /// vale dentro del ámbito de la vista unificada, que nunca lo usa. 0x0F no está en el espacio que generan A5, 5A y 3C,
+    /// así que las dieciséis combinaciones dan máscaras distintas (las ocho de antes y sus ocho XOR 0F).
     /// </summary>
     private static Guid ClaveTenant(Guid? tenantId)
     {
@@ -114,9 +117,10 @@ public class AlcanceDatosService(
         var explicito = AmbitoTenantExplicito.TenantIdActual is not null;
         var inbound = AmbitoPeticionInbound.Activo;
         var outbound = AmbitoPeticionOutbound.Activo;
-        if (!explicito && !inbound && !outbound) return tenant;
+        var sinHeredada = AmbitoSinViaHeredada.Activo;
+        if (!explicito && !inbound && !outbound && !sinHeredada) return tenant;
 
-        var mascara = (byte)((explicito ? 0xA5 : 0) ^ (inbound ? 0x5A : 0) ^ (outbound ? 0x3C : 0));
+        var mascara = (byte)((explicito ? 0xA5 : 0) ^ (inbound ? 0x5A : 0) ^ (outbound ? 0x3C : 0) ^ (sinHeredada ? 0x0F : 0));
         var bytes = tenant.ToByteArray();
         for (var i = 0; i < bytes.Length; i++) bytes[i] ^= mascara;
         return new Guid(bytes);
