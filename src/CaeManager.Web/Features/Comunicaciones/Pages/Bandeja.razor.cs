@@ -781,6 +781,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         try
         {
+            // Los filtros de la consulta que se envía, no los de cuando vuelve: «sin filtros» es una propiedad de esta carga.
+            var sinFiltrosAlPedir = !HayFiltrosActivos;
             var resultado = await Mediator.Send(ConsultaLista(_vistaLista, _canalFiltro, _pagina, TamanoPaginaBandeja), _ciclo.Token);
 
             // Guarda de carga vigente: si mientras esta consulta viajaba se
@@ -790,7 +792,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             // Solo con la lista vacía y sin ningún filtro: «Sin buzones conectados» (L-15). Se resuelve antes de pintar el resultado
             // para que la lista no pase por un «No quedan conversaciones» que luego se corrige.
-            var sinBuzones = resultado.TotalElementos == 0 && !HayFiltrosActivos && await NoHayBuzonConectadoAsync(_ciclo.Token);
+            var sinBuzones = resultado.TotalElementos == 0 && sinFiltrosAlPedir && await NoHayBuzonConectadoAsync(_ciclo.Token);
             if (carga != _cargaListaVigente) return;
             _sinBuzonesConectados = sinBuzones;
 
@@ -1070,22 +1072,27 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     // cuando ObtenerConversacionesQuery admita el filtro de estados vivos (DN-O) y «Abiertas» sea la vista por defecto, pasar a _vistaLista == Abiertas.
     private bool EsVistaAbiertas => _vistaLista == VistaLista.Todas;
 
-    /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda, en la vista por defecto y con buzones conectados.</summary>
-    private bool AlDiaVacio => !HayBusqueda && !HayFiltrosAvanzados && !_sinBuzonesConectados && EsVistaAbiertas;
+    /// <summary>
+    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal en la vista por defecto. El lienzo dice
+    /// «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era «Sin resultados».
+    /// </summary>
+    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || (EsVistaAbiertas && _canalFiltro is not null);
+
+    /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda ni filtros, en la vista por defecto y con buzones conectados.</summary>
+    private bool AlDiaVacio => !VacioPorFiltros && !_sinBuzonesConectados && EsVistaAbiertas;
 
     private string TituloVacio =>
-        HayBusqueda || HayFiltrosAvanzados ? TextosLista["SinResultados"].Value
+        VacioPorFiltros ? TextosLista["SinResultados"].Value
         : _sinBuzonesConectados ? TextosLista["SinBuzonesConectados"].Value
         : EsVistaAbiertas ? TextosLista["SinConversaciones"].Value
         : TextosLista["NadaEnVista", NombreVista(_vistaLista)].Value;
 
     private string AyudaVacio =>
         HayBusqueda && !HayFiltrosAvanzados ? TextosLista["SinResultadosBusquedaAyuda"].Value
-        : HayBusqueda || HayFiltrosAvanzados ? TextosLista["SinResultadosAyuda"].Value
+        : VacioPorFiltros ? TextosLista["SinResultadosAyuda"].Value
         : _sinBuzonesConectados ? TextosLista["SinBuzonesConectadosAyuda"].Value
         : EsVistaAbiertas ? TextosLista["SinConversacionesAyuda"].Value
         : TextosLista["NadaEnVistaAyuda"].Value;
-
     /// <summary>La conexión de correo que alimenta la bandeja y desde la que se redacta: Habilitada y no personal de un Gestor CAE.</summary>
     private static bool EsBuzonConectado(ConexionIntegracionListaDto c) =>
         c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null;
@@ -1098,7 +1105,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         try
         {
-            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), token);
+            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true), token);
             return !conexiones.Any(EsBuzonConectado);
         }
         catch (OperationCanceledException) { throw; }

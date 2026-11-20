@@ -114,9 +114,9 @@ public class ComunicacionesHojaDeEstilosTests
     {
         var css = Leer(Bandeja);
         // Lienzo L-14: esqueletos de 72 px con 8 px de margen vertical y 12 px de lateral; «Cargando…» y «Al día» en 12/16 apagado.
-        Regla(css, @"\.bandeja-lista ::deep \.esqueleto-fila,\s*\.bandeja-centro ::deep \.esqueleto-fila")
+        Regla(css, @"\.carga-lista ::deep \.esqueleto-fila")
             .Should().MatchRegex(@"height\s*:\s*72px").And.Contain("var(--radius-md)");
-        Regla(css, @"\.bandeja-lista ::deep \.esqueleto-lista,\s*\.bandeja-centro ::deep \.esqueleto-lista")
+        Regla(css, @"\.carga-lista ::deep \.esqueleto-lista")
             .Should().MatchRegex(@"padding\s*:\s*var\(--space-2\) var\(--space-3\)");
         Regla(css, @"\.bandeja-cargando-texto").Should().MatchRegex(@"padding\s*:\s*0 var\(--space-4\)")
             .And.MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");

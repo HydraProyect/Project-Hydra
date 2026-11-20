@@ -219,14 +219,12 @@
 
 /* Estado «cargando» de la lista (lienzo «Pulida: bandeja de la cartera», `.esq` y `.cargando-t`): cuatro esqueletos de 72 px
    con 8 px de margen vertical y 12 px de lateral, y «Cargando…» en 12/16 apagado con 16 px de relleno lateral. EstadoCargando es
-   del kit (filas de 44 px): aquí solo se acota la geometría; el brillo del esqueleto sigue siendo el del kit. */
-.bandeja-lista ::deep .esqueleto-lista,
-.bandeja-centro ::deep .esqueleto-lista {
+   del kit (filas de 44 px): aquí solo se acota la geometría, y solo en la carga de la lista y de la tabla (.carga-lista), no en el buzón personal,\n   el detalle ni el historial de Reclamaciones; el brillo del esqueleto sigue siendo el del kit. */
+.carga-lista ::deep .esqueleto-lista {
     padding: var(--space-2) var(--space-3);
 }
 
-.bandeja-lista ::deep .esqueleto-fila,
-.bandeja-centro ::deep .esqueleto-fila {
+.carga-lista ::deep .esqueleto-fila {
     height: 72px;
     border-radius: var(--radius-md);
 }

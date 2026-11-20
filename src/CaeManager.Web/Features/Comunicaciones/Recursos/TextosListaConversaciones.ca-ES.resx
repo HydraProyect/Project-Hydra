@@ -80,6 +80,6 @@
   <data name="SinResultadosBusquedaAyuda" xml:space="preserve"><value>Prova amb un altre terme.</value></data>
   <data name="SinBuzonesConectados" xml:space="preserve"><value>Sense bústies connectades</value></data>
   <data name="SinBuzonesConectadosAyuda" xml:space="preserve"><value>Connecta-les a Configuració, Integracions.</value></data>
-  <data name="NadaEnVista" xml:space="preserve"><value>Res a «{0}»</value></data>
+  <data name="NadaEnVista" xml:space="preserve"><value>No hi ha res a «{0}»</value></data>
   <data name="NadaEnVistaAyuda" xml:space="preserve"><value>Prova amb una altra vista o amb «Totes».</value></data>
 </root>

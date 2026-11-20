@@ -1,6 +1,8 @@
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
@@ -38,6 +40,19 @@ public partial class ComunicacionesGen2Tests
         cut.FindAll(".bandeja-lista .esqueleto-lista .esqueleto-fila").Should().HaveCount(4, "el lienzo dibuja cuatro esqueletos");
         cut.Find(".bandeja-lista .bandeja-cargando-texto").TextContent.Trim().Should().Be("Cargando…");
         cut.FindAll(".bandeja-lista .estado-vacio").Should().BeEmpty("mientras carga no hay vacío ni error");
+        cut.FindAll(".bandeja-lista .carga-lista .esqueleto-lista").Should().ContainSingle("la geometría del lienzo se acota a la carga de la lista");
+    }
+
+    [Fact]
+    public void El_esqueleto_del_buzon_personal_no_lleva_la_geometria_de_la_lista()
+    {
+        var escenario = new Escenario();
+        var pendiente = new TaskCompletionSource<object?>();
+        escenario.Interceptar = p => p is ObtenerMensajesBuzonPersonalQuery ? pendiente.Task : null;
+        var (cut, _) = Renderizar(escenario, "comunicaciones?vista=personal");
+
+        cut.FindAll(".bandeja-lista .esqueleto-lista").Should().ContainSingle();
+        cut.FindAll(".carga-lista").Should().BeEmpty("el buzón personal no es la carga de la lista de conversaciones");
     }
 
     // ---------------------------------------------------------------- error (L-14)
@@ -155,6 +170,44 @@ public partial class ComunicacionesGen2Tests
         cut.Find(".bandeja-lista .bandeja-al-dia span").TextContent.Trim().Should().Be("Al día");
     }
 
+    [Fact]
+    public async Task Un_chip_de_canal_sin_conversaciones_en_la_vista_por_defecto_dice_Sin_resultados_y_no_Al_dia()
+    {
+        var (cut, _) = RenderizarConUnaConversacion();
+
+        await ChipsDeCanal(cut)[2].ClickAsync(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() =>
+        {
+            TituloDelVacio(cut).Should().Be("Sin resultados");
+            TextoDelVacio(cut).Should().Be("Prueba con otro término o quita los filtros.");
+        }, PlazoEspera);
+        cut.FindAll(".bandeja-al-dia").Should().BeEmpty("«Al día» junto a «Quitar los filtros» se contradice");
+        cut.FindAll(".bandeja-lista .estado-vacio button").Select(b => b.TextContent.Trim()).Should().Equal("Quitar los filtros");
+    }
+
+    [Fact]
+    public async Task Una_comprobacion_de_buzones_que_llega_tarde_no_pisa_la_lista_de_la_carga_vigente()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.Add(Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp });
+        var conexiones = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerConexionesIntegracionQuery => conexiones.Task,
+            ObtenerConversacionesQuery { Canal: null, TamanoPagina: > 1 } => Task.FromResult<object?>(new ResultadoPaginado<ConversacionListaDto>([], 0, 1, 20)),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await ChipsDeCanal(cut)[2].ClickAsync(new MouseEventArgs());
+        await cut.WaitForAssertionAsync(() => AsuntosVisibles(cut).Should().Equal(["Aviso por WhatsApp"]), PlazoEspera);
+
+        // La primera carga (vacía, sin filtros) sigue esperando los buzones: al llegar ya no es la vigente.
+        conexiones.SetResult(new List<ConexionIntegracionListaDto>());
+        await Task.Delay(100); // solo da tiempo a la continuación; una espera corta no puede dar un falso fallo
+        await cut.WaitForAssertionAsync(() => AsuntosVisibles(cut).Should().Equal(["Aviso por WhatsApp"]), PlazoEspera);
+        cut.FindAll(".bandeja-lista .estado-vacio").Should().BeEmpty();
+    }
     [Theory]
     [InlineData("Mías")]
     [InlineData("Esperando respuesta del Interlocutor")]

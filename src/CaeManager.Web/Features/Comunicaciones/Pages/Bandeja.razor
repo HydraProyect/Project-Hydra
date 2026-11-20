@@ -284,8 +284,10 @@
                         }
                         else if (_cargandoLista)
                         {
-                            <EstadoCargando Filas="4" />
-                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                            <div class="carga-lista">
+                                <EstadoCargando Filas="4" />
+                                <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                            </div>
                         }
                         else if (_conversaciones.Count == 0)
                         {
@@ -381,8 +383,10 @@
                 }
                 else if (_cargandoLista)
                 {
-                    <EstadoCargando Filas="4" />
-                    <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                    <div class="carga-lista">
+                        <EstadoCargando Filas="4" />
+                        <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                    </div>
                 }
                 else if (_conversaciones.Count > 0)
                 {
