@@ -456,9 +456,14 @@ public class PanelRevisionAdjuntoTests : BunitContext
         await cut.Find(".boton-destructivo").ClickAsync(new MouseEventArgs());
 
         Aviso(cut).Should().Be("El adjunto ya no está pendiente.");
-        cut.Find("textarea").TextContent.Should().Be("Falta la firma");
         avisos.Resueltos.Should().BeEmpty();
         Toasts().Should().BeEmpty();
+        // bUnit no tiene navegador: el contenido del textarea en el DOM es el del primer render y no refleja lo escrito. Lo que
+        // demuestra que el motivo se conserva es que el panel sigue en el modo de rechazo, con la acción habilitada y reenviando
+        // el mismo motivo al reintentar.
+        cut.Find(".boton-destructivo").HasAttribute("aria-disabled").Should().BeFalse();
+        await cut.Find(".boton-destructivo").ClickAsync(new MouseEventArgs());
+        mediador.Enviados.Should().HaveCount(2).And.OnlyContain(c => c.Equals(new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Rechazar, "Falta la firma")));
     }
 
     [Fact]
@@ -718,7 +723,8 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var (a, b) = (Adjunto(EstadoAdjuntoVisor.Asignado), Adjunto());
         var resueltos = new List<ResolucionAdjuntoVisor>();
         var cut = PintarVisor([a, b], RevisionDe(a, b), resueltos);
-        await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Ir al adjunto siguiente").ClickAsync(new MouseEventArgs());
+        // El botón del visor es solo icono: se llama por su nombre accesible, no por su texto.
+        await cut.Find("button[aria-label='Ir al adjunto siguiente']").ClickAsync(new MouseEventArgs());
         Posicion(cut).Should().Be("Documento 2 de 2");
 
         await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Rechazar documento").ClickAsync(new MouseEventArgs());
