@@ -42,15 +42,12 @@ li.fila-conversacion .fila-linea-meta {
     white-space: nowrap;
 }
 
-/* Clip de adjuntos (lienzo L-12, `.marca-p`): al final de la línea del asunto, apagado, con el número al lado. */
+/* Clip de adjuntos (lienzo L-12, `.marca-p`): al final de la línea del asunto, apagado, solo el icono (el número va en el nombre accesible). */
 .fila-adjuntos {
     flex: none;
     display: inline-flex;
     align-items: center;
-    gap: var(--space-1);
     color: var(--color-text-muted);
-    font: 500 12px/16px var(--font-family);
-    font-variant-numeric: tabular-nums;
 }
 
 /* Insignia «Acción por aprobar»: la pastilla de sistema del lienzo (`.badge-sistema` de su bundle del design system; el Badge de la app aún no tiene tono Sistema,

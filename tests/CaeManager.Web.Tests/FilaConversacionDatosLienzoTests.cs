@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Los datos de la fila del lienzo «Pulida: bandeja de la cartera» (L-12): clip de adjuntos con su número, insignia «Acción por aprobar», buzón en forma corta
+/// Los datos de la fila del lienzo «Pulida: bandeja de la cartera» (L-12): clip de adjuntos (solo icono; el número, en su nombre accesible), insignia «Acción por aprobar», buzón en forma corta
 /// y persona asignada. Todos salen de <c>ConversacionListaDto</c> tal cual los da el servidor; la fila no recalcula nada. Sin dato no se pinta nada, y en
 /// pantalla no aparece «Ejecutivo» (término heredado del DTO) ni «Tenant».
 /// </summary>
@@ -30,14 +30,15 @@ public class FilaConversacionDatosLienzoTests : BunitContext
     }
 
     [Fact]
-    public void El_clip_lleva_el_numero_de_adjuntos_en_la_linea_del_asunto_con_su_nombre_accesible()
+    public void El_clip_va_sin_numero_visible_en_la_linea_del_asunto_y_el_numero_esta_en_su_nombre_accesible()
     {
         var clip = Render(Crear() with { TotalAdjuntos = 3 }).Find(".bandeja-fila-linea2 .fila-adjuntos");
 
         clip.GetAttribute("role").Should().Be("img");
         clip.GetAttribute("aria-label").Should().Be("Con adjuntos: 3");
         clip.GetAttribute("title").Should().Be("Con adjuntos: 3");
-        clip.QuerySelector(".fila-adjuntos-n")!.TextContent.Trim().Should().Be("3");
+        clip.TextContent.Trim().Should().BeEmpty("el lienzo pinta solo el icono, sin número");
+        clip.QuerySelector(".fila-adjuntos-n").Should().BeNull();
         clip.QuerySelector("svg").Should().NotBeNull("el clip es el icono del catálogo, no un carácter");
     }
 

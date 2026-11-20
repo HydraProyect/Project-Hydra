@@ -25,13 +25,12 @@
         </div>
         <div class="bandeja-fila-linea2">
             <span class="bandeja-fila-asunto" title="@Conversacion.Asunto">@Conversacion.Asunto</span>
-            @* Clip de adjuntos (lienzo L-12) con su número. Cuenta también las imágenes en línea de la firma (la ingesta no pide isInline): hueco conocido, se corrige en el dato. *@
+            @* Clip de adjuntos (lienzo L-12), solo el icono como en el lienzo; el número va en el nombre accesible y en el título. Cuenta también las imágenes en línea de la firma (la ingesta no pide isInline): hueco conocido, se corrige en el dato. *@
             @if (Conversacion.TotalAdjuntos > 0)
             {
                 var conAdjuntos = TextosPlazo["ConAdjuntos", Conversacion.TotalAdjuntos].Value;
                 <span class="fila-adjuntos" role="img" aria-label="@conAdjuntos" title="@conAdjuntos">
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" />
-                    <span class="fila-adjuntos-n" aria-hidden="true">@Conversacion.TotalAdjuntos</span>
                 </span>
             }
         </div>
