@@ -110,6 +110,20 @@ public class ComunicacionesHojaDeEstilosTests
     }
 
     [Fact]
+    public void El_estado_cargando_y_el_texto_Al_dia_de_la_lista_siguen_el_lienzo()
+    {
+        var css = Leer(Bandeja);
+        // Lienzo L-14: esqueletos de 72 px con 8 px de margen vertical y 12 px de lateral; «Cargando…» y «Al día» en 12/16 apagado.
+        Regla(css, @"\.carga-lista ::deep \.esqueleto-fila")
+            .Should().MatchRegex(@"height\s*:\s*72px").And.Contain("var(--radius-md)");
+        Regla(css, @"\.carga-lista ::deep \.esqueleto-lista")
+            .Should().MatchRegex(@"padding\s*:\s*var\(--space-2\) var\(--space-3\)");
+        Regla(css, @"\.bandeja-cargando-texto").Should().MatchRegex(@"padding\s*:\s*0 var\(--space-4\)")
+            .And.MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");
+        Regla(css, @"\.bandeja-al-dia").Should().MatchRegex(@"font\s*:\s*500 12px/16px").And.Contain("var(--color-text-muted)");
+    }
+
+    [Fact]
     public void El_pie_de_Buzones_es_un_texto_de_12_px_apagado_como_en_la_maqueta()
     {
         var css = Leer("Features/Integraciones/Pages/Conexiones.razor.css");

@@ -36,7 +36,7 @@
   <data name="SinResultados" xml:space="preserve"><value>Sense resultats</value></data>
   <data name="SinResultadosAyuda" xml:space="preserve"><value>Prova amb un altre terme o treu els filtres.</value></data>
   <data name="SinConversaciones" xml:space="preserve"><value>No queden converses</value></data>
-  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Els missatges nous apareixeran aquí.</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Els missatges nous entraran a la seva bústia.</value></data>
   <data name="QuitarFiltros" xml:space="preserve"><value>Treure els filtres</value></data>
   <data name="TipoMensaje" xml:space="preserve"><value>Tipus de missatge</value></data>
   <data name="RespuestaPublica" xml:space="preserve"><value>Resposta pública</value></data>
@@ -76,4 +76,10 @@
   <data name="CanalTodosAccesible" xml:space="preserve"><value>Tots els canals</value></data>
   <data name="CanalCorreo" xml:space="preserve"><value>Correu</value></data>
   <data name="CanalWhatsApp" xml:space="preserve"><value>WhatsApp</value></data>
+  <data name="RecargarLista" xml:space="preserve"><value>Torna a carregar la llista</value></data>
+  <data name="SinResultadosBusquedaAyuda" xml:space="preserve"><value>Prova amb un altre terme.</value></data>
+  <data name="SinBuzonesConectados" xml:space="preserve"><value>Sense bústies connectades</value></data>
+  <data name="SinBuzonesConectadosAyuda" xml:space="preserve"><value>Connecta-les a Configuració, Integracions.</value></data>
+  <data name="NadaEnVista" xml:space="preserve"><value>No hi ha res a «{0}»</value></data>
+  <data name="NadaEnVistaAyuda" xml:space="preserve"><value>Prova amb una altra vista o amb «Totes».</value></data>
 </root>
