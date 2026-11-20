@@ -668,7 +668,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         var cabeceras = cut.FindAll("thead th").Select(t => t.TextContent.Trim()).ToList();
 
-        cabeceras.Should().Equal("Buzón", "Tipo", "Enruta a", "Estado", "Último correo", "Responsable", "Abiertas", "Acuse automático");
+        cabeceras.Should().Equal("Buzón", "Tipo", "Enruta a", "Estado", "Último correo", "Responsable", "Abiertas", "Acuse automático", "Acciones");
     }
 
     [Fact]

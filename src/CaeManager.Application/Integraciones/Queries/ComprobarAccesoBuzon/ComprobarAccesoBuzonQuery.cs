@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -59,7 +60,7 @@ public class ComprobarAccesoBuzonQueryHandler(
     {
         if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
             return Fallo(
-                DesconectarBuzon.DesconectarBuzonCommandHandler.CodigoSoloAdministrador,
+                DesconectarBuzonCommandHandler.CodigoSoloAdministrador,
                 "Solo el Administrador puede comprobar el acceso a un buzón.");
 
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
