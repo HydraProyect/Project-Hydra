@@ -354,8 +354,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private readonly CancellationTokenSource _ciclo = new();
 
-    // Puerta de los recuentos (de canal y de vista): uno por vez, sin solaparse entre ellos. La lista no la usa: sus cargas
-    // concurrentes ya se resuelven con la guarda de carga vigente y no deben esperar a un recuento.
+    // Puerta de los recuentos (de canal y de vista): uno por vez, para que reabrir el selector no lance un segundo bucle mientras el
+    // primero sigue en vuelo. La lista no la usa: sus cargas concurrentes ya se resuelven con la guarda de carga vigente y no deben
+    // esperar a un recuento. El acceso a datos del circuito lo serializa ya SerializacionAccesoDatosBehavior.
     private readonly SemaphoreSlim _puertaConsultas = new(1, 1);
 
     /// <summary>
@@ -850,12 +851,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta de
-    /// una fila cada uno.
+    /// Cifras de los chips de canal (Todos, Correo, WhatsApp): el canal activo ya lo cuenta la lista; los otros, una consulta
+    /// cada uno (salvo con «Fuera de plazo» vigente, que no se cuenta: ver el atajo de <see cref="CargarRecuentosVistaAsync"/>).
     /// </summary>
-    // shortcut: los recuentos son consultas de una fila sobre ObtenerConversacionesQuery, una tras otra porque el DbContext no admite
-    // consultas concurrentes (dos más por carga de lista y cuatro más cada vez que se abre el selector de vistas); un recuento por
-    // canal y por vista en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
+    // shortcut: cada recuento es una ObtenerConversacionesQuery completa de una fila (el coste está en el CountAsync con todo el
+    // predicado, no en paginar), una tras otra para no solapar bucles de recuento (dos más por carga de lista y cuatro más cada vez
+    // que se abre el selector de vistas); un recuento por canal y por vista en la propia query (como ContarPorEstadoAsync de Clientes)
+    // cuando haya que quitar esas idas y vueltas.
     private async Task CargarRecuentosCanalAsync(int carga)
     {
         var puertaTomada = false;
@@ -872,6 +874,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                     nuevos[IndiceCanal(canal)] = _totalConversaciones;
                     continue;
                 }
+
+                if (_vistaLista == VistaLista.FueraDePlazo) continue;
 
                 var resultado = await Mediator.Send(ConsultaLista(_vistaLista, canal, 1, 1), _ciclo.Token);
                 if (carga != _cargaListaVigente) return;

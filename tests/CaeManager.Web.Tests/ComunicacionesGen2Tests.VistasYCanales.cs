@@ -504,11 +504,40 @@ public partial class ComunicacionesGen2Tests
         var segunda = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
 
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi)
-            .Should().Be(1, "el segundo recuento espera a que acabe el primero: el DbContext del circuito no admite dos consultas a la vez");
+            .Should().Be(1, "el segundo recuento espera a que acabe el primero en vez de lanzar un segundo bucle");
         await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
         await primera;
         await segunda;
         cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().NotBeEmpty());
+    }
+    [Fact]
+    public async Task Las_cifras_de_las_vistas_no_aplican_el_canal_y_las_de_los_chips_si_aplican_la_vista()
+    {
+        var (cut, mediador) = RenderizarConCanalesYVistas();
+        await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+        await AbrirPanelDeVistasAsync(cut);
+
+        var recuentosDeVista = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi).ToList();
+        recuentosDeVista.Should().ContainSingle().Which.Canal.Should().BeNull("las cifras de las vistas cuentan todos los canales");
+        await cut.Find(".bandeja-vista-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        await ElegirVistaAsync(cut, "Mías");
+
+        var recuentosDeCanal = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.Canal is not null && q.SoloAsignadasAMi).ToList();
+        recuentosDeCanal.Should().NotBeEmpty("las cifras de los chips cuentan dentro de la vista vigente");
+    }
+
+    [Fact]
+    public async Task Con_Fuera_de_plazo_vigente_no_se_cuentan_los_otros_canales_ni_se_piden_recuentos_de_plazo()
+    {
+        var (cut, mediador) = RenderizarConCanalesYVistas();
+        await ElegirVistaAsync(cut, "Fuera de plazo", enMasVistas: true);
+
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.SoloFueraDeSla).Should().OnlyContain(q => q.TamanoPagina > 1,
+            "solo la lista calcula los plazos: ningún recuento de una fila lo repite");
+        ChipsDeCanal(cut)[0].QuerySelector(".bandeja-canal-cifras")!.TextContent.Trim().Should().Be("1");
+        ChipsDeCanal(cut)[1].QuerySelector(".bandeja-canal-cifras").Should().BeNull();
+        ChipsDeCanal(cut)[2].QuerySelector(".bandeja-canal-cifras").Should().BeNull();
     }
     [Fact]
     public async Task Mientras_carga_otra_vista_el_disparador_dice_solo_su_nombre_y_despues_la_cifra()
