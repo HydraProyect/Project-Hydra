@@ -626,12 +626,23 @@ public class PanelRevisionAdjuntoTests : BunitContext
 
     private IRenderedComponent<VisorDocumentoPantallaCompleta> PintarVisor(
         IReadOnlyList<AdjuntoVisor> lista, RevisionAdjuntos? revision, List<ResolucionAdjuntoVisor>? resueltos = null, Action<bool>? alCambiar = null) =>
-        Render<VisorDocumentoPantallaCompleta>(p => p
-            .Add(x => x.Visible, true)
-            .Add(x => x.Adjuntos, lista)
-            .Add(x => x.Revision, revision)
-            .Add(x => x.AdjuntoResuelto, EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, r => resueltos?.Add(r)))
-            .Add(x => x.VisibleChanged, EventCallback.Factory.Create<bool>(this, v => alCambiar?.Invoke(v))));
+        Render<VisorDocumentoPantallaCompleta>(p =>
+        {
+            p.Add(x => x.Visible, true)
+             .Add(x => x.Adjuntos, lista)
+             .Add(x => x.AdjuntoResuelto, EventCallback.Factory.Create<ResolucionAdjuntoVisor>(this, r => resueltos?.Add(r)))
+             .Add(x => x.VisibleChanged, EventCallback.Factory.Create<bool>(this, v => alCambiar?.Invoke(v)));
+
+            // Como lo conectará quien abra el visor (A4): el panel real de Comunicaciones en el hueco Panel.
+            if (revision is not null)
+                p.Add(x => x.Panel, contexto => constructor =>
+                {
+                    constructor.OpenComponent<PanelRevisionAdjunto>(0);
+                    constructor.AddComponentParameter(1, nameof(PanelRevisionAdjunto.Contexto), contexto);
+                    constructor.AddComponentParameter(2, nameof(PanelRevisionAdjunto.Revision), revision);
+                    constructor.CloseComponent();
+                });
+        });
 
     private static RevisionAdjuntos RevisionDe(params AdjuntoVisor[] adjuntos) => new(
         Conversacion,
