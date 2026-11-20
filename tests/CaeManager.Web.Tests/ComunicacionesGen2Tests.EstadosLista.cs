@@ -16,8 +16,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Estados de la lista de la bandeja por vista (lienzo «Pulida: bandeja de la cartera», L-14 y L-15): cargando con cuatro esqueletos y
 /// «Cargando…», error con «No pudimos cargar la lista» y «Recargar la lista», y los vacíos «Al día», «Sin resultados», «Sin buzones
-/// conectados» y «Nada en «vista»». Quedan fuera «Sin propuestas» (la vista Propuestas no existe, L-16) y «Al día» como vista
-/// «Abiertas»: «Todas» ocupa su lugar hasta que ObtenerConversacionesQuery admita el filtro de estados vivos (DN-O).
+/// conectados» y «Nada en «vista»». «Al día» es el vacío de «Abiertas», la vista por defecto (DN-O): con solo conversaciones
+/// archivadas sigue diciendo «Al día». Queda fuera «Sin propuestas» (la vista Propuestas no existe, L-16).
 /// </summary>
 public partial class ComunicacionesGen2Tests
 {
@@ -214,6 +214,7 @@ public partial class ComunicacionesGen2Tests
     [Theory]
     [InlineData("Mías")]
     [InlineData("Esperando respuesta del Interlocutor")]
+    [InlineData("Archivadas")]
     public async Task Una_vista_distinta_de_la_por_defecto_sin_conversaciones_dice_Nada_en_la_vista_y_Prueba_con_otra_vista_o_con_Todas(string vista)
     {
         var (cut, mediador) = Renderizar(new Escenario());
@@ -228,6 +229,25 @@ public partial class ComunicacionesGen2Tests
         cut.FindAll(".bandeja-al-dia").Should().BeEmpty("«Al día» es solo de la vista por defecto");
         cut.FindAll(".bandeja-lista .estado-vacio button").Select(b => b.TextContent.Trim()).Should().Equal("Quitar los filtros");
         ConsultasDeConexiones(mediador).Should().Be(1, "solo la carga inicial, sin filtros, pregunta por los buzones");
+    }
+
+    [Fact]
+    public async Task Con_solo_conversaciones_archivadas_Abiertas_dice_Al_dia_y_Archivadas_las_lista()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Ya resuelta", ClienteRefrielectric, estado: EstadoConversacion.Resuelta),
+            Conversacion("Ya cerrada", ClienteRefrielectric, estado: EstadoConversacion.Cerrada)]);
+        var (cut, _) = Renderizar(escenario);
+
+        cut.Find(".bandeja-lista .bandeja-al-dia span").TextContent.Trim().Should().Be("Al día", "no queda nada vivo por atender");
+        TituloDelVacio(cut).Should().Be("No quedan conversaciones");
+        AsuntosVisibles(cut).Should().BeEmpty();
+
+        await ElegirVistaAsync(cut, "Archivadas");
+
+        AsuntosVisibles(cut).Should().BeEquivalentTo(["Ya resuelta", "Ya cerrada"]);
+        cut.FindAll(".bandeja-lista .estado-vacio").Should().BeEmpty();
     }
 
     [Fact]
