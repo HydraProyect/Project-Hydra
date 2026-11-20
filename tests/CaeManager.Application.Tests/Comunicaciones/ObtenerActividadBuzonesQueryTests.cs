@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;

@@ -1,6 +1,6 @@
 using System.Globalization;
-using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
