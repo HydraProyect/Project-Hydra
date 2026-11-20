@@ -923,7 +923,6 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         EscribirEmision(cut, "listo.pdf", "2026-03-01");
         cut.WaitForAssertion(() => cut.Find(".adjb-r").TextContent.Should().Contain("1 listo"));
-        cut.Find(".adjb-c button").Should().NotBeNull();
         cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim().StartsWith("Ver resueltos")).Click();
 
         string Tono(string archivo) => cut.FindAll(".adjb-w").Single(w => w.TextContent.Contains(archivo))
@@ -977,6 +976,39 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.Find("input[aria-label='Motivo del rechazo de seguro.pdf']").Should().NotBeNull();
         mediador.De<ResolverAdjuntoCommand>().Should().BeEmpty("rechazar pide el motivo antes de enviar nada");
+    }
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    [Fact]
+    public void El_dia_del_vencimiento_aun_no_esta_caducado_y_el_dia_siguiente_si()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("hoy.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("ayer.pdf", trabajador: Pedro, tipo: TipoDniTrabajador));
+        Services.AddSingleton<TimeProvider>(new RelojFijo(new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero)));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("input[aria-label='Fecha de vencimiento de hoy.pdf']").Change("2026-11-20");
+        cut.Find("input[aria-label='Fecha de vencimiento de ayer.pdf']").Change("2026-11-19");
+
+        cut.FindAll("[data-vigencia='caducado']").Select(e => e.TextContent.Trim()).Should().Equal("Caducó el 19/11/2026");
+    }
+
+    [Fact]
+    public void Un_vencimiento_pasado_en_un_adjunto_sin_destino_mantiene_Elegir_destino_como_accion_de_fila()
+    {
+        Preparar(Roles.GestorCae, Adj("suelto.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("input[aria-label='Fecha de vencimiento de suelto.pdf']").Change("2020-01-01");
+
+        var acciones = cut.FindAll(".adjb-a button").Select(b => b.TextContent.Trim()).ToArray();
+        acciones.Should().Contain("Elegir destino").And.NotContain("Rechazar documento");
     }
 
     [Fact]
@@ -1069,6 +1101,9 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var pie = TextosDe(cut.Find(".adjb-uno-pie"), "button");
 
         pie.Should().Equal("Anterior", "Siguiente", "Rechazar documento", "Ignorar adjunto", "Asignar documento");
+        // Un único primario por superficie: en la revisión uno a uno es «Asignar documento» (el pie del bloque no se ve).
+        var primarios = cut.FindAll(".adjb .boton-primario");
+        primarios.Should().ContainSingle().Which.TextContent.Trim().Should().Be("Asignar documento");
         // Aquí rechazar no reclama nada al remitente: el «Rechazar y reclamar el documento» es del Visor y es otra acción.
         Texto(cut).Should().NotContain("reclamar");
     }

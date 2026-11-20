@@ -523,7 +523,7 @@ else if (_errorCarga is not null)
                 @if (f.Pendiente)
                 {
                     // Una sola acción de fila, la que pide la situación: rechazar si ya caducó; si no, elegir destino.
-                    @if (Caducado(f) is not null)
+                    @if (Caducado(f) is not null && f.Situacion == SituacionAdjunto.Listo)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@Textos["RechazarDe", f.Adjunto.NombreArchivo]"
                                Deshabilitado="@Bloqueado" OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
