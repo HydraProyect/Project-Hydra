@@ -873,9 +873,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     // shortcut: cada recuento es una ObtenerConversacionesQuery completa con TamanoPagina: 1, que además del CountAsync con todo el
     // predicado ejecuta la proyección y las lecturas de fila de una página (no es solo un conteo). Van una tras otra para no solapar
-    // bucles de recuento: dos más por carga de lista, y cuatro más (tres con «Fuera de plazo» fuera) cada vez que se abre el selector
-    // de vistas o se recarga la lista con él abierto, incluido el refresco de plazos de cada minuto. Un recuento por canal y por vista
-    // en la propia query (como ContarPorEstadoAsync de Clientes) cuando haya que quitar esas idas y vueltas.
+    // bucles de recuento: dos más por carga de lista, y tres más cada vez que se abre el selector de vistas o se recarga la lista con él
+    // abierto (las cinco vistas menos la vigente y menos «Fuera de plazo», que no se cuenta), cuatro si «Fuera de plazo» es la vigente;
+    // incluido el refresco de plazos de cada minuto. Si el selector se abre durante la fase de canal de CargarRecuentosTrasListaAsync,
+    // pueden ejecutarse dos bucles de vista seguidos. Un recuento por canal y por vista en la propia query (como ContarPorEstadoAsync
+    // de Clientes) cuando haya que quitar esas idas y vueltas.
     private async Task CargarRecuentosCanalAsync(int carga)
     {
         var puertaTomada = false;

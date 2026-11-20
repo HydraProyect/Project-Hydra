@@ -30,6 +30,9 @@ public partial class ComunicacionesGen2Tests
         return Renderizar(escenario);
     }
 
+    // Plazo de las esperas asíncronas de este fichero (el 1 s por defecto de bUnit es de pared y caduca bajo carga de CI, como en la #2389).
+    private static readonly TimeSpan PlazoEspera = TimeSpan.FromSeconds(10);
+
     private static IElement DisparadorDeVista(IRenderedComponent<Bandeja> cut) => cut.Find(".bandeja-vista-disp");
 
     private static async Task AbrirPanelDeVistasAsync(IRenderedComponent<Bandeja> cut)
@@ -475,30 +478,39 @@ public partial class ComunicacionesGen2Tests
         escenario.Conversaciones.AddRange([
             Conversacion("Certificado de correo", ClienteRefrielectric) with { EjecutivoAsignadoId = escenario.MiUsuarioId },
             Conversacion("Aviso por WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp, EjecutivoAsignadoId = escenario.MiUsuarioId }]);
-        var lenta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var primeraDeMias = true;
-        // Solo el primer recuento de «Mías» (el de todos los canales, anterior al chip) se queda en vuelo; el recálculo posterior pasa.
-        escenario.Interceptar = p =>
+        // Los dos recuentos de «Mías» se retienen y se sueltan cuando el test lo decide: el obsoleto (sin canal, anterior al chip) y el
+        // recálculo (con «Correo»). Retener el recálculo deja el panel sin cifras entre los dos pasos, así que lo que se comprueba
+        // en medio no depende de cuánto tarden los hilos: si el obsoleto se aplicara, aparecería su cifra antes de que llegue el nuevo.
+        var obsoleto = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recalculo = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
         {
-            if (p is not ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true } || !primeraDeMias) return null;
-            primeraDeMias = false;
-            return lenta.Task;
+            ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true, Canal: null } => obsoleto.Task,
+            ObtenerConversacionesQuery { TamanoPagina: 1, SoloAsignadasAMi: true, Canal: CanalConversacion.Correo } => recalculo.Task,
+            _ => null
         };
         var (cut, mediador) = Renderizar(escenario);
         var apertura = DisparadorDeVista(cut).ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1));
+        await cut.WaitForAssertionAsync(() => mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should()
+            .Contain(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi && q.Canal == null, "el recuento sin canal ya está en vuelo"), PlazoEspera);
+        await cut.WaitForAssertionAsync(() => cut.FindAll(".bandeja-vista-panel").Should().HaveCount(1), PlazoEspera);
 
-        var eleccion = ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+        // Se pide otra lista con el recuento aún en vuelo; esperar a que la lista nueva esté cargada deja claro que el recuento
+        // viejo se libera después de pedirla.
+        await ChipsDeCanal(cut)[1].ClickAsync(new MouseEventArgs());
+        ConsultasDeLista(mediador).Should().Contain(q => q.Canal == CanalConversacion.Correo);
 
-        cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().Contain(q => q.Canal == CanalConversacion.Correo));
         // El recuento en vuelo se pidió sin canal («Mías» = 2): al llegar ya no corresponde a la lista de Correo y no se aplica.
-        await cut.InvokeAsync(() => lenta.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
-        await apertura;
-        await eleccion;
+        await cut.InvokeAsync(() => obsoleto.SetResult(escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, TamanoPagina: 1))));
+        await apertura.WaitAsync(PlazoEspera);
 
-        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Select(c => c.TextContent.Trim()).Should().NotContain("2",
-            "el recuento quedó obsoleto al pedirse otra lista");
-        cut.WaitForAssertion(() => CifraDeVista(cut, "Mías").Should().Be("1", "se recalcula con el canal Correo, como la lista"));
+        cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador").Should().BeEmpty(
+            "el recuento sin canal quedó obsoleto al pedirse otra lista y el nuevo todavía no ha llegado");
+
+        await cut.InvokeAsync(() => recalculo.SetResult(
+            escenario.Pagina(new ObtenerConversacionesQuery(SoloAsignadasAMi: true, Canal: CanalConversacion.Correo, TamanoPagina: 1))));
+        await cut.WaitForAssertionAsync(
+            () => CifraDeVista(cut, "Mías").Should().Be("1", "se recalcula con el canal Correo, como la lista"), PlazoEspera);
     }
 
     [Fact]

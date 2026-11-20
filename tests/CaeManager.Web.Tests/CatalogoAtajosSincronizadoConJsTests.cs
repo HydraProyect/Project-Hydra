@@ -89,7 +89,7 @@ public class CatalogoAtajosSincronizadoConJsTests
     }
 
     /// <summary>
-    /// Mismo riesgo para la sección «Dentro de una ficha»:<see cref="CatalogoAtajos.Ficha"/> anuncia
+    /// Mismo riesgo para la sección «Dentro de una ficha»: <see cref="CatalogoAtajos.Ficha"/> anuncia
     /// las letras de <c>TECLAS_FICHA</c> de <c>atajos-ficha.js</c> y, aparte, el rango «1 – 9», que
     /// en el JS no es una lista sino la expresión <c>/^[1-9]$/</c>.
     /// </summary>
