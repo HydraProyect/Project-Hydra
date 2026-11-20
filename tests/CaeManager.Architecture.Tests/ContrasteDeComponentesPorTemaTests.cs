@@ -59,7 +59,9 @@ namespace CaeManager.Architecture.Tests;
 /// <c>color-mix(in srgb, C N%, transparent)</c>; un <c>rgba()</c>, <c>inherit</c> o
 /// <c>oklch()</c> hace que el barrido omita esa regla (no puede medirla) y que la lista
 /// explícita falle con mensaje. No mide opacidades (<c>opacity</c> sobre el texto),
-/// degradados ni imágenes, ni el texto que hereda su color de un contexto. El barrido
+/// imágenes ni degradados, salvo uno: el <c>background</c> con una capa de degradado de dos
+/// paradas iguales (<c>linear-gradient(var(--t), var(--t)), var(--s)</c>), que es el tinte
+/// opaco sobre un color de fondo y lo resuelve <c>ResolverFondoMedible</c>; ni el texto que hereda su color de un contexto. El barrido
 /// une una regla con estado (<c>:hover</c>, <c>:active</c>, <c>:focus</c>) a la base del
 /// MISMO fichero y mismo selector, no a una regla de otro fichero ni a una con
 /// combinadores distintos. Y «sistema» no es un tercer caso: con
@@ -509,7 +511,7 @@ public class ContrasteDeComponentesPorTemaTests
 
     /// <summary>
     /// La insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>) pinta el tinte de sistema (IA, DDL-009) opaco sobre
-    /// <c>--color-surface</c> con un degradado de dos capas. El barrido la omitía por el degradado y el test de la hoja de la fila solo mira que el
+    /// <c>--color-surface</c> con una capa de degradado de dos paradas iguales sobre el color de fondo. El barrido la omitía por el degradado y el test de la hoja de la fila solo mira que el
     /// <c>background</c> nombre los dos tokens: nada medía la letra. Mide la regla REAL de la hoja, no una copia: el fondo es el tinte compuesto
     /// sobre la superficie del tema y la letra, el <c>color</c> declarado.
     /// </summary>
@@ -519,7 +521,9 @@ public class ContrasteDeComponentesPorTemaTests
     public void La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco(string tema)
     {
         var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
-        var (fondo, texto) = ColoresDeLaRegla(Leer(HojaFilaConversacion), [".fila-por-aprobar"]);
+        var hoja = Leer(HojaFilaConversacion);
+        var (fondo, texto) = ColoresDeLaRegla(hoja, [".fila-por-aprobar"]);
+        var cuerpo = Reglas(hoja).Single(r => r.Selector == ".fila-por-aprobar").Cuerpo;
         fondo.Should().NotBeNull("la insignia declara su background");
         texto.Should().NotBeNull("la insignia declara su color");
 
@@ -529,8 +533,8 @@ public class ContrasteDeComponentesPorTemaTests
         tinteSobreSuperficie.Should().NotBeNull("el tinte de sistema es un color-mix translúcido que se compone sobre la superficie");
 
         // El fondo de la regla tiene que ser exactamente ese tinte opaco sobre la superficie, no otra cosa que el instrumento medría distinto.
-        ResolverFondoMedible(tokens, fondo!, tema).Should().Be(tinteSobreSuperficie,
-            "el background de la insignia es el tinte de sistema pintado sobre --color-surface (degradado de dos capas iguales + superficie)");
+        ResolverFondoMedible(tokens, cuerpo, fondo!, tema).Should().Be(tinteSobreSuperficie,
+            "el background de la insignia es el tinte de sistema pintado sobre --color-surface (una capa con dos paradas iguales sobre el color de fondo)");
 
         var hexTexto = tokens.IntentarResolver(texto!, tema);
         hexTexto.Should().NotBeNull($"formato de color no soportado: '{texto}'");
@@ -545,17 +549,31 @@ public class ContrasteDeComponentesPorTemaTests
         var tokens = Tokens.Desde("""
             :root {
               --tinte: color-mix(in srgb, #000000 50%, transparent);
-              --base: #ffffff;
+              --base: #101010;
             }
-            :root[data-theme='oscuro'] { --base: #ffffff; }
-            :root[data-theme='claro'] { --base: #ffffff; }
+            :root[data-theme='oscuro'] { --base: #101010; }
+            :root[data-theme='claro'] { --base: #404040; }
             """);
+        const string Degradado = "linear-gradient(var(--tinte), var(--tinte)), var(--base)";
 
-        ResolverFondoMedible(tokens, "linear-gradient(var(--tinte), var(--tinte)), var(--base)", "claro")
-            .Should().Be("#808080", "el tinte al 50 % de negro sobre blanco");
-        ResolverFondoMedible(tokens, "var(--base)", "claro").Should().Be("#ffffff", "un color simple sigue resolviéndose como siempre");
-        ResolverFondoMedible(tokens, "linear-gradient(var(--tinte), var(--base)), var(--base)", "claro")
+        // La base de cada tema NO es el papel blanco: componer sobre el papel (en vez de sobre la superficie del tema) daría #808080 en los dos.
+        ResolverFondoMedible(tokens, $"background: {Degradado};", Degradado, "oscuro")
+            .Should().Be("#080808", "el tinte al 50 % de negro sobre la superficie oscura, no sobre el papel");
+        ResolverFondoMedible(tokens, $"background: {Degradado};", Degradado, "claro")
+            .Should().Be("#202020", "el tinte al 50 % de negro sobre la superficie de ese tema, no sobre el papel");
+        ResolverFondoMedible(tokens, "background: var(--base);", "var(--base)", "claro").Should().Be("#404040", "un color simple sigue resolviéndose como siempre");
+        ResolverFondoMedible(tokens, "background: linear-gradient(var(--tinte), var(--base)), var(--base);", "linear-gradient(var(--tinte), var(--base)), var(--base)", "claro")
             .Should().BeNull("un degradado de capas distintas no es un tinte sobre superficie: no se mide en silencio");
+
+        // Solo el shorthand `background` pinta un degradado: con `background-color` es CSS inválido y el navegador lo ignora, no se mide como si valiera.
+        ResolverFondoMedible(tokens, $"background-color: {Degradado};", Degradado, "claro")
+            .Should().BeNull("background-color no admite un degradado: la declaración no vale y no se puede medir");
+
+        // Un `background-image: none` posterior quita la capa del degradado y deja solo el color de fondo; uno anterior no la quita.
+        ResolverFondoMedible(tokens, $"background: {Degradado}; background-image: none;", Degradado, "claro")
+            .Should().Be("#404040", "sin la capa de imagen solo se ve el color de fondo, la superficie");
+        ResolverFondoMedible(tokens, $"background-image: none; background: {Degradado};", Degradado, "claro")
+            .Should().Be("#202020", "el shorthand posterior vuelve a pintar el degradado");
     }
 
     [Fact]
@@ -661,7 +679,7 @@ public class ContrasteDeComponentesPorTemaTests
     }
 
     /// <summary>
-    /// Reglas con fondo y letra declarados que el barrido no sabe resolver (<c>rgba()</c>, degradados, un
+    /// Reglas con fondo y letra declarados que el barrido no sabe resolver (<c>rgba()</c>, degradados que no sean el tinte de una capa con dos paradas iguales, un
     /// <c>var()</c> sin valor) y por tanto no mide. Medido el 2026-10-02. El tope solo baja: una regla nueva
     /// con un formato que el instrumento no entiende hace fallar el test en vez de entrar sin medir, y una
     /// que se arregla obliga a bajar la constante (la igualdad es estricta, para que el hueco liberado no lo
@@ -673,7 +691,7 @@ public class ContrasteDeComponentesPorTemaTests
     /// #rrggbb (<c>--color-system-tint</c>): el icono de procedencia y, desde el 2026-10-17 (§A), el avatar «Sistema». De
     /// este último el par se calculó a mano (ver <c>ContrasteDeAvataresPorTemaTests</c>): ◆ es una marca, no texto.
     /// La insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>, 2026-11-20) llegó a ser la 11.ª:
-    /// pastilla de sistema con el tinte pintado opaco sobre <c>--color-surface</c> (degradado de dos capas iguales + superficie), de modo
+    /// pastilla de sistema con el tinte pintado opaco sobre <c>--color-surface</c> (una capa con dos paradas iguales sobre el color de fondo), de modo
     /// que el par no depende de la fila (activa, hover). Ya no se omite: <see cref="ResolverFondoMedible"/> entiende ese degradado y el
     /// barrido la mide (4,79:1 en claro y 7,31:1 en oscuro); además la mide su propio test
     /// (<see cref="La_insignia_Accion_por_aprobar_de_la_fila_se_lee_sobre_su_tinte_opaco"/>). Por eso el tope vuelve a 10.
@@ -854,34 +872,37 @@ public class ContrasteDeComponentesPorTemaTests
 
     /// <summary>
     /// Lo mismo que <see cref="Barrer"/>, pero también devuelve (con <c>Ratio</c> nulo) las reglas que declaran
-    /// fondo y letra y que el instrumento no sabe resolver (<c>rgba()</c>, degradados, un <c>var()</c> sin
-    /// valor...). Son las que el barrido omitiría en silencio.
+    /// fondo y letra y que el instrumento no sabe resolver (<c>rgba()</c>, degradados que no sean el tinte de una capa con dos paradas iguales,
+    /// un <c>var()</c> sin valor...). Son las que el barrido omitiría en silencio.
     /// </summary>
     private static IEnumerable<(string Clave, double? Ratio)> Evaluar(string css, string fichero, Tokens tokens, string tema)
     {
         var reglas = Reglas(css).ToList();
 
-        var bases = new Dictionary<string, (string? Fondo, string? Texto)>(StringComparer.Ordinal);
+        var bases = new Dictionary<string, (string? Fondo, string? Texto, string Cuerpo)>(StringComparer.Ordinal);
         foreach (var r in reglas.Where(r => SinEstados(r.Selector) == r.Selector))
         {
             var (f, t) = ColoresDelCuerpo(r.Cuerpo);
             var previo = bases.GetValueOrDefault(r.Selector);
-            bases[r.Selector] = (f ?? previo.Fondo, t ?? previo.Texto);
+            bases[r.Selector] = (f ?? previo.Fondo, t ?? previo.Texto, $"{previo.Cuerpo};{r.Cuerpo}");
         }
 
         foreach (var r in reglas)
         {
             var clave = SinEstados(r.Selector);
             var (fondo, texto) = ColoresDelCuerpo(r.Cuerpo);
+            // Las declaraciones que de verdad aplican: las de la base y, después, las de la regla con estado.
+            var cuerpoEfectivo = r.Cuerpo;
             if (clave != r.Selector && bases.TryGetValue(clave, out var deBase))
             {
                 fondo ??= deBase.Fondo;
                 texto ??= deBase.Texto;
+                cuerpoEfectivo = $"{deBase.Cuerpo};{r.Cuerpo}";
             }
 
             if (fondo is null || texto is null) continue;
             if (SinColorConcreto.Contains(fondo) || SinColorConcreto.Contains(texto)) continue;
-            var hexFondo = ResolverFondoMedible(tokens, fondo, tema);
+            var hexFondo = ResolverFondoMedible(tokens, cuerpoEfectivo, fondo, tema);
             var hexTexto = tokens.IntentarResolver(texto, tema);
 
             yield return ($"{fichero}|{clave}",
@@ -890,17 +911,27 @@ public class ContrasteDeComponentesPorTemaTests
     }
 
     /// <summary>
-    /// Color final de un <c>background</c> que el barrido sabe medir: lo que entiende <c>Tokens.IntentarResolver</c> y, además, el
-    /// degradado de dos capas iguales sobre una superficie, <c>linear-gradient(var(--tinte), var(--tinte)), var(--superficie)</c>, que es como se
-    /// pinta un tinte translúcido OPACO sobre su superficie (el tinte compuesto sobre la superficie). <c>null</c> si no es de esos formatos.
+    /// Color final de un <c>background</c> que el barrido sabe medir: lo que entiende <c>Tokens.IntentarResolver</c> y, además, una capa de
+    /// degradado con dos paradas iguales sobre el color de fondo, <c>background: linear-gradient(var(--tinte), var(--tinte)), var(--superficie)</c>, que
+    /// es como se pinta un tinte translúcido OPACO sobre su superficie (el tinte compuesto sobre la superficie). Exige el shorthand
+    /// <c>background</c> (con <c>background-color</c> el degradado es CSS inválido y no pinta nada) y respeta un <c>background-image: none</c> posterior
+    /// (quita la capa y queda solo el color de fondo, la superficie). <c>null</c> si no es de esos formatos.
     /// </summary>
-    private static string? ResolverFondoMedible(Tokens tokens, string fondo, string tema)
+    /// <param name="cuerpo">Declaraciones de la regla (con las de su base si es una regla con estado), de donde sale <paramref name="fondo"/>.</param>
+    private static string? ResolverFondoMedible(Tokens tokens, string cuerpo, string fondo, string tema)
     {
         var degradado = Regex.Match(fondo.Trim(), @"^linear-gradient\(\s*(var\(\s*--[\w-]+\s*\))\s*,\s*\1\s*\)\s*,\s*(.+)$");
         if (!degradado.Success) return tokens.IntentarResolver(fondo, tema);
 
+        // La última declaración del shorthand es la que manda y tiene que ser la del degradado: si no, `fondo` no sale de ella.
+        var shorthand = Regex.Matches(cuerpo, @"(?<![-\w])background\s*:\s*([^;]+)").LastOrDefault();
+        if (shorthand is null || !shorthand.Groups[1].Value.TrimStart().StartsWith("linear-gradient(", StringComparison.Ordinal)) return null;
+
         var superficie = tokens.IntentarResolver(degradado.Groups[2].Value, tema);
-        return superficie is null ? null : tokens.ResolverSobre(degradado.Groups[1].Value, tema, superficie);
+        if (superficie is null) return null;
+
+        var imagenAnulada = Regex.Matches(cuerpo, @"(?<![-\w])background-image\s*:\s*none\b").Any(m => m.Index > shorthand.Index);
+        return imagenAnulada ? superficie : tokens.ResolverSobre(degradado.Groups[1].Value, tema, superficie);
     }
 
     private static IEnumerable<string> HojasDelArbol()

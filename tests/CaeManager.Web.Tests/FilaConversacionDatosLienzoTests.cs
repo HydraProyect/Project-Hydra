@@ -110,6 +110,12 @@ public class FilaConversacionDatosLienzoTests : BunitContext
     [InlineData("123 Marta Gil", "MG")]
     [InlineData("Marta", "M")]
     [InlineData("  Marta   Gil  ", "MG")]
+    // Los cuatro siguientes distinguen el helper de la persona usuaria del de Empresa/Tenant (AvatarTenant.Iniciales, que parte solo por espacios y descarta
+    // la palabra que no empieza por letra): ese daría «AR», «M», «M» y «G».
+    [InlineData("Ana-Belén Ruiz", "AB")]
+    [InlineData("marta.gil@operador.test", "MG")]
+    [InlineData("Marta 2Gil", "MG")]
+    [InlineData("(Marta) Gil", "MG")]
     public void La_persona_asignada_se_enseña_con_sus_iniciales_y_su_nombre_en_el_titulo(string nombre, string iniciales)
     {
         var asignada = Render(Crear() with { EjecutivoAsignadoNombre = nombre }).Find(".bandeja-fila-linea3 .fila-asignada");

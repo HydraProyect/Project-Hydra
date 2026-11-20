@@ -105,10 +105,10 @@
     // shortcut: también se enseña si la asignada es el propio usuario (el lienzo la oculta); la fila no recibe quién es el usuario, cuando Bandeja se lo pase
     private (string Nombre, string Iniciales)? Asignada =>
         string.IsNullOrWhiteSpace(Conversacion.EjecutivoAsignadoNombre) ? null
-        // Convención de la app (MiTrabajo, Usuarios, EmpresaDetalle, Subcontratas): las iniciales de las dos primeras palabras que empiezan por letra,
-        // con el helper compartido, que devuelve «?» si no hay ninguna (entonces la fila no enseña persona). El lienzo pinta tres letras («MGR»): desviación
-        // declarada en la PR, una misma Gestora CAE no puede llevar monogramas distintos en pantallas distintas.
-        : AvatarTenant.Iniciales(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
+        // Mismo helper que el avatar de la persona usuaria (AvatarUsuario): la inicial de cada palabra, cortando también en guion, punto y arroba, y
+        // «?» si no hay ninguna letra (entonces la fila no enseña persona). No AvatarTenant.Iniciales, que es el de una Empresa o un Tenant y parte solo
+        // por espacios. El lienzo pinta tres letras («MGR»): desviación declarada en la PR, una misma Gestora CAE lleva el mismo monograma en todas las pantallas.
+        : InicialesDeUsuario.De(Conversacion.EjecutivoAsignadoNombre) is { } iniciales and not "?" ? (Conversacion.EjecutivoAsignadoNombre.Trim(), iniciales)
         : null;
 
     /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
