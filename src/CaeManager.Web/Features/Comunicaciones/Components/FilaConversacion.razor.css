@@ -38,7 +38,63 @@ li.fila-conversacion .fila-linea-meta {
 }
 
 .fila-ticket {
-    margin-left: auto;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Clip de adjuntos (lienzo L-12, `.marca-p`): al final de la línea del asunto, apagado, con el número al lado. */
+.fila-adjuntos {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--color-text-muted);
+    font: 500 12px/16px var(--font-family);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Insignia «Acción por aprobar»: pastilla pequeña de sistema (`.badge-sistema` del design system: tinte y texto del indicador de sistema, borde al 35 %). */
+.fila-por-aprobar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 calc(var(--space-2) - 1px);
+    border: 1px solid color-mix(in srgb, var(--color-system-text) 35%, transparent);
+    border-radius: var(--radius-full);
+    background-color: var(--color-system-tint);
+    color: var(--color-system-text);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1rem;
+    white-space: nowrap;
+}
+
+.fila-por-aprobar ::deep .icono {
+    width: 12px;
+    height: 12px;
+}
+
+/* Grupo derecho de la tercera línea: buzón corto, persona asignada y Nº de ticket, pegados a la derecha. Gana en especificidad a la regla de `Bandeja.razor.css`
+   que fija `flex-shrink: 0` a toda pieza de la línea, para que un buzón largo se recorte con elipsis en vez de desbordar la fila. */
+li.fila-conversacion .fila-linea-derecha {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.fila-buzon {
+    min-width: 0;
+    max-width: var(--space-24);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fila-asignada {
+    flex: none;
     white-space: nowrap;
 }
