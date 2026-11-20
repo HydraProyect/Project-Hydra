@@ -63,8 +63,8 @@ public class ObtenerActividadBuzonesQueryHandler(
 
         // Solo se miden los buzones del Tenant actual que se pueden medir: los compartidos y el personal propio. La lectura va
         // con el filtro de Tenant y de borrado lógico (y RLS): un id de otro Tenant, uno que no existe o una conexión
-        // eliminada no vuelven, y tampoco el buzón personal de otro Gestor CAE, cuyos hilos no son visibles aquí (un «0» o un
-        // «Sin correos aún» afirmarían que está vacío; es la misma exclusión que hace ConversacionesVisibles para los hilos,
+        // eliminada no vuelven, y tampoco el buzón personal de otro Gestor CAE, cuyos hilos no son visibles aquí (un «0» de
+        // Abiertas o un «Sin correos visibles» afirmarían que se ha medido; es la misma exclusión que hace ConversacionesVisibles para los hilos,
         // aplicada a la conexión). Esos ids faltan de la respuesta y la tabla enseña «—».
         var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
         ids = await integracionesContext.ConexionesIntegracion

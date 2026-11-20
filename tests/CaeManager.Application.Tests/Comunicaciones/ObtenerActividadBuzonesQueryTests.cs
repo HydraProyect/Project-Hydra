@@ -208,7 +208,7 @@ public class ObtenerActividadBuzonesQueryTests
     {
         // Un id que no existe o que es de otro Tenant no vuelve de la lectura de conexiones (en PostgreSQL, por el filtro de
         // Tenant y la RLS; aquí, por no estar en el contexto): no es un buzón medible y falta del diccionario, así que la
-        // tabla enseña «—» y no «Sin correos aún» con 0 abiertas, que afirmarían haberlo medido.
+        // tabla enseña «—» y no «Sin correos visibles» con 0 abiertas, que afirmarían haberlo medido.
         var escenario = new Escenario();
         var buzon = escenario.Buzon();
         var inexistente = Guid.NewGuid();

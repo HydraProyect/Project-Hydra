@@ -60,8 +60,8 @@
   <data name="UltimoCorreoAyer" xml:space="preserve">
     <value>Ahir, {0}</value>
   </data>
-  <data name="SinCorreosAun" xml:space="preserve">
-    <value>Encara sense correus</value>
+  <data name="SinCorreosVisibles" xml:space="preserve">
+    <value>Sense correus visibles</value>
   </data>
   <data name="TipoCompartido" xml:space="preserve">
     <value>Compartida</value>
