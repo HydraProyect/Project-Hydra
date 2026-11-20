@@ -35,7 +35,7 @@
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Zoom_Ampliar"]" title="@Textos["Zoom_Ampliar"]" OnClick="() => CambiarZoom(PasoZoom)"><Icono Nombre="mas" Tamano="TamanoIcono.Pequeno" /></Boton>
                 </div>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono" aria-label="@Textos["Girar"]" title="@Textos["Girar"]" OnClick="Girar"><Icono Nombre="girar" Tamano="TamanoIcono.Pequeno" /></Boton>
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@(EsUrlRelativaSegura(actual.Url) ? actual.Url : null)" Deshabilitado="@(!EsUrlRelativaSegura(actual.Url))" download="@actual.NombreArchivo"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" />@Textos["Descargar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Href="@(EsUrlRelativaSegura(actual.Url) ? actual.Url : null)" Deshabilitado="@(!EsUrlRelativaSegura(actual.Url))" download="@actual.NombreArchivo"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" />@Textos["Descargar"]</Boton>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="vz-btn-icono vz-btn-cerrar" aria-label="@Textos["Cerrar"]" title="@Textos["Cerrar"]" OnClick="CerrarAsync"><Icono Nombre="cerrar" /></Boton>
             </header>
 
@@ -59,7 +59,7 @@
                                         <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
                                         break;
                                     case EstadoAdjuntoVisor.Rechazado:
-                                        <Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" />
+                                        <Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" />
                                         break;
                                     default:
                                         <text>@(j + 1)</text>
