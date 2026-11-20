@@ -67,7 +67,10 @@ public partial class ConversacionesUnificadasBajoRuntimeTests
         {
             var filas = await RecorrerAsync([tenant.TenantId], GrupoEstadoConversacion.Abiertas);
             filas.Should().HaveCount(tenant.Abiertas, $"el recuento de {tenant.TenantNombre} es lo que la lista devuelve para él");
-            filas.Should().OnlyContain(f => f.TenantId == tenant.TenantId);
+            // OnlyContain falla con una colección vacía, y el Tenant sin conversaciones devuelve cero filas:
+            // lo que se fija es que no aparece ninguna fila de otro Tenant.
+            filas.Where(f => f.TenantId != tenant.TenantId).Should().BeEmpty(
+                $"la lista filtrada por {tenant.TenantNombre} no trae filas de otro Tenant");
         }
 
         (await RecorrerAsync(null, GrupoEstadoConversacion.Abiertas)).Should().HaveCount(selector.Tenants.Sum(t => t.Abiertas),
