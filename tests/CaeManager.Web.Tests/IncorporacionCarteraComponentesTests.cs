@@ -352,6 +352,26 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     [Theory]
     [InlineData("es-ES")]
     [InlineData("ca-ES")]
+    public async Task D3_Asumir_denegado_por_Outbound_cerrado_muestra_su_mensaje_y_no_el_generico(string cultura)
+    {
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        _mediator.AlComando = _ => Result.Fallo(
+            CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        Textos["ErrorAsumirOutboundCerrado"].ResourceNotFound.Should().BeFalse();
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error
+            && t.Mensaje == Textos["ErrorAsumirOutboundCerrado"].Value
+            && t.Mensaje != Textos["ErrorGenerico"].Value);
+    }
+
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
     public void El_aviso_de_exito_de_Asumir_no_afirma_un_rol(string cultura)
     {
         // Quien ya tenía cartera de Gestor CAE la conserva marcada: decirle «Coordinador CAE» sería falso.

@@ -1137,7 +1137,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new DesignarGestorCaePrincipalCommandHandler(
                     usuario, directorio, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
-                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new DesignarGestorCaePrincipalCommand(operacionId, destino), CancellationToken.None);
         });
 

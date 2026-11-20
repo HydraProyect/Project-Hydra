@@ -282,6 +282,9 @@
   <data name="ErrorAsumirCambioMientrasDecidias" xml:space="preserve">
     <value>Otra persona recibió esta empresa mientras decidías. No se ha cambiado nada.</value>
   </data>
+  <data name="ErrorAsumirOutboundCerrado" xml:space="preserve">
+    <value>Esta empresa no está disponible: una de las organizaciones implicadas no tiene contratado Acredita. No se ha cambiado nada.</value>
+  </data>
   <data name="SinPrincipalVacioTitulo" xml:space="preserve">
     <value>Todas las empresas tienen principal</value>
   </data>

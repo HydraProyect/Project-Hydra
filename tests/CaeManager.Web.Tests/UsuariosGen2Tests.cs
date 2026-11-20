@@ -805,7 +805,7 @@ public partial class UsuariosGen2Tests : BunitContext
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
-                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
+                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera(), new OutboundTenantTecAbiertoWeb()).Handle(c, ct),
             EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
                 cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre(), new SinBloqueoCartera()).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),

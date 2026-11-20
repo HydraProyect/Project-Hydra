@@ -174,7 +174,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     ///
     /// <para>
     /// Actualizado 2026-10-08 (Gestor CAE principal, ADR-011 § 2.7): entran
-    /// <c>DesignarGestorCaePrincipalCommand.cs</c> (2 llamadas),
+    /// <c>DesignarGestorCaePrincipalCommand.cs</c> (4 llamadas),
     /// <c>RelevoDePrincipalDeCartera.cs</c> (3) y
     /// <c>ObtenerPersonasConCarteraQuery.cs</c> (1). El Tenant propietario sale
     /// siempre de una cartera viva leída del catálogo y acotada al Operador CAE
@@ -363,7 +363,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "ObtenerTenantOrigenIdAsync() del propio usuario, en sus dos llamadas (la autoridad sobre un Gestor CAE y, desde I4, ResolverActorAsync para revocar un apoyo): para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor. De la petición solo salen la Asignación de Operación y la persona"),
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor; con esos dos mismos Guid se lee, sin principal actual, la línea Outbound de cada Tenant (D3, R1). De la petición solo salen la Asignación de Operación y la persona"),
         ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Ningún Guid llega de la petición"),
@@ -675,7 +675,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] = 1,
-            ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
+            // 2 → 4 (2026-11-20, D3 R1): sin principal actual, la lectura de la línea Outbound del Tenant de origen (con
+            // él como Tenant activo) y la del Tenant beneficiario (con el mismo destino.PropietarioTenantId ya validado).
+            ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 4,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] = 2,

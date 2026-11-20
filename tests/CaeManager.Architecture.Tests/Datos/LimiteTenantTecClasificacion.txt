@@ -139,7 +139,7 @@ DesconectarBuzonCommand	no-aplica
 DeshacerCambioEstadoAcreditacionCommand	no-aplica
 DeshacerDerivacionAlertaCriticaCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 DeshacerSubidaDesdeExtensionCommand	no-aplica
-DesignarGestorCaePrincipalCommand	abierto	marca la principal entre carteras vivas, sin alta; con principal actual sustituye y tiene el trato del relevo (DN-7): permitido con el Tenant beneficiario cerrado (DECISION_LOG 2026-11-19 punto 2) y con el Tenant de origen del Operador CAE externo cerrado (R2, DECISION_LOG 2026-11-20 punto 6); designar cuando la operación no tiene principal queda abierto: R1 nombra «Asumir principal» y aquí no se emite cartera
+DesignarGestorCaePrincipalCommand	cerrado-handler	sin principal actual, designar es asumir la operación sin una baja previa y se deniega con el Tenant beneficiario, el Tenant de origen del Operador CAE externo o los dos cerrados (R1, DECISION_LOG 2026-11-20 punto 5); con principal actual sustituye, tiene el trato del relevo (DN-7) y sigue permitido (DECISION_LOG 2026-11-19 punto 2 y 2026-11-20 punto 6)
 DiagnosticarDatosPurgablesCommand	no-aplica
 DividirAdjuntoPdfCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EditarCanalGestionCommand	cerrado-behavior

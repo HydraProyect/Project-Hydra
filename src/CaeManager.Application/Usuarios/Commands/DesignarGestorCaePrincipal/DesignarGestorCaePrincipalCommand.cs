@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -39,6 +40,14 @@ namespace CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 /// al guardar y no queda nada escrito. El candado compartido de cartera sobre el destino
 /// (<see cref="IBloqueoCarteraUsuario"/>) espera a una desactivación en curso de esa cuenta.
 /// </para>
+///
+/// <para>
+/// <b>D3, R1</b> (DECISION_LOG 2026-11-20, punto 5): si la operación no tiene principal actual,
+/// designar es asumirla sin una baja previa, y se deniega con
+/// <see cref="ErroresLimiteTenantTec.OutboundCerrado"/> si Outbound está cerrado para el Tenant
+/// beneficiario o para el Tenant de origen del Operador CAE externo. Con principal actual sustituye,
+/// como el relevo, y sigue permitido.
+/// </para>
 /// </summary>
 [AreaDelEncargo("Usuarios")]
 public record DesignarGestorCaePrincipalCommand(Guid AsignacionOperacionId, Guid UsuarioId) : ICommand;
@@ -49,7 +58,8 @@ public class DesignarGestorCaePrincipalCommandHandler(
     IDirectorioDestinosCartera directorioDestinos,
     ICatalogoIncorporacionCartera catalogo,
     ITransaccionDeComando transaccion,
-    IBloqueoCarteraUsuario bloqueoCartera)
+    IBloqueoCarteraUsuario bloqueoCartera,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<DesignarGestorCaePrincipalCommand, Result>
 {
     private const string Administrador = "Administrador";
@@ -97,6 +107,26 @@ public class DesignarGestorCaePrincipalCommandHandler(
                 var decision = vigente.Valor;
                 if (decision.YaEsPrincipal)
                     return Result.Exito();
+
+                // D3, R1 (DECISION_LOG 2026-11-20, punto 5): sin principal actual, designar es asumir la
+                // operación sin una baja previa que lo justifique. Se deniega si Outbound está cerrado
+                // para el Tenant de origen del Operador CAE externo (leído con él como Tenant activo) o
+                // para el Tenant beneficiario (en su ámbito). Con principal actual es una sustitución,
+                // como el relevo, y sigue permitida.
+                if (decision.PrincipalActualUsuarioId is null)
+                {
+                    bool cerrado;
+                    using (AmbitoTenantExplicito.Establecer(decision.OperadorTenantId))
+                        cerrado = await outboundCerrado.EstaCerradoAsync(decision.OperadorTenantId, ct);
+                    if (!cerrado)
+                    {
+                        using (AmbitoTenantExplicito.Establecer(decision.PropietarioTenantId))
+                            cerrado = await outboundCerrado.EstaCerradoAsync(decision.PropietarioTenantId, ct);
+                    }
+
+                    if (cerrado)
+                        return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+                }
 
                 // El Guid del Tenant propietario sale de la cartera del destino, ya leída y
                 // acotada al Operador CAE; de la petición solo salen la operación y la persona.
