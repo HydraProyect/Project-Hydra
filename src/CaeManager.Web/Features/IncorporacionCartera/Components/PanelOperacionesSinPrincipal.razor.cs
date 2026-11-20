@@ -46,7 +46,8 @@ public partial class PanelOperacionesSinPrincipal
 
     /// <summary>
     /// Cada código estable <c>AsumirPrincipal.X</c> tiene su clave <c>ErrorAsumirX</c>, y la denegación de D3
-    /// (Outbound cerrado, DECISION_LOG 2026-11-20, puntos 5 y 6) la suya; el resto cae al genérico.
+    /// (Outbound cerrado, R1, DECISION_LOG 2026-11-20, punto 5) la suya; el resto cae al genérico. La lista ya no
+    /// ofrece «Asumir» donde D3 lo deniega; el error queda para cuando la línea cambia entre la lectura y el clic.
     /// </summary>
     private string MensajeDeError(CaeManager.Domain.Common.Error error)
     {

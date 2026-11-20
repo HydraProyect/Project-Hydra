@@ -6,7 +6,7 @@
 # motivo en Datos/LimiteTenantTecClasificacion.txt. Los ficheros que no son Commands: las sobrecargas de Infrastructure
 # que solo llaman los Commands de arriba, el relevo de principal (RelevoDePrincipalDeCartera, abierto: relevo de principal
 # permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con
-# el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2) y los seeders, que no corren sobre
+# el Operador CAE externo cerrado también, por analogía, R2, DECISION_LOG 2026-11-20 punto 6) y los seeders, que no corren sobre
 # un Tenant marcado. Formato: fichero :: símbolo = n.
 src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs :: new Centro = 1
 src/CaeManager.Application/Clientes/Commands/CrearCliente/CrearClienteCommand.cs :: Empresa.CrearComoCliente = 1

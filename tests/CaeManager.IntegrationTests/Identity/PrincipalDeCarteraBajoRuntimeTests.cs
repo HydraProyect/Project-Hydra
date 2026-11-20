@@ -1162,7 +1162,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     private Task<AlertaDePrincipal> Alerta(Guid usuarioId, string rolDeSesion, Guid origen) =>
         EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
-            new ObtenerOperacionesSinPrincipalQueryHandler(usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario))
+            new ObtenerOperacionesSinPrincipalQueryHandler(
+                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
+                    CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new ObtenerOperacionesSinPrincipalQuery(), CancellationToken.None));
 
     private Task<IReadOnlyList<CarterasDeOperacion>> Personas(Guid usuarioId, string rolDeSesion, Guid origen, Guid? tenantId) =>

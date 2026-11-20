@@ -484,7 +484,7 @@ public class GestionCuentasCommandsTests
     }
 
     /// <summary>
-    /// D3, R1 y R2 (DECISION_LOG 2026-11-20, puntos 5 y 6): al reactivar, la cuenta que pasa a ser la única elegible no
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): al reactivar, la cuenta que pasa a ser la única elegible no
     /// asume las operaciones sin principal si Outbound está cerrado para su Tenant beneficiario o para el Tenant de origen
     /// del Operador CAE: no hay baja previa que lo justifique. La reactivación se confirma igual.
     /// </summary>

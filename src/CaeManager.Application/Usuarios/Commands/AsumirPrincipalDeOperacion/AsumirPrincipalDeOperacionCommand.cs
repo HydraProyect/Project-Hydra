@@ -46,14 +46,15 @@ namespace CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 /// </para>
 ///
 /// <para>
-/// <b>D3, R1 y R2</b> (DECISION_LOG 2026-11-20, puntos 5 y 6): «Asumir» es asumir una operación
-/// sin una baja previa que lo justifique (una que nunca tuvo principal, o cuya cartera principal se
-/// cerró como Expirada sin relevo), así que se deniega con
-/// <see cref="ErroresLimiteTenantTec.OutboundCerrado"/> si Outbound está cerrado para el Tenant
-/// beneficiario o para el Tenant de origen del Operador CAE externo
-/// (<see cref="IOutboundCerradoTenantTec"/>). El relevo como consecuencia de una baja no pasa por
-/// aquí (<see cref="RelevoDePrincipalDeCartera"/>) y sigue permitido. Coste aceptado: una operación
-/// cerrada sin candidato puede quedarse sin principal.
+/// <b>D3, R1</b> (DECISION_LOG 2026-11-20, punto 5): «Asumir» es asumir una operación sin una baja
+/// previa que lo justifique (una que nunca tuvo principal, o cuya cartera principal se cerró como
+/// Expirada sin relevo), así que se deniega con <see cref="ErroresLimiteTenantTec.OutboundCerrado"/>
+/// si Outbound está cerrado para el Tenant beneficiario o para el Tenant de origen del Operador CAE
+/// externo (<see cref="EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync"/>, la misma
+/// regla con la que <c>ObtenerOperacionesSinPrincipalQuery</c> decide si ofrece «Asumir»). El relevo
+/// como consecuencia de una baja no pasa por aquí (<see cref="RelevoDePrincipalDeCartera"/>) y sigue
+/// permitido, también con el Tenant de origen del Operador CAE cerrado (R2, punto 6). Coste
+/// aceptado: una operación cerrada sin candidato puede quedarse sin principal.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Usuarios")]
@@ -110,24 +111,19 @@ public class AsumirPrincipalDeOperacionCommandHandler(
                     return Result.Fallo(vigente.Error);
                 var decision = vigente.Valor;
 
-                // D3, R2 (DECISION_LOG 2026-11-20, punto 6): se deniega si Outbound está cerrado para
-                // el Tenant de origen del Operador CAE externo. Se lee con él como Tenant activo: dentro
-                // del ámbito del Tenant beneficiario su línea se leería como «sin línea».
-                using (AmbitoTenantExplicito.Establecer(decision.OperadorTenantId))
-                {
-                    if (await outboundCerrado.EstaCerradoAsync(decision.OperadorTenantId, ct))
-                        return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
-                }
+                // D3, R1 (DECISION_LOG 2026-11-20, punto 5): se deniega si Outbound está cerrado para
+                // el Tenant de origen del Operador CAE externo o para el Tenant beneficiario, cada uno
+                // leído con él como Tenant activo. Es la misma regla con la que la alerta decide si
+                // ofrece «Asumir». No se guarda nada.
+                var abiertos = await EscaladoDePrincipalDeCartera.BeneficiariosDondeSePuedeAsumirAsync(
+                    outboundCerrado, [decision.PropietarioTenantId], decision.OperadorTenantId, ct);
+                if (!abiertos.Contains(decision.PropietarioTenantId))
+                    return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
 
                 // El Guid del Tenant propietario sale de la operación ya leída y acotada al
                 // Operador CAE; de la petición solo sale el identificador de la operación.
                 using (AmbitoTenantExplicito.Establecer(decision.PropietarioTenantId))
                 {
-                    // D3, R1 (DECISION_LOG 2026-11-20, punto 5): y si lo está para el Tenant beneficiario,
-                    // que aquí ya es el Tenant activo. No se guarda nada.
-                    if (await outboundCerrado.EstaCerradoAsync(decision.PropietarioTenantId, ct))
-                        return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
-
                     var asumida = await catalogo.RelevarPrincipalAsync(
                         decision.PropietarioTenantId, decision.OperadorTenantId, request.AsignacionOperacionId,
                         decision.ActorUsuarioId, ct);

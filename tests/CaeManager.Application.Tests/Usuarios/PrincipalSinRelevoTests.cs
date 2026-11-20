@@ -74,7 +74,7 @@ public class PrincipalSinRelevoTests
                 .Handle(new AsumirPrincipalDeOperacionCommand(operacion ?? Operacion), default);
 
         public Task<AlertaDePrincipal> AlertaAsync() =>
-            new ObtenerOperacionesSinPrincipalQueryHandler(Sesion, Roles, Catalogo)
+            new ObtenerOperacionesSinPrincipalQueryHandler(Sesion, Roles, Catalogo, Outbound)
                 .Handle(new ObtenerOperacionesSinPrincipalQuery(), default);
 
         public Task<bool> EscalarAsync(Guid? excluido = null) =>
@@ -228,7 +228,7 @@ public class PrincipalSinRelevoTests
     }
 
     /// <summary>
-    /// D3, R1 y R2 (DECISION_LOG 2026-11-20, puntos 5 y 6): el primer usuario elegible asume sin una baja previa, así
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): el primer usuario elegible asume sin una baja previa, así
     /// que no recibe nada con el Tenant de origen del Operador CAE cerrado, y se salta la operación cuyo Tenant
     /// beneficiario está cerrado sin dejar de recibir la abierta. Cada Tenant se pregunta con él como Tenant activo. Por
     /// el puerto (<see cref="AsignacionAutomaticaDePrincipal"/>), como lo llaman el alta, la edición y el cambio de rol.
@@ -260,10 +260,10 @@ public class PrincipalSinRelevoTests
         e.Outbound.Ambitos.Should().OnlyContain(p => p.Preguntado == p.Ambito, "cada Tenant se lee con él como Tenant activo");
     }
 
-    // ---------- «Asumir» con Outbound cerrado (D3, R1 y R2) ----------
+    // ---------- «Asumir» con Outbound cerrado (D3, R1) ----------
 
     /// <summary>
-    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5) y R2 (punto 6): «Asumir» es asumir una operación sin una baja previa
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): «Asumir» es asumir una operación sin una baja previa
     /// que lo justifique (una que nunca tuvo principal, o con la cartera del principal Expirada sin relevo: para el comando
     /// las dos son una operación sin principal vivo), y se deniega con el Tenant beneficiario cerrado, con el Tenant de
     /// origen del Operador CAE externo cerrado o con los dos, emita o no una Asignación de Cartera nueva. No se guarda nada.
@@ -308,6 +308,77 @@ public class PrincipalSinRelevoTests
         e.Outbound.Ambitos.Should().BeEquivalentTo(
             [(Operador, (Guid?)Operador), (Propietario, (Guid?)Propietario)],
             "el Tenant de origen del Operador CAE y el Tenant beneficiario, cada uno como Tenant activo");
+    }
+
+    // ---------- La alerta con Outbound cerrado (D3, R1) ----------
+
+    /// <summary>
+    /// D3, R1 (DECISION_LOG 2026-11-20, punto 5): la alerta lista igual la operación sin principal con Outbound cerrado
+    /// para su Tenant beneficiario o para el Tenant de origen del Operador CAE externo, pero no ofrece «Asumir» (ni la
+    /// cuenta como asumible), con la misma regla que el comando: lo que ofrece, el comando lo permite, y lo que no,
+    /// el comando lo deniega. Cada Tenant se pregunta con él como Tenant activo.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_la_alerta_lista_sin_Asumir_las_operaciones_con_Outbound_cerrado(
+        bool beneficiarioCerrado, bool operadorCerrado)
+    {
+        var otroPropietario = Guid.NewGuid();
+        var otraOperacion = Guid.NewGuid();
+        var e = new Escenario
+        {
+            Outbound = new OutboundCerradoTenantTecFijo(
+                t => (beneficiarioCerrado && t == Propietario) || (operadorCerrado && t == Operador)),
+        };
+        e.Catalogo.Asignables.Add((Operador, new TenantCandidatoIncorporacion(otroPropietario, "Obras Sur", otraOperacion)));
+        e.Cuenta("CoordinadorCae", id: Actor);
+        e.Cuenta("CoordinadorCae");
+
+        var alerta = await e.AlertaAsync();
+
+        alerta.SinPrincipal.Select(o => o.AsignacionOperacionId).Should().BeEquivalentTo(
+            [Operacion, otraOperacion], "la fila se lista igual, se pueda asumir o no");
+        var cerrada = alerta.Operaciones.Single(o => o.AsignacionOperacionId == Operacion);
+        cerrada.SePuedeAsumir.Should().Be(!beneficiarioCerrado && !operadorCerrado);
+        cerrada.OutboundCerrado.Should().Be(beneficiarioCerrado || operadorCerrado);
+        alerta.Operaciones.Single(o => o.AsignacionOperacionId == otraOperacion).SePuedeAsumir
+            .Should().Be(!operadorCerrado, "la de Tenant beneficiario abierto solo se cierra por el Operador CAE");
+        alerta.Asumibles.Select(o => o.AsignacionOperacionId).Should().BeEquivalentTo(
+            alerta.Operaciones.Where(o => o.SePuedeAsumir).Select(o => o.AsignacionOperacionId));
+        alerta.ConCoordinadorCaePrincipal.Should().BeEmpty("cerrada no es lo mismo que con principal");
+        e.Outbound.Ambitos.Should().OnlyContain(p => p.Preguntado == p.Ambito, "cada Tenant se lee con él como Tenant activo");
+        e.Outbound.Preguntados.Should().BeEquivalentTo(
+            operadorCerrado ? [Operador] : new[] { Operador, Propietario, otroPropietario },
+            "el Tenant de origen una vez y, si está abierto, cada Tenant beneficiario una vez");
+
+        var asumir = await e.AsumirAsync();
+        asumir.EsExitoso.Should().Be(cerrada.SePuedeAsumir, "la alerta ofrece «Asumir» solo donde el comando lo permite");
+        if (!cerrada.SePuedeAsumir)
+            asumir.Error.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+    }
+
+    [Fact]
+    public async Task D3_la_alerta_pregunta_una_vez_por_Tenant_beneficiario_y_no_por_las_que_tienen_principal()
+    {
+        var e = new Escenario();
+        e.Cuenta("CoordinadorCae", id: Actor);
+        var mismoPropietario = Guid.NewGuid();
+        var conCoordinadorPropietario = Guid.NewGuid();
+        var conCoordinador = Guid.NewGuid();
+        e.Catalogo.Asignables.Add((Operador, new TenantCandidatoIncorporacion(Propietario, "Talleres Norte bis", mismoPropietario)));
+        e.Catalogo.Asignables.Add((Operador, new TenantCandidatoIncorporacion(conCoordinadorPropietario, "Con coordinador", conCoordinador)));
+        e.Catalogo.CarterasVivas.Add((Operador, new CarteraVivaDeOperacion(
+            conCoordinador, conCoordinadorPropietario, "Con coordinador", e.Cuenta("CoordinadorCae"), "CoordinadorCae", true, null)));
+
+        var alerta = await e.AlertaAsync();
+
+        alerta.Asumibles.Select(o => o.AsignacionOperacionId).Should().BeEquivalentTo([Operacion, mismoPropietario]);
+        alerta.ConCoordinadorCaePrincipal.Single().OutboundCerrado.Should().BeFalse("con principal no se evalúa D3");
+        e.Outbound.Preguntados.Should().Equal([Operador, Propietario],
+            "un Tenant beneficiario con dos operaciones se lee una vez, y el de la operación con principal no se lee");
     }
 
     // ---------- «Asumir» ----------

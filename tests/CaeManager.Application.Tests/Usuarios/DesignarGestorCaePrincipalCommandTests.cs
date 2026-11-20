@@ -431,7 +431,7 @@ public class DesignarGestorCaePrincipalCommandTests
     // ---------- Relevo automático al retirar la cartera principal ----------
 
     private static AsignarCarteraGestorCaeCommandHandler Retirada(Escenario e) => new(
-        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
+        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo, e.Outbound);
 
     private static async Task RetirarAsync(Escenario e, Guid gestor)
     {
@@ -459,6 +459,25 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Bloqueo.Exclusivos.Should().Equal(GestorA);
         e.Bloqueo.Compartidos.Should().Equal([Coordinador1],
             "el relevo toma el candado compartido de quien va a recibir la marca antes de validar su cuenta");
+    }
+
+    /// <summary>
+    /// D3 (DECISION_LOG 2026-11-19, punto 2, y 2026-11-20, punto 6, R2): retirar la cartera principal es una baja, y su
+    /// relevo sigue permitido con Outbound cerrado para el Tenant beneficiario o, por analogía, para el Tenant de origen
+    /// del Operador CAE externo: el Coordinador CAE recibe la marca y, si hace falta, una cartera nueva.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task D3_retirar_la_cartera_principal_releva_aunque_Outbound_este_cerrado(bool beneficiario, bool operador)
+    {
+        var e = new Escenario { Outbound = CerradoPara(beneficiario, operador) }.ActorConRol("Administrador");
+
+        await RetirarAsync(e, GestorA);
+
+        e.Principal.Should().Be(Coordinador1, "el relevo como consecuencia de una baja sigue permitido");
+        e.Catalogo.CarterasVivas.Single(c => c.Cartera.UsuarioId == Coordinador1).Cartera.Rol.Should().Be("CoordinadorCae");
     }
 
     [Fact]

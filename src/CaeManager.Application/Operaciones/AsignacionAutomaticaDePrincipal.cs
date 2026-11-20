@@ -37,7 +37,8 @@ public interface IAsignacionAutomaticaDePrincipal
     /// <paramref name="usuarioId"/> acaba de recibir un rol o de reactivarse en
     /// <paramref name="operadorTenantId"/>: si es su única cuenta elegible, recibe las
     /// operaciones que sigan sin principal. Un Gestor CAE nunca. Ninguna con Outbound cerrado
-    /// para su Tenant beneficiario o para el Tenant de origen del Operador CAE (D3, R1 y R2).
+    /// para su Tenant beneficiario o para el Tenant de origen del Operador CAE externo: es asumir
+    /// sin una baja previa (D3, R1, DECISION_LOG 2026-11-20, punto 5).
     /// </summary>
     Task<bool> AlPrimerElegibleAsync(Guid usuarioId, Guid operadorTenantId, CancellationToken cancellationToken = default);
 }
