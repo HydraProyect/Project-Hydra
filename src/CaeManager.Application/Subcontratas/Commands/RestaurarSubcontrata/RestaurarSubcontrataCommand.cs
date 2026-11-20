@@ -60,7 +60,7 @@ public class RestaurarSubcontrataCommandHandler(
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);
 
-            // D3 (DN-4, DN-7) y EP-4: D5 abre las Subcontratas al Tenant TEC, pero no las Relaciones Empresariales con
+            // EP-4, aplicada en D3, y DN-7: D5 abre las Subcontratas al Tenant TEC, pero no las Relaciones Empresariales con
             // Clientes empresariales. Restaurar una Subcontrata que las tenga vigentes las devuelve a Outbound, y las
             // restauraciones se deniegan al Tenant TEC participante sin línea Outbound; sin esta guarda, este comando sería
             // un rodeo de la de RestaurarEmpresaCommand sobre la misma fila. La Subcontrata sin Clientes empresariales sigue

@@ -99,7 +99,7 @@ public class EditarSubcontrataCommandHandler(
 
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
 
-        // D3 (DN-4, DN-7) y EP-4: D5 abre las Subcontratas al Tenant TEC, pero una Relación Empresarial nueva con un Cliente
+        // EP-4, aplicada en D3, y DN-7: D5 abre las Subcontratas al Tenant TEC, pero una Relación Empresarial nueva con un Cliente
         // empresarial es un alta de Outbound, cerrada al Tenant TEC participante sin línea Outbound, como en
         // EditarEmpresaCommandHandler. Quitar Clientes empresariales (bajas), cambiar las Empresas y editar la identidad
         // siguen abiertos, así que la guarda va aquí, sobre el diff, y no en el pipeline. Falla cerrado sin Tenant activo.
