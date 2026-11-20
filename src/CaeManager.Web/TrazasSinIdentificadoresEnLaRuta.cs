@@ -26,7 +26,8 @@ public static class TrazasSinIdentificadoresEnLaRuta
         opciones.FilterHttpRequestMessage = peticion => !PeticionConIdentificadoresEnLaRuta.Lleva(peticion);
 
     /// <summary>
-    /// Para <c>SetBeforeBreadcrumb</c>: la miga HTTP de una petición marcada pierde la ruta y la consulta. La pista de
+    /// Para <c>SetBeforeBreadcrumb</c>, dentro de <see cref="PrivacidadDeSentry.FiltrarMigaDePan"/>, que además deja el
+    /// mensaje de toda miga sin datos: la miga HTTP de una petición marcada pierde la ruta y la consulta. La pista de
     /// esa miga no trae la petición (Sentry solo la pone en la del evento), así que se reconoce también por el ámbito
     /// <see cref="PeticionConIdentificadoresEnLaRuta.EnviandoAhora"/> que abre el cliente HTTP alrededor del envío.
     /// </summary>

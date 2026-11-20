@@ -106,11 +106,37 @@ public class ExposicionDeRedDelDespliegueTests
         tramoTrazas.Should().Contain(".AddHttpClientInstrumentation(TrazasSinIdentificadoresEnLaRuta.ConfigurarInstrumentacionHttp)",
             "una instrumentación HTTP de trazas sin el filtro exportaría url.full con el CIF o el NIF");
 
-        program.Should().Contain("options.SetBeforeBreadcrumb(TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan);");
         program.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarEvento(sentryEvent, pista)");
         System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeSend\(").Count
             .Should().Be(1, "un segundo SetBeforeSend sustituiría al que filtra");
-        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count.Should().Be(1);
+    }
+
+    /// <summary>
+    /// <c>UseSentry</c> aplica <c>PrivacidadDeSentry.Configurar</c>: sin <c>sentry-trace</c> ni <c>baggage</c> hacia ningún
+    /// host y migas de pan sin la ruta de una petición marcada ni URLs ni correos en su mensaje. El comportamiento con el
+    /// SDK real lo prueba <c>PrivacidadDeSentryTests</c> (Web.Tests) sobre ese mismo método; esto fija que Program.cs lo
+    /// llama y que nada en Program.cs lo deshace (otro filtro de migas lo sustituiría, y añadir un destino a la lista de
+    /// propagación volvería a mandar la traza a un tercero).
+    /// </summary>
+    [Fact]
+    public void Sentry_aplica_la_configuracion_de_privacidad_y_program_no_la_deshace()
+    {
+        var raiz = RaizDelRepositorio();
+        var program = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Web", "Program.cs"));
+        var privacidad = File.ReadAllText(Path.Combine(raiz, "src", "CaeManager.Web", "PrivacidadDeSentry.cs"));
+
+        var inicio = program.IndexOf("builder.WebHost.UseSentry(options =>", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0);
+        var fin = program.IndexOf("\n});", inicio, StringComparison.Ordinal);
+        fin.Should().BeGreaterThan(inicio);
+        program[inicio..fin].TrimEnd().Should().EndWith("PrivacidadDeSentry.Configurar(options);",
+            "es lo último del bloque UseSentry: nada posterior en él lo sustituye");
+
+        System.Text.RegularExpressions.Regex.Matches(program, @"\bSetBeforeBreadcrumb\(").Count
+            .Should().Be(0, "un SetBeforeBreadcrumb en Program.cs sustituiría al de PrivacidadDeSentry");
+        program.Should().NotContain("TracePropagationTargets", "la lista de propagación solo la fija PrivacidadDeSentry");
+        privacidad.Should().Contain("TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan(miga, pista)",
+            "el filtro de migas de PrivacidadDeSentry conserva el de las peticiones marcadas");
     }
 
     private static void ComprobarRegistroDelCliente(string cliente, string carpeta, string[] encadenados)

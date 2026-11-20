@@ -189,9 +189,11 @@ builder.WebHost.UseSentry(options =>
             ? evento
             : null);
 
-    // Una petición saliente con un CIF o un NIF en la ruta (la de una plataforma CAE) no deja su ruta en una miga de pan
-    // ni manda su 5xx a Sentry: ver TrazasSinIdentificadoresEnLaRuta.
-    options.SetBeforeBreadcrumb(TrazasSinIdentificadoresEnLaRuta.FiltrarMigaDePan);
+    // Ninguna petición saliente lleva sentry-trace ni baggage (el valor por defecto las manda a todo host, también a
+    // las plataformas CAE externas), y las migas de pan salen sin la ruta de una petición marcada con un CIF o un NIF
+    // ni URLs ni correos en su mensaje: ver PrivacidadDeSentry y TrazasSinIdentificadoresEnLaRuta. Va al final para
+    // que nada de lo anterior lo sustituya.
+    PrivacidadDeSentry.Configurar(options);
 });
 
 // OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
