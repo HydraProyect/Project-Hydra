@@ -287,6 +287,12 @@ public class ObtenerConversacionesQueryHandler(
             from c in consulta
             join cliente in empresasContext.Empresas on c.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
+                // Buzón por el que entró el hilo (L-12): unión izquierda por la clave primaria de la conexión, así que ni
+                // quita ni duplica filas, y sin una sentencia más. Pasa por el filtro global de Tenant y de eliminadas: una
+                // conexión eliminada o de otro Tenant queda sin nombre (R-3a ya sacó de la lista los hilos de las eliminadas y de
+                // los buzones personales de otros Gestores CAE).
+            join conexion in integracionesContext.ConexionesIntegracion on c.ConexionIntegracionId equals conexion.Id into conexionesUnidas
+            from conexion in conexionesUnidas.DefaultIfEmpty()
             orderby c.FechaUltimoMensajeUtc descending
             select new
             {
@@ -298,7 +304,8 @@ public class ObtenerConversacionesQueryHandler(
                 c.Prioridad,
                 c.NumeroTicket,
                 c.EjecutivoAsignadoId,
-                c.ConexionIntegracionId,
+                BuzonNombre = conexion != null ? conexion.Nombre : null,
+                BuzonEsPersonal = conexion != null && conexion.GestorPropietarioId != null,
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
                 c.TelefonoContacto
@@ -330,9 +337,6 @@ public class ObtenerConversacionesQueryHandler(
         // rellenan columnas de las que ya salieron de la visibilidad R-3a.
         var adjuntosPorConversacion = await ContarAdjuntosPorConversacionAsync(conversacionPorMensaje, cancellationToken);
         var conversacionesConAccionPorAprobar = await ConversacionesConAccionPorAprobarAsync(conversacionPorMensaje, cancellationToken);
-        var buzonesPorConexion = await ObtenerBuzonesAsync(
-            conversaciones.Where(c => c.ConexionIntegracionId != null).Select(c => c.ConexionIntegracionId!.Value).Distinct().ToList(),
-            cancellationToken);
         var nombresAsignados = await ObtenerNombresAsignadosAsync(
             conversaciones.Where(c => c.EjecutivoAsignadoId != null).Select(c => c.EjecutivoAsignadoId!.Value).Distinct().ToList(),
             cancellationToken);
@@ -359,8 +363,7 @@ public class ObtenerConversacionesQueryHandler(
                 plazos.ContainsKey(c.Id) ? plazo.Restante : null, c.NumeroTicket,
                 adjuntosPorConversacion.GetValueOrDefault(c.Id),
                 conversacionesConAccionPorAprobar.Contains(c.Id),
-                c.ConexionIntegracionId is { } conexionId && buzonesPorConexion.TryGetValue(conexionId, out var buzon) ? buzon.Nombre : null,
-                c.ConexionIntegracionId is { } conexionPersonalId && buzonesPorConexion.TryGetValue(conexionPersonalId, out var buzonPersonal) && buzonPersonal.EsPersonal,
+                c.BuzonNombre, c.BuzonEsPersonal,
                 c.EjecutivoAsignadoId is { } ejecutivoId && nombresAsignados.TryGetValue(ejecutivoId, out var nombreAsignado) ? nombreAsignado : null);
         }).ToList();
 
@@ -473,9 +476,13 @@ public class ObtenerConversacionesQueryHandler(
 
     /// <summary>
     /// Conversaciones con una propuesta de Vega sin resolver: una sugerencia de Visita pendiente o un detalle de sugerencia de
-    /// Gestión pendiente, con la misma definición que el detalle (<c>!Resuelta</c>). Con el marco de Comunicaciones del Tenant
-    /// solo Inbound (D6=a) no se cuentan, como tampoco se proyectan en el detalle ni cuentan como ruido: el indicador revelaría
-    /// que existen. Es el único sitio donde se decide qué es «acción por aprobar» para la fila.
+    /// Gestión pendiente, con la misma definición que el detalle (<c>!Resuelta</c>). Una propuesta que el sistema ya clasificó
+    /// como ruido y nadie confirmó a mano (repetición de algo ya reclamado en un detalle de Gestión; mensaje con motivo de
+    /// ruido en una de Visita) no es una acción por aprobar: es la misma regla de <see cref="ContarMensajesRuidoPorConversacionAsync"/>,
+    /// para que una fila no salga a la vez con ruido y con acción por aprobar por lo mismo. No depende del estado de la
+    /// conversación (decisión abierta, ver la PR). Con el marco de Comunicaciones del Tenant solo Inbound (D6=a) no se
+    /// cuentan, como tampoco se proyectan en el detalle ni cuentan como ruido: el indicador revelaría que existen. Es el único
+    /// sitio donde se decide qué es «acción por aprobar» para la fila. Una sola sentencia (UNION), por el presupuesto de SQL.
     /// </summary>
     private async Task<HashSet<Guid>> ConversacionesConAccionPorAprobarAsync(
         IReadOnlyDictionary<Guid, Guid> conversacionPorMensaje, CancellationToken cancellationToken)
@@ -483,37 +490,24 @@ public class ObtenerConversacionesQueryHandler(
         var mensajeIds = conversacionPorMensaje.Keys.ToList();
         if (mensajeIds.Count == 0 || AmbitoComunicacionesSoloInbound.Activo) return [];
 
-        var mensajesConVisita = await comunicacionesContext.SugerenciasVisitaCorreo
-            .Where(s => mensajeIds.Contains(s.MensajeId) && !s.Resuelta)
-            .Select(s => s.MensajeId)
-            .ToListAsync(cancellationToken);
+        var mensajesConVisita = comunicacionesContext.SugerenciasVisitaCorreo
+            .Where(s => mensajeIds.Contains(s.MensajeId) && !s.Resuelta
+                && !comunicacionesContext.ClasificacionesRuidoMensaje.Any(c =>
+                    c.MensajeId == s.MensajeId && c.Motivo != MotivoRuidoMensaje.Ninguno && !c.ConfirmadaManualmente))
+            .Select(s => s.MensajeId);
 
-        var mensajesConGestion = await (
+        var mensajesConGestion =
             from detalle in comunicacionesContext.DetallesSugerenciaGestionCorreo
             where !detalle.Resuelta
+                && !comunicacionesContext.ClasificacionesRuidoDetalleGestion.Any(c =>
+                    c.DetalleSugerenciaGestionCorreoId == detalle.Id && !c.ConfirmadaManualmente)
             join sugerencia in comunicacionesContext.SugerenciasGestionCorreo on detalle.SugerenciaGestionCorreoId equals sugerencia.Id
             where mensajeIds.Contains(sugerencia.MensajeId)
-            select sugerencia.MensajeId)
-            .ToListAsync(cancellationToken);
+            select sugerencia.MensajeId;
 
-        return mensajesConVisita.Concat(mensajesConGestion).Select(id => conversacionPorMensaje[id]).ToHashSet();
-    }
+        var mensajesConAccion = await mensajesConVisita.Union(mensajesConGestion).ToListAsync(cancellationToken);
 
-    /// <summary>
-    /// Nombre y condición de personal de las conexiones de la página. Por el contexto con filtros: una conexión eliminada o
-    /// de otro Tenant no aparece (y R-3a ya sacó de la lista los hilos de los buzones personales de otros Gestores CAE).
-    /// </summary>
-    private async Task<Dictionary<Guid, (string Nombre, bool EsPersonal)>> ObtenerBuzonesAsync(
-        IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken)
-    {
-        if (conexionIds.Count == 0) return [];
-
-        var buzones = await integracionesContext.ConexionesIntegracion
-            .Where(x => conexionIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.Nombre, EsPersonal = x.GestorPropietarioId != null })
-            .ToListAsync(cancellationToken);
-
-        return buzones.ToDictionary(x => x.Id, x => (x.Nombre, x.EsPersonal));
+        return mensajesConAccion.Select(id => conversacionPorMensaje[id]).ToHashSet();
     }
 
     /// <summary>

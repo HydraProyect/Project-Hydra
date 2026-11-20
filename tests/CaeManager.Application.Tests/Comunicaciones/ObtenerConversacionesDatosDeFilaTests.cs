@@ -85,6 +85,48 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
+    public async Task AccionPorAprobar_no_cuenta_una_propuesta_de_Gestion_que_es_ruido_salvo_que_el_Gestor_la_confirmara()
+    {
+        // Un detalle que repite algo ya reclamado cuenta como ruido en la misma fila; no puede ser a la vez «acción por aprobar».
+        var banda = new Banda();
+        var repeticion = banda.Hilo("Repetición de algo ya reclamado");
+        var confirmada = banda.Hilo("Repetición que el Gestor confirmó que importa");
+        var mixta = banda.Hilo("Una repetición y una propuesta real");
+        banda.Repeticion(banda.DetalleDeGestion(repeticion));
+        banda.Repeticion(banda.DetalleDeGestion(confirmada)).ConfirmarManualmente();
+        banda.Repeticion(banda.DetalleDeGestion(mixta));
+        banda.DetalleDeGestion(mixta);
+
+        var resultado = await banda.Lista();
+
+        resultado.Single(c => c.Id == repeticion.ConversacionId).AccionPorAprobar.Should().BeFalse();
+        resultado.Single(c => c.Id == repeticion.ConversacionId).MensajesRuido.Should().Be(1);
+        resultado.Single(c => c.Id == confirmada.ConversacionId).AccionPorAprobar.Should().BeTrue();
+        resultado.Single(c => c.Id == mixta.ConversacionId).AccionPorAprobar.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AccionPorAprobar_no_cuenta_una_sugerencia_de_Visita_en_un_mensaje_con_motivo_de_ruido_salvo_que_el_Gestor_lo_confirmara()
+    {
+        var banda = new Banda();
+        var ruido = banda.Hilo("Resumen automático sin cambios");
+        var confirmado = banda.Hilo("Resumen que el Gestor confirmó que importa");
+        var sinMotivo = banda.Hilo("Notificación automática sin motivo de ruido");
+        banda.SugerenciaVisita(ruido);
+        banda.SugerenciaVisita(confirmado);
+        banda.SugerenciaVisita(sinMotivo);
+        banda.MotivoRuido(ruido, MotivoRuidoMensaje.ResumenSinCambios);
+        banda.MotivoRuido(confirmado, MotivoRuidoMensaje.ResumenSinCambios).ConfirmarManualmente();
+        banda.MotivoRuido(sinMotivo, MotivoRuidoMensaje.Ninguno);
+
+        var resultado = await banda.Lista();
+
+        resultado.Single(c => c.Id == ruido.ConversacionId).AccionPorAprobar.Should().BeFalse();
+        resultado.Single(c => c.Id == confirmado.ConversacionId).AccionPorAprobar.Should().BeTrue();
+        resultado.Single(c => c.Id == sinMotivo.ConversacionId).AccionPorAprobar.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task AccionPorAprobar_es_false_con_el_marco_solo_Inbound_aunque_haya_propuestas_pendientes()
     {
         // D6=a: el detalle no proyecta las sugerencias de Outbound al Tenant solo Inbound; la lista no debe revelar que existen.
@@ -204,9 +246,11 @@ public class ObtenerConversacionesDatosDeFilaTests
     }
 
     [Fact]
-    public async Task Los_datos_de_la_fila_se_leen_por_pagina_y_no_por_fila()
+    public async Task El_directorio_se_consulta_una_vez_por_pagina_con_los_asignados_de_la_pagina()
     {
-        // Sin N+1: con 25 hilos y páginas de 20, el directorio se consulta una sola vez, con solo los asignados de la página.
+        // Sin N+1 en la única lectura que sale de Application hacia otro servicio: con 25 hilos y páginas de 20, el directorio
+        // se consulta una sola vez, con solo los asignados de la página. Las lecturas de adjuntos, propuestas y buzón por
+        // lote las acota el presupuesto de sentencias de la pantalla en CI, no este test.
         var banda = new Banda();
         var personas = Enumerable.Range(0, 25).Select(_ => Guid.NewGuid()).ToList();
         for (var i = 0; i < 25; i++)
@@ -270,6 +314,21 @@ public class ObtenerConversacionesDatosDeFilaTests
             Comunicaciones.ListaSugerenciasGestionCorreo.Add(sugerencia);
             Comunicaciones.ListaDetallesSugerenciaGestionCorreo.Add(detalle);
             return detalle;
+        }
+
+        /// <summary>Marca un detalle de Gestión como repetición de algo ya reclamado (ruido de detalle).</summary>
+        public ClasificacionRuidoDetalleGestion Repeticion(DetalleSugerenciaGestionCorreo detalle)
+        {
+            var clasificacion = new ClasificacionRuidoDetalleGestion(detalle.Id, Guid.NewGuid());
+            Comunicaciones.ListaClasificacionesRuidoDetalleGestion.Add(clasificacion);
+            return clasificacion;
+        }
+
+        public ClasificacionRuidoMensaje MotivoRuido(Mensaje mensaje, MotivoRuidoMensaje motivo)
+        {
+            var clasificacion = new ClasificacionRuidoMensaje(mensaje.Id, esNotificacionAutomatica: true, proveedorPlataformaCaeId: null, motivo);
+            Comunicaciones.ListaClasificacionesRuidoMensaje.Add(clasificacion);
+            return clasificacion;
         }
 
         public ConexionIntegracion Conexion(string nombre, Guid? gestorPropietarioId = null)
