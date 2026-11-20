@@ -615,6 +615,31 @@ public class DesignarGestorCaePrincipalCommandTests
         outbound.Preguntados.Should().BeEmpty("sin operaciones sin principal no se consulta ninguna línea Outbound");
     }
 
+    /// <summary>
+    /// D3, R1: con dos operaciones sin principal de Tenants beneficiarios distintos, la marca va por el Tenant de cada
+    /// operación. Que haya otro Tenant beneficiario abierto no deja designar en el cerrado, ni al revés.
+    /// </summary>
+    [Fact]
+    public async Task D3_la_lectura_marca_cada_operacion_sin_principal_por_su_propio_Tenant_beneficiario()
+    {
+        var otroPropietario = Guid.Parse("7a1d0000-0000-0000-0000-0000000000d3");
+        var otraOperacion = Guid.Parse("7a1d0000-0000-0000-0000-0000000000d4");
+        var outbound = new OutboundCerradoTenantTecFijo(t => t == Propietario);
+        var e = SinPrincipal(outbound);
+        e.Catalogo.CarterasVivas.Add((Operador, new CarteraVivaDeOperacion(
+            otraOperacion, otroPropietario, "Montajes del Sur", GestorB, "GestorCae", false, null)));
+
+        var operaciones = await Lectura(e).Handle(new ObtenerPersonasConCarteraQuery(), default);
+
+        var cerrada = operaciones.Single(o => o.TenantId == Propietario);
+        var abierta = operaciones.Single(o => o.TenantId == otroPropietario);
+        cerrada.Principal.Should().BeNull("control positivo del escenario");
+        abierta.Principal.Should().BeNull("control positivo del escenario");
+        cerrada.SePuedeDesignarPorOutbound.Should().BeFalse();
+        abierta.SePuedeDesignarPorOutbound.Should().BeTrue();
+        outbound.Preguntados.Should().BeEquivalentTo([Operador, Propietario, otroPropietario]);
+    }
+
     [Fact]
     public async Task La_lectura_da_por_operacion_quien_es_el_principal_y_quienes_de_apoyo()
     {
