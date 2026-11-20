@@ -99,6 +99,8 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     [InlineData("//otro.sitio/archivo")]
     [InlineData("https://otro.sitio/archivo")]
     [InlineData("/\\otro.sitio/archivo")]
+    [InlineData("/\t/otro.sitio/archivo")]
+    [InlineData("/\n/otro.sitio/archivo")]
     [InlineData("")]
     public void La_descarga_no_enlaza_direcciones_que_no_son_del_propio_sitio(string url)
     {
@@ -327,19 +329,36 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     }
 
     [Fact]
-    public async Task Un_clic_en_el_fondo_cierra_y_un_clic_dentro_del_panel_no()
+    public async Task Un_clic_en_el_fondo_cierra_solo_si_el_pulsado_empezo_en_el_fondo()
     {
         var cierres = new List<bool>();
         var cut = Pintar([Adj("A.pdf")], cierres.Add);
 
-        // bUnit no despacha un clic a un elemento que solo lleva stopPropagation y ningún manejador (la propagación la corta el navegador):
-        // se comprueba que el panel lo declara y que no ha habido ningún cierre sin pulsar el fondo.
-        cut.Find(".vz-pn").Attributes.Select(a => a.Name)
-            .Should().Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("click", StringComparison.OrdinalIgnoreCase));
+        // Un clic suelto sin pulsado previo en el fondo no cierra.
+        await cut.Find(".vz-ov").ClickAsync(new MouseEventArgs());
         cierres.Should().BeEmpty();
 
+        // Un arrastre que nace dentro del panel (seleccionar texto de una hoja) y acaba sobre el fondo tampoco.
+        await cut.Find(".vz-ov").MouseDownAsync(new MouseEventArgs());
+        await cut.Find(".vz-pn").MouseDownAsync(new MouseEventArgs());
+        await cut.Find(".vz-ov").ClickAsync(new MouseEventArgs());
+        cierres.Should().BeEmpty();
+
+        await cut.Find(".vz-ov").MouseDownAsync(new MouseEventArgs());
         await cut.Find(".vz-ov").ClickAsync(new MouseEventArgs());
         cierres.Should().Equal(false);
+    }
+
+    [Fact]
+    public void El_panel_declara_que_el_clic_y_el_pulsado_no_suben_al_fondo()
+    {
+        var cut = Pintar([Adj("A.pdf")]);
+
+        // bUnit no despacha un clic a un elemento que solo lleva stopPropagation y ningún manejador (la propagación la corta el navegador):
+        // aquí solo se fija que el panel lo declara; que de verdad no cierra dentro del panel lo prueba el navegador, no bUnit.
+        var atributos = cut.Find(".vz-pn").Attributes.Select(a => a.Name).ToList();
+        atributos.Should().Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("click", StringComparison.OrdinalIgnoreCase));
+        atributos.Should().Contain(n => n.Contains("stoppropagation", StringComparison.OrdinalIgnoreCase) && n.Contains("mousedown", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -409,6 +428,27 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
 
         cut.Find("button.vz-pag[aria-label='Página 3']").Click();
         cut.FindAll(".vz-pag").Select(b => b.GetAttribute("aria-current")).Should().Equal("false", "false", "true");
+    }
+
+    [Fact]
+    public async Task AltGr_llega_como_Ctrl_mas_Alt_y_sigue_cambiando_de_pagina_con_los_corchetes()
+    {
+        var cut = Pintar([Adj("A.pdf", paginas: 3)]);
+
+        // En teclado español y catalán « [ » y « ] » se escriben con AltGr, que el navegador entrega como Ctrl+Alt.
+        await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "]", CtrlKey = true, AltKey = true });
+
+        cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+    }
+
+    [Fact]
+    public async Task Alt_con_flecha_queda_para_el_navegador()
+    {
+        var cut = Pintar([Adj("A.pdf"), Adj("B.pdf")]);
+
+        await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowRight", AltKey = true });
+
+        Posicion(cut).Should().Be("Documento 1 de 2");
     }
 
     [Fact]
@@ -491,6 +531,37 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
         Zoom(cut).Should().Be("100 %");
         Posicion(cut).Should().Be("Documento 1 de 2");
         cut.Find(".vz-hoja").ClassList.Should().NotContain(c => c.StartsWith("vz-giro-"));
+    }
+
+    [Fact]
+    public void La_cola_rotula_las_paginas_que_se_pintan_aunque_el_adjunto_traiga_otro_total()
+    {
+        var cero = Pintar([Adj("A.pdf", paginas: 0)]);
+        cero.Find(".vz-cola-peso").TextContent.Should().Contain("1 página");
+        cero.FindAll(".vz-hoja").Should().HaveCount(1);
+
+        using var largo = new BunitContext();
+        largo.JSInterop.Mode = JSRuntimeMode.Loose;
+        largo.Services.AddLocalization();
+        var cut = largo.Render<VisorDocumentoPantallaCompleta>(p => p
+            .Add(x => x.Visible, true)
+            .Add(x => x.Adjuntos, [Adj("B.pdf", paginas: 600)]));
+        cut.Find(".vz-cola-peso").TextContent.Should().Contain("500 páginas");
+        cut.FindAll(".vz-hoja").Should().HaveCount(500);
+    }
+
+    [Fact]
+    public void Si_quien_abre_el_visor_quita_otro_adjunto_se_sigue_en_el_mismo_documento()
+    {
+        var a = Adj("A.pdf");
+        var b = Adj("B.pdf");
+        var c = Adj("C.pdf");
+        var cut = Pintar([a, b, c], indice: 1);
+
+        cut.Render(p => p.Add(x => x.Adjuntos, [b, c]));
+
+        Posicion(cut).Should().Be("Documento 1 de 2");
+        cut.Find(".vz-tit-h").TextContent.Should().Be("B.pdf");
     }
 
     [Fact]

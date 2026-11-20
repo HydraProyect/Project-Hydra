@@ -354,7 +354,8 @@
     padding: var(--space-6);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* safe: si la hoja (zoom o giro) es más ancha que el lienzo, empieza en el borde izquierdo en vez de desbordar por los dos lados, donde el lado izquierdo no se puede desplazar */
+    align-items: safe center;
     gap: var(--space-5);
 }
 

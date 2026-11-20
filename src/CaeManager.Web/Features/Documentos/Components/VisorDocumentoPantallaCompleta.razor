@@ -20,9 +20,9 @@
     var actual = Actual;
     var total = TotalPaginas;
     var pendientes = Pendientes;
-    <div class="vz-ov" @onclick="CerrarAsync">
+    <div class="vz-ov" @onmousedown="() => _mouseDownEnFondo = true" @onclick="ClicFondoAsync">
         <div class="vz-pn" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_panel"
-             @onclick:stopPropagation="true" @onkeydown="ManejarTeclaAsync">
+             @onmousedown="() => _mouseDownEnFondo = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" @onkeydown="ManejarTeclaAsync">
             <header class="vz-cab">
                 <span class="vz-ico-doc" aria-hidden="true"><Icono Nombre="documentos" /></span>
                 <span class="vz-tit">
@@ -149,6 +149,9 @@
     private int _giro;
     private int? _irA;
 
+    // Como el Drawer: solo cierra el clic cuyo pulsado empezó en el fondo; un arrastre que nace dentro del panel (seleccionar texto de una hoja) y acaba fuera no.
+    private bool _mouseDownEnFondo;
+
     private int Pendientes => _lista.Count(a => a.Estado == EstadoAdjuntoVisor.Pendiente);
 
     [Parameter] public bool Visible { get; set; }
@@ -173,13 +176,17 @@
 
     private AdjuntoVisor Actual => _lista[Math.Clamp(_indice, 0, _lista.Count - 1)];
 
-    private int TotalPaginas => Math.Clamp(Actual.Paginas, 1, MaximoPaginas);
+    private int TotalPaginas => TotalPaginasDe(Actual);
+
+    // shortcut: tope de 500 hojas pintadas por adjunto (cada tecla viaja al servidor y rehace el diff); el rótulo dice lo que se pinta, no el total real. Mejorar con hojas virtualizadas si llegan PDF más largos.
+    private static int TotalPaginasDe(AdjuntoVisor adjunto) => Math.Clamp(adjunto.Paginas, 1, MaximoPaginas);
 
     private string ClaseHoja =>
         "vz-hoja" + (_zoom > ZoomInicial ? " vz-hoja-ampliada" : string.Empty) + (_giro != 0 ? $" vz-giro-{_giro}" : string.Empty);
 
     protected override void OnParametersSet()
     {
+        Guid? idPrevio = _abiertoAntes && _lista.Count > 0 ? _lista[Math.Clamp(_indice, 0, _lista.Count - 1)].Id : null;
         _lista = Adjuntos ?? Array.Empty<AdjuntoVisor>();
 
         // Al abrirse (cerrado → abierto) se parte de cero: el zoom, el giro y la hoja de la vez anterior no se arrastran.
@@ -193,7 +200,23 @@
         }
 
         if (_lista.Count > 0)
+        {
+            // Con el visor ya abierto se sigue al adjunto por su Id: si quien lo abre quita o reordena otros, no se salta a otro documento sin avisar.
+            if (idPrevio is { } id && Abierto && _abiertoAntes)
+            {
+                var posicion = _lista.ToList().FindIndex(a => a.Id == id);
+                if (posicion >= 0)
+                    _indice = posicion;
+                else
+                {
+                    _pagina = 0;
+                    _giro = 0;
+                }
+            }
+
             _indice = Math.Clamp(_indice, 0, _lista.Count - 1);
+            _pagina = Math.Clamp(_pagina, 0, TotalPaginas - 1);
+        }
 
         _abiertoAntes = Abierto;
     }
@@ -221,6 +244,8 @@
 
     private Task CerrarAsync() => VisibleChanged.InvokeAsync(false);
 
+    private Task ClicFondoAsync() => _mouseDownEnFondo ? CerrarAsync() : Task.CompletedTask;
+
     private Task ManejarTeclaAsync(KeyboardEventArgs e) => ProcesarTeclaAsync(e, enLienzo: false);
 
     private Task ManejarTeclaLienzoAsync(KeyboardEventArgs e) => ProcesarTeclaAsync(e, enLienzo: true);
@@ -239,10 +264,10 @@
             case "Escape":
                 await CerrarAsync();
                 break;
-            case "ArrowRight" when !desplaza:
+            case "ArrowRight" when !desplaza && !e.AltKey: // Alt+flecha es «Atrás/Adelante» del navegador
                 AdjuntoRelativo(1);
                 break;
-            case "ArrowLeft" when !desplaza:
+            case "ArrowLeft" when !desplaza && !e.AltKey:
                 AdjuntoRelativo(-1);
                 break;
             case "]":
@@ -334,7 +359,7 @@
         };
 
         if (tipo != TipoArchivo.Imagen)
-            partes.Add(adjunto.Paginas == 1 ? Textos["Paginas_1", adjunto.Paginas] : Textos["Paginas_N", adjunto.Paginas]);
+            partes.Add(TotalPaginasDe(adjunto) == 1 ? Textos["Paginas_1", 1] : Textos["Paginas_N", TotalPaginasDe(adjunto)]);
 
         if (!string.IsNullOrWhiteSpace(adjunto.Peso))
             partes.Add(adjunto.Peso);
@@ -344,11 +369,11 @@
 
     /// <summary>
     /// Solo se enlazan (descarga e imagen) direcciones relativas del propio sitio: <c>/ruta</c>, nunca <c>//otro-sitio</c> ni un
-    /// esquema (<c>javascript:</c>). La lista llega de quien abre el visor, y un valor así no debe llegar a un href ni a un src.
+    /// esquema (<c>javascript:</c>), y sin caracteres de control (el navegador quita TAB y saltos de línea de una URL: <c>/&#9;/otro</c> sería <c>//otro</c>). La lista llega de quien abre el visor, y un valor así no debe llegar a un href ni a un src.
     /// Pública solo para poder probarla directamente (función pura, sin InternalsVisibleTo en CaeManager.Web).
     /// </summary>
     public static bool EsUrlRelativaSegura(string? url) =>
-        !string.IsNullOrEmpty(url) && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'));
+        !string.IsNullOrEmpty(url) && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\')) && !url.Any(char.IsControl);
 
     private RenderFragment HojaPorDefecto(HojaVisor hoja) => @<text>
         @if (TipoDe(hoja.Adjunto) == TipoArchivo.Imagen && EsUrlRelativaSegura(hoja.Adjunto.Url))
@@ -381,7 +406,7 @@
                 _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _panel);
             }
         }
-        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or OperationCanceledException)
         {
         }
     }
@@ -393,7 +418,7 @@
         {
             await _posicion.FocusAsync();
         }
-        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or OperationCanceledException)
         {
         }
     }
@@ -405,7 +430,7 @@
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/visor-documento.js");
             await _modulo.InvokeVoidAsync("irAPagina", _lienzo, pagina);
         }
-        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or OperationCanceledException)
         {
         }
     }
