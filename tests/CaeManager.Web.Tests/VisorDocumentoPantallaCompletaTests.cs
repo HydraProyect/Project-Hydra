@@ -331,7 +331,9 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
         var cierres = new List<bool>();
         var cut = Pintar([Adj("A.pdf")], cierres.Add);
 
-        await cut.Find(".vz-pn").ClickAsync(new MouseEventArgs());
+        // bUnit no despacha un clic a un elemento que solo lleva stopPropagation y ningún manejador; se comprueba que el panel lo declara.
+        cut.Find(".vz-pn").GetAttributeNames()
+            .Should().Contain(a => a.Contains("onclick") && a.Contains("stoppropagation"));
         cierres.Should().BeEmpty();
 
         await cut.Find(".vz-ov").ClickAsync(new MouseEventArgs());
@@ -447,7 +449,46 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
         var cut = Pintar([Adj("A.pdf"), Adj("B.pdf")]);
 
         await cut.WaitForAssertionAsync(
-            () => JSInterop.VerifyFocusAsyncInvoke().ShouldBeElementReferenceTo(cut.Find(".vz-cola-n")), Plazo);
+            () => JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(cut.Find(".vz-cola-n")), Plazo);
+    }
+
+    /// <summary>La trampa real (Tab cíclico y foco devuelto a quien abrió el visor) vive en dialogo-foco.js y la prueba dialogoFoco.test.mjs; aquí se fija que el visor la activa sobre su panel y la libera al cerrarse.</summary>
+    private sealed class TrampaFocoFalsa : IJSObjectReference
+    {
+        public int Liberaciones { get; private set; }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        {
+            if (identifier == "dispose") Liberaciones++;
+            return ValueTask.FromResult(default(TValue)!);
+        }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, args);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task El_foco_queda_atrapado_en_el_panel_al_abrirse_y_se_libera_al_cerrarse()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var trampa = new TrampaFocoFalsa();
+        var modulo = JSInterop.SetupModule("./js/dialogo-foco.js");
+        modulo.Setup<IJSObjectReference>("atraparFoco", _ => true).SetResult(trampa);
+
+        var cut = Render<VisorDocumentoPantallaCompleta>(p => p
+            .Add(x => x.Visible, true)
+            .Add(x => x.Adjuntos, [Adj("A.pdf")]));
+
+        await cut.WaitForAssertionAsync(() => modulo.Invocations["atraparFoco"].Should().HaveCount(1), Plazo);
+        modulo.Invocations["atraparFoco"][0].Arguments[0].Should().BeOfType<ElementReference>();
+        trampa.Liberaciones.Should().Be(0);
+
+        cut.Render(p => p.Add(x => x.Visible, false));
+
+        await cut.WaitForAssertionAsync(() => trampa.Liberaciones.Should().Be(1), Plazo);
     }
 
     [Fact]

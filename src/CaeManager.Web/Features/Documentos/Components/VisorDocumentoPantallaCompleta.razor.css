@@ -3,11 +3,14 @@
   Dos variantes sin equivalente en el DS, declaradas con ds-excepcion para el auditor (DN-H opción a, 2026-11-20).
 */
 
-/* ds-excepcion: visor a pantalla completa; el DS no tiene variante de modal completo, así que el panel ocupa todo el overlay (Modal.razor solo tiene tres anchos) */
+/* ds-excepcion: visor a pantalla completa; el DS no tiene variante de modal completo, así que el panel ocupa todo el overlay (Modal.razor solo tiene tres anchos).
+   Capa 1090: por encima de Modal (1050) y Drawer (1040), y por debajo de los avisos (1100) y del tooltip propio (1150): un aviso lanzado
+   desde la página mientras el visor está abierto (p. ej. «Adjunto asignado») tiene que verse. El lienzo pone 1150 porque dibuja el aviso
+   dentro del propio visor; aquí los avisos los pinta AnfitrionToasts. */
 .vz-ov {
     position: fixed;
     inset: 0;
-    z-index: 1150;
+    z-index: 1090;
     display: flex;
     align-items: stretch;
     padding: var(--space-6);
