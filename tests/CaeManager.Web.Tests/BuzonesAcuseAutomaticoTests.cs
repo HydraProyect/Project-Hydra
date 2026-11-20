@@ -683,7 +683,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     }
 
     [Fact]
-    public void Ultimo_correo_se_escribe_Hoy_Ayer_o_la_fecha_en_hora_peninsular_y_Sin_correos_aun_si_no_hay_ninguno()
+    public void Ultimo_correo_se_escribe_Hoy_Ayer_o_la_fecha_en_hora_peninsular_y_Sin_correos_visibles_si_no_se_ve_ninguno()
     {
         // Reloj fijado a las 22:30 UTC del 15/06/2026, que en Madrid (UTC+2) ya es el 16 a las 00:30: el día de negocio es el
         // peninsular, no el UTC. Un correo de las 22:10 UTC (00:10 del 16) es «Hoy»; uno de las 10:00 UTC del 15 es «Ayer».
@@ -709,7 +709,39 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         Celda("hoy").Should().Be("Hoy, 00:10");
         Celda("ayer").Should().Be("Ayer, 12:00");
         Celda("viejo").Should().Be("15/01/2026 10:05");
-        Celda("vacio").Should().Be("Sin correos aún");
+        Celda("vacio").Should().Be("Sin correos visibles");
+    }
+
+    /// <summary>
+    /// DN-M (Chris, 2026-11-20): cuando la petición no ve ningún correo el texto no dice «aún» ni «ninguno», porque no puede
+    /// afirmar que el buzón esté vacío (puede haber correo fuera del alcance de quien mira). El «—» de «no medido» no cambia.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", "Sin correos visibles", "Sin correos aún")]
+    [InlineData("ca-ES", "Sense correus visibles", "Encara sense correus")]
+    public void Sin_ningun_correo_visible_el_texto_no_afirma_que_el_buzon_este_vacio_y_sin_dato_sigue_el_guion(
+        string cultura, string esperado, string textoAnterior)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        try
+        {
+            var sinVisibles = Buzon("sinVisibles");
+            var sinDato = Buzon("sinDato");
+            var mediador = new MediadorBuzones { Conexiones = [sinVisibles, sinDato] };
+            mediador.Actividad[sinVisibles.Id] = new ActividadBuzonDto(null, 0);
+
+            var cut = Renderizar(mediador);
+
+            string Celda(string nombre) => cut.FindAll("[data-testid=fila-buzon]").Single(f => f.TextContent.Contains($"{nombre}@"))
+                .QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim();
+            Celda("sinVisibles").Should().Be(esperado).And.NotBe(textoAnterior);
+            Celda("sinDato").Should().Be("—");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
     }
 
     private sealed class RelojFijoBuzones(DateTimeOffset ahora) : TimeProvider
