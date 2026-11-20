@@ -6,7 +6,6 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
-using CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Common;
@@ -50,7 +49,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         UrlPublicaBase = "https://app.talveg.test",
     };
 
-    private sealed class MediadorBuzones : IMediator
+    private sealed class MediadorBuzones : IMediator, IActividadBuzones
     {
         public List<ConexionIntegracionListaDto> Conexiones { get; set; } = [];
         public List<FijarAcuseAutomaticoBuzonCommand> ComandosAcuse { get; } = [];
@@ -78,7 +77,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         /// <summary>«Último correo» y «Abiertas» por buzón; lo que no esté aquí no sale en la respuesta (como un buzón sin medir).</summary>
         public Dictionary<Guid, ActividadBuzonDto> Actividad { get; } = [];
 
-        public List<ObtenerActividadBuzonesQuery> ConsultasActividad { get; } = [];
+        public List<IReadOnlyCollection<Guid>> ConsultasActividad { get; } = [];
 
         /// <summary>Si es true, solo falla la petición de actividad: la tabla sigue y esas dos celdas enseñan «—».</summary>
         public bool FallaLaActividad { get; set; }
@@ -87,9 +86,6 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         {
             object respuesta = request switch
             {
-                ObtenerActividadBuzonesQuery q => FallaLaActividad
-                    ? throw new InvalidOperationException("actividad caída")
-                    : Responder(q),
                 ObtenerConexionesIntegracionQuery => FallaElListado
                     ? throw new InvalidOperationException("listado caído")
                     : (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
@@ -103,10 +99,12 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             return Task.FromResult((TResponse)respuesta);
         }
 
-        private IReadOnlyDictionary<Guid, ActividadBuzonDto> Responder(ObtenerActividadBuzonesQuery consulta)
+        public Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> ObtenerAsync(IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken = default)
         {
-            ConsultasActividad.Add(consulta);
-            return Actividad.Where(a => consulta.ConexionIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value);
+            if (FallaLaActividad) throw new InvalidOperationException("actividad caída");
+            ConsultasActividad.Add(conexionIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, ActividadBuzonDto>>(
+                Actividad.Where(a => conexionIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value));
         }
 
         private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> Evaluar(ObtenerResponsablesElegiblesBuzonesQuery consulta)
@@ -190,6 +188,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         var autorizacion = AddAuthorization();
         if (rol is not null) autorizacion.SetAuthorized("usuario").SetRoles(rol);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<IActividadBuzones>(_ => mediador);
         Services.AddScoped<ToastService>();
         var directorio = cuentasPorRol ?? new Dictionary<string, IReadOnlyList<CuentaVisibleEnRol>>
         {
@@ -664,7 +663,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         Renderizar(mediador);
 
-        mediador.ConsultasActividad.Should().ContainSingle().Which.ConexionIds.Should().BeEquivalentTo(mediador.Conexiones.Select(c => c.Id));
+        mediador.ConsultasActividad.Should().ContainSingle().Which.Should().BeEquivalentTo(mediador.Conexiones.Select(c => c.Id));
     }
 
     [Fact]
@@ -708,7 +707,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             .QuerySelector("[data-testid=ultimo-correo]")!.TextContent.Trim();
         Celda("hoy").Should().Be("Hoy, 0:10");
         Celda("ayer").Should().Be("Ayer, 12:00");
-        Celda("viejo").Should().Be("15/01/2026, 10:05");
+        Celda("viejo").Should().Be("15/01/2026 10:05");
         Celda("vacio").Should().Be("Sin correos aún");
     }
 

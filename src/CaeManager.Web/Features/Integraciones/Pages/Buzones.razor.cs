@@ -1,6 +1,5 @@
 using System.Globalization;
 using CaeManager.Application.Integraciones;
-using CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
@@ -31,6 +30,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     private const string RolAdministrador = Roles.Administrador;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IActividadBuzones ActividadBuzones { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
@@ -161,7 +161,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         if (conexiones.Count == 0) return new Dictionary<Guid, ActividadBuzonDto>();
         try
         {
-            return await Mediator.Send(new ObtenerActividadBuzonesQuery(conexiones.Select(c => c.Id).ToList()), token);
+            return await ActividadBuzones.ObtenerAsync(conexiones.Select(c => c.Id).ToList(), token);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -171,7 +171,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     }
 
     /// <summary>
-    /// «Hoy, 8:31» / «Ayer, 17:40» (lienzo) y, para lo más antiguo, «15/11/2026, 8:31». Hora y día peninsulares
+    /// «Hoy, 8:31» / «Ayer, 17:40» (lienzo) y, para lo más antiguo, el formato único «15/11/2026 08:31» (D-19). Hora y día peninsulares
     /// (<see cref="DiaDeNegocio"/>), nunca la zona del servidor. Sin ningún correo recibido: «Sin correos aún»; sin dato
     /// (la petición falló o el buzón no está en la respuesta): «—».
     /// </summary>
@@ -184,10 +184,10 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         var hora = local.ToString("H:mm", CultureInfo.InvariantCulture);
         var hoy = DiaDeNegocio.Hoy();
         var dia = DiaDeNegocio.De(instanteUtc);
-        // shortcut: el formato de lo anterior a ayer («dd/MM/yyyy, H:mm») no está en el lienzo; mejorarlo cuando el diseño lo fije.
+        // Lo anterior a ayer no está en el lienzo: lleva el formato único de fecha y hora en pantalla (D-19), no uno propio.
         return dia == hoy ? Textos["UltimoCorreoHoy", hora]
             : dia == hoy.AddDays(-1) ? Textos["UltimoCorreoAyer", hora]
-            : $"{local.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}, {hora}";
+            : local.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
     }
 
     private string DescribirAbiertas(Guid conexionId) =>

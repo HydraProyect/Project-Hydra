@@ -1,8 +1,8 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
-using CaeManager.Application.Integraciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Gestiones;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
@@ -53,6 +53,37 @@ public class ObtenerActividadBuzonesQueryTests
 
         actividad[uno].UltimoCorreoUtc.Should().Be(Base.AddHours(1));
         actividad[dos].UltimoCorreoUtc.Should().Be(Base.AddHours(7));
+    }
+
+    [Fact]
+    public void La_peticion_es_de_Outbound_y_queda_acotada_al_Tenant_solo_Inbound_como_la_bandeja()
+    {
+        // La página la pide por el puerto del Núcleo, y el puerto envía esta petición por el mediador: la guarda la clasifica por
+        // su tipo. Si dejara de ser de Comunicaciones, un Tenant solo Inbound contaría hilos que la bandeja le oculta.
+        PeticionDeOutbound.Es(typeof(ObtenerActividadBuzonesQuery)).Should().BeTrue();
+        PeticionDeOutbound.AcotadaAlSoloInbound(typeof(ObtenerActividadBuzonesQuery)).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 3)]
+    public async Task Un_Tenant_solo_Inbound_solo_cuenta_los_hilos_anclados_a_una_Empresa(bool soloInbound, int abiertasEsperadas)
+    {
+        var escenario = new Escenario();
+        var buzon = escenario.Buzon();
+        var deEmpresa = escenario.Hilo(buzon, "De Empresa", empresaId: Guid.NewGuid());
+        var deCliente = escenario.Hilo(buzon, "De Cliente", clienteId: Guid.NewGuid());
+        var sinAncla = escenario.Hilo(buzon, "Sin ancla");
+        escenario.Mensaje(deEmpresa, DireccionMensaje.Entrante, Base);
+        escenario.Mensaje(deCliente, DireccionMensaje.Entrante, Base.AddHours(3));
+        escenario.Mensaje(sinAncla, DireccionMensaje.Entrante, Base.AddHours(6));
+
+        IReadOnlyDictionary<Guid, ActividadBuzonDto> actividad;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: soloInbound))
+            actividad = await escenario.Actividad(buzon);
+
+        actividad[buzon].ConversacionesAbiertas.Should().Be(abiertasEsperadas);
+        actividad[buzon].UltimoCorreoUtc.Should().Be(soloInbound ? Base : Base.AddHours(6));
     }
 
     [Fact]
@@ -176,9 +207,9 @@ public class ObtenerActividadBuzonesQueryTests
         }
 
         public Conversacion Hilo(
-            Guid buzon, string asunto, EstadoConversacion estado = EstadoConversacion.Abierta, Guid? empresaId = null)
+            Guid buzon, string asunto, EstadoConversacion estado = EstadoConversacion.Abierta, Guid? empresaId = null, Guid? clienteId = null)
         {
-            var hilo = new Conversacion(asunto, empresaId: empresaId);
+            var hilo = new Conversacion(asunto, clienteId: clienteId, empresaId: empresaId);
             hilo.AsociarConexion(buzon, $"hilo-externo-{asunto}");
             if (estado != EstadoConversacion.Abierta) hilo.CambiarEstado(estado).EsExitoso.Should().BeTrue();
             _comunicaciones.ListaConversaciones.Add(hilo);
