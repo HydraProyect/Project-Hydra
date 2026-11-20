@@ -110,6 +110,7 @@
         : null;
 
     /// <summary>Primera letra del primer y del último nombre (una sola si hay uno): «Marta Gil Ríos» da «MR».</summary>
+    // shortcut: el lienzo une la inicial de todas las palabras («MGR»); aquí dos como máximo, para que un nombre largo no desborde el grupo derecho, hasta que Chris fije la regla
     private static string ObtenerInicialesDePersona(string nombre)
     {
         var palabras = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(p => char.IsLetter(p[0])).ToArray();

@@ -620,8 +620,9 @@ public class ContrasteDeComponentesPorTemaTests
     /// #rrggbb (<c>--color-system-tint</c>): el icono de procedencia y, desde el 2026-10-17 (§A), el avatar «Sistema». De
     /// este último el par se calculó a mano (ver <c>ContrasteDeAvataresPorTemaTests</c>): ◆ es una marca, no texto.
     /// La 11.ª (2026-11-20) es la insignia «Acción por aprobar» de la fila de Comunicaciones (<c>.fila-por-aprobar</c>): la
-    /// pastilla de sistema del design system, con el mismo tinte no resoluble. Par calculado a mano sobre
-    /// <c>--color-surface</c>: <c>--color-system-text</c> sobre el tinte da 4,79:1 en claro y 7,31:1 en oscuro.
+    /// pastilla de sistema del lienzo, con el mismo tinte no resoluble. El tinte se pinta opaco sobre <c>--color-surface</c>
+    /// (degradado sobre la superficie), así que el par no depende de la fila (activa, hover). Calculado a mano:
+    /// <c>--color-system-text</c> sobre el tinte da 4,79:1 en claro y 7,31:1 en oscuro.
     /// </summary>
     private const int OmitidasHoy = 11;
 

@@ -220,6 +220,35 @@ public class FilaConversacionDatosLienzoTests : BunitContext
         }
     }
 
+    [Fact]
+    public void La_hoja_de_estilos_acota_el_grupo_derecho_y_pinta_la_insignia_opaca_sobre_la_superficie()
+    {
+        // bUnit no calcula CSS: se inspecciona la hoja. Sin max-width y min-width el buzón largo desborda la fila (el flex-shrink: 0 de Bandeja.razor.css gana al del grupo);
+        // sin el fondo opaco el tinte translúcido deja la insignia bajo 4,5:1 sobre la fila activa y en hover.
+        var css = LeerHoja();
+
+        Regla(css, @"li\.fila-conversacion \.fila-linea-derecha").Should().MatchRegex(@"max-width\s*:\s*100%").And.MatchRegex(@"min-width\s*:\s*0");
+        Regla(css, @"\.fila-buzon").Should().MatchRegex(@"min-width\s*:\s*0").And.MatchRegex(@"text-overflow\s*:\s*ellipsis").And.MatchRegex(@"max-width\s*:\s*var\(--space-24\)");
+        Regla(css, @"\.fila-por-aprobar").Should().MatchRegex(@"background\s*:[^;]*var\(--color-system-tint\)[^;]*var\(--color-surface\)");
+        Regla(css, @"\.fila-por-aprobar ::deep \.icono").Should().MatchRegex(@"width\s*:\s*12px");
+    }
+
+    private static string Regla(string css, string selector)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(css, @"(?m)^" + selector + @"\s*\{(?<c>[^}]*)\}");
+        m.Success.Should().BeTrue($"la regla «{selector}» debe existir");
+        return m.Groups["c"].Value;
+    }
+
+    private static string LeerHoja()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer la hoja de estilos");
+        return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Comunicaciones", "Components", "FilaConversacion.razor.css"));
+    }
+
     private IRenderedComponent<FilaConversacion> Render(ConversacionListaDto conversacion) =>
         Render<FilaConversacion>(p => p.Add(c => c.Conversacion, conversacion));
 
