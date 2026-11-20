@@ -324,7 +324,8 @@ public class DuplicadosRazonSocialEmpresaTests
                 .Handle(new EditarEmpresaCommand(empresa.Id, razonSocial, "B12345674", [], Version: empresa.Version), default),
             "CrearSubcontrata" => await new CrearSubcontrataCommandHandler(repo, relaciones, contexto, alcance, uow)
                 .Handle(new CrearSubcontrataCommand(razonSocial, "B12345674", [], []), default),
-            "EditarSubcontrata" => await new EditarSubcontrataCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
+            "EditarSubcontrata" => await new EditarSubcontrataCommandHandler(repo, relaciones, contexto, null!, alcance, uow,
+                    new Configuracion.TenantActualFijo(Guid.NewGuid()), Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new EditarSubcontrataCommand(empresa.Id, razonSocial, "B12345674", [], [], empresa.Version), default),
             _ => throw new ArgumentOutOfRangeException(nameof(comando))
         };

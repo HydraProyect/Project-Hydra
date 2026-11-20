@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Encargo;
@@ -42,7 +43,8 @@ public class EditarSubcontrataCommandHandler(
     IEmpresasQueryContext empresasContext,
     IGuardDeCierreDeArista guardDeCierre,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITenantActual tenantActual, IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<EditarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EditarSubcontrataCommand request, CancellationToken cancellationToken)
@@ -95,8 +97,18 @@ public class EditarSubcontrataCommandHandler(
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();
         var clienteIdsActuales = contrapartes.ClienteIds.ToHashSet();
 
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
+
+        // D3 (DN-4, DN-7) y EP-4: D5 abre las Subcontratas al Tenant TEC, pero una Relación Empresarial nueva con un Cliente
+        // empresarial es un alta de Outbound, cerrada al Tenant TEC participante sin línea Outbound, como en
+        // EditarEmpresaCommandHandler. Quitar Clientes empresariales (bajas), cambiar las Empresas y editar la identidad
+        // siguen abiertos, así que la guarda va aquí, sobre el diff, y no en el pipeline. Falla cerrado sin Tenant activo.
+        if (clienteIdsNuevos.Count > 0
+            && (tenantActual.TenantId is not { } tenantId
+                || await outboundCerrado.EstaCerradoAsync(tenantId, cancellationToken)))
+            return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count
             || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIdsNuevos, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));

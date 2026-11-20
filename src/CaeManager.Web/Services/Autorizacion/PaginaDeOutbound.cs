@@ -55,6 +55,13 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// arquitectura; las lecturas que la página hace fuera del mediador, no. El criterio
 /// se resuelve solo para un endpoint marcado con el papel de Tenant de origen, y sin registrar falla al resolverlo.
 /// </para>
+///
+/// <para>
+/// <b>Tenant TEC marcado sin línea Outbound</b> (D3): este handler no lo mira, así que no le cierra ninguna página. Las
+/// Subcontratas (<c>/subcontratas</c> y su ficha) se le abren por D5 (2026-11-19) y conservan la marca, que les sigue
+/// cerrando el papel Inbound. Si un incremento lleva el límite de D3 a las páginas, deja abiertas las de
+/// <see cref="RegistroLimiteTenantTec.AbiertasAlTenantTec"/>.
+/// </para>
 /// </summary>
 public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
     ICurrentUserService currentUserService, IServiceProvider servicios) : IAuthorizationHandler
