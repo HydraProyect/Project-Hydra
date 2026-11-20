@@ -2,7 +2,8 @@
 # vigente (DN-4, DN-7). Nombre corto, tabulador, clase y, en abierto, pendiente y donde haga falta, tabulador y motivo.
 # La compara LimiteTenantTecClasificacionTests: cerrado-behavior (RegistroLimiteTenantTec.CerradasSinLinea),
 # cerrado-datos (ILimiteTenantTecSegunDatos), cerrado-handler (su handler recibe IOutboundCerradoTenantTec) y pendiente
-# (RegistroLimiteTenantTec.PendientesDeDecision) tienen que ser lo que el código aplica; abierto lleva motivo; no-aplica
+# (RegistroLimiteTenantTec.PendientesDeDecision) tienen que ser lo que el código aplica, y también abierto cuando lo abre una decisión
+# (RegistroLimiteTenantTec.AbiertasAlTenantTec: Subcontratas por D5); abierto lleva motivo; no-aplica
 # es lo que no es un alta de Outbound de D3 (el resto de Outbound queda al punto de integración de PeticionDeOutbound).
 # Un Command nuevo da rojo hasta que se clasifique aquí. Orden ordinal.
 AbrirAccesoSoporteCommand	no-aplica	acto del Actor de Plataforma TALVEG (Sesión Privilegiada), no un alta de Outbound
@@ -30,7 +31,7 @@ ActualizarPresupuestoIaCommand	no-aplica
 ActualizarProyectoCommand	no-aplica
 ActualizarSeguridadAccesoCommand	no-aplica
 ActualizarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
-ActualizarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+ActualizarVerificacionExternaSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 ActualizarVerificacionIaGlobalCommand	no-aplica
 AgregarTurnoTareaAsistenteCommand	no-aplica
 AgregarVersionPlantillaCommand	no-aplica
@@ -60,7 +61,7 @@ CambiarAddOnSubidaAutomaticaCommand	no-aplica
 CambiarConectorApiProveedorPlataformaCommand	no-aplica
 CambiarEstadoAcreditacionEnCentroCommand	no-aplica
 CambiarEstadoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
-CambiarNivelServicioSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+CambiarNivelServicioSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 CambiarPrioridadConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 CambiarSegundoFactorDelTenantPorPlataformaCommand	no-aplica
 CancelarContratoAccesoCommand	no-aplica
@@ -113,7 +114,7 @@ CrearPlantillaDocumentoCommand	no-aplica
 CrearPlantillaRequisitosCommand	no-aplica
 CrearProyectoCommand	no-aplica
 CrearRequisitoPropioCommand	no-aplica
-CrearSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+CrearSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 CrearTareaAsistenteCommand	no-aplica
 CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
 CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
@@ -154,7 +155,7 @@ EditarFichaVehiculoCommand	no-aplica
 EditarIncidenciaCommand	no-aplica
 EditarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EditarRequisitoPlantillaCommand	no-aplica
-EditarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EditarSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 EditarTipoDocumentoCommand	no-aplica
 EditarTrabajadorCommand	no-aplica
 EditarUsuarioCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7); relevo de principal permitido como consecuencia de la baja en un Tenant beneficiario cerrado, opción (A), DECISION_LOG 2026-11-19 punto 2; con el Operador CAE externo cerrado se aplica por analogía, pendiente de confirmación R2
@@ -185,15 +186,15 @@ EliminarIncidenciaCommand	no-aplica
 EliminarIncidenciasCommand	no-aplica
 EliminarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EliminarProyectoCommand	no-aplica
-EliminarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
-EliminarSubcontratasCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EliminarSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
+EliminarSubcontratasCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 EliminarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia sobre Empresas del Tenant; fuera del cierre por decisión T-2 (a), DECISION_LOG 2026-11-19 punto 4
 EliminarTrabajadorCommand	no-aplica
 EliminarTrabajadoresCommand	no-aplica
 EliminarUsuarioPendienteCommand	no-aplica
 EliminarVehiculoCommand	no-aplica
 EliminarVehiculosCommand	no-aplica
-EliminarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EliminarVerificacionExternaSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 EmitirCredencialCommand	no-aplica
 EnviarMensajeNuevoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EnviarNotificacionCompletaCommand	no-aplica
@@ -224,7 +225,7 @@ GuardarAccesoPlataformaCaeCommand	cerrado-behavior
 GuardarConexionPlataformaCaeCommand	no-aplica
 GuardarContactoAgendaCommand	no-aplica
 GuardarCredencialAccesoEmpresaCommand	no-aplica
-GuardarCredencialAccesoSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+GuardarCredencialAccesoSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 GuardarDelegacionEmpresaCommand	no-aplica
 GuardarElementosPlantillaCommand	no-aplica
 GuardarFiltroCommand	no-aplica
@@ -232,7 +233,7 @@ GuardarFirmaGuardadaUsuarioCommand	no-aplica
 GuardarLogoTenantCommand	no-aplica
 GuardarNotaInternaCentroCommand	no-aplica
 GuardarNotaInternaEmpresaCommand	no-aplica
-GuardarNotaInternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+GuardarNotaInternaSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 GuardarNotaInternaTrabajadorCommand	no-aplica
 GuardarNotaInternaVehiculoCommand	no-aplica
 GuardarOficioEmpresaCommand	no-aplica
@@ -302,7 +303,7 @@ RegistrarSolicitudDerechoInteresadoCommand	no-aplica
 RegistrarSuscripcionTenantCommand	no-aplica
 RegistrarTramoGestionCommand	no-aplica
 RegistrarUsoRecienteCommand	no-aplica
-RegistrarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RegistrarVerificacionExternaSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 RenovarContratoAccesoCommand	no-aplica
 RenovarDocumentoCommand	no-aplica
 RepararMarcaHuecoCommand	no-aplica
@@ -325,10 +326,10 @@ RestaurarEmpresaCommand	cerrado-handler	solo si tiene Relaciones Empresariales v
 RestaurarGestionCommand	no-aplica
 RestaurarProyectoCommand	no-aplica
 RestaurarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
-RestaurarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RestaurarSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 RestaurarTrabajadorCommand	no-aplica
 RestaurarVehiculoCommand	no-aplica
-RestaurarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+RestaurarVerificacionExternaSubcontrataCommand	abierto	D5: Subcontratas abiertas al Tenant TEC (DECISION_LOG 2026-11-19, «Pantallas de Inbound y Outbound», D5; RegistroLimiteTenantTec.AbiertasAlTenantTec)
 RetirarApoyoConcedidoCommand	abierto	baja (DN-7: las bajas se permiten)
 RetirarConexionPlataformaCaeCommand	no-aplica
 RetirarEncargoAdministracionCommand	abierto	baja (DN-7: las bajas se permiten)

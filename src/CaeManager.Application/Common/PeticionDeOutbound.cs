@@ -23,7 +23,11 @@ public static class PeticionDeOutbound
 {
     private const string Raiz = "CaeManager.Application.";
 
-    /// <summary>Áreas (primer segmento bajo <c>CaeManager.Application</c>) que el registro asigna a Outbound.</summary>
+    /// <summary>
+    /// Áreas (primer segmento bajo <c>CaeManager.Application</c>) que el registro asigna a Outbound. Subcontratas sigue aquí
+    /// aunque D5 (2026-11-19) la abra al Tenant TEC: esta clasificación es la del Tenant solo Inbound, al que sigue
+    /// cerrada; la apertura al Tenant TEC vive en <see cref="RegistroLimiteTenantTec.AbiertasAlTenantTec"/>.
+    /// </summary>
     private static readonly HashSet<string> AreasDeOutbound = new(StringComparer.Ordinal)
     {
         "Contactos", "Contacto", "Marco", "Clientes", "AsistenteIa", "Proyectos", "Subcontratas", "Visitas", "Gestiones",
