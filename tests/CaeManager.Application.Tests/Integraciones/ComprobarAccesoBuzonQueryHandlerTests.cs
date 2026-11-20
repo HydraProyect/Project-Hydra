@@ -107,6 +107,66 @@ public class ComprobarAccesoBuzonQueryHandlerTests
     }
 
     [Fact]
+    public async Task Una_conexion_de_un_Cliente_fuera_de_la_cartera_no_se_comprueba()
+    {
+        var entorno = new Entorno();
+        var conexion = new ConexionIntegracion("cliente@operador.test", "Buzón del Cliente", clienteId: Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-x");
+        entorno.Agregar(conexion);
+
+        var resultado = await entorno.Handler(alcance: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: []))
+            .Handle(new ComprobarAccesoBuzonQuery(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        entorno.Graph.VecesRefrescado.Should().Be(0);
+        entorno.Graph.TokensDeIdentidad.Should().BeEmpty();
+    }
+
+    /// <summary>Una desconectada no se abre en Microsoft: no se refresca su credencial ni se da un «ok» que TALVEG no lee.</summary>
+    [Fact]
+    public async Task Una_conexion_desconectada_que_nadie_ocupa_pide_reconectar_sin_llamar_a_Microsoft()
+    {
+        var entorno = new Entorno();
+        var conexion = entorno.Agregar(Personal());
+        conexion.Deshabilitar();
+
+        var resultado = await entorno.Handler().Handle(new ComprobarAccesoBuzonQuery(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoReconexionNecesaria);
+        entorno.Graph.VecesRefrescado.Should().Be(0);
+        entorno.Graph.TokensDeIdentidad.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_guardar_el_token_rotado_se_descarta_y_no_queda_rastreado()
+    {
+        var entorno = new Entorno();
+        var conexion = entorno.Agregar(Personal());
+        entorno.UnitOfWork.ExcepcionAlGuardar = new InvalidOperationException("conflicto simulado");
+
+        var comprobar = () => entorno.Handler().Handle(new ComprobarAccesoBuzonQuery(conexion.Id), CancellationToken.None);
+
+        await comprobar.Should().ThrowAsync<InvalidOperationException>();
+        entorno.Descarte.Veces.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_la_llamada_a_Microsoft_se_corta_tras_refrescar_la_credencial_rotada_se_descarta()
+    {
+        var entorno = new Entorno();
+        var conexion = entorno.Agregar(Personal());
+        entorno.Graph.AlLeerIdentidad = () => throw new OperationCanceledException();
+
+        var comprobar = () => entorno.Handler().Handle(new ComprobarAccesoBuzonQuery(conexion.Id), CancellationToken.None);
+
+        await comprobar.Should().ThrowAsync<OperationCanceledException>();
+        entorno.Graph.VecesRefrescado.Should().Be(1);
+        entorno.Descarte.Veces.Should().Be(1);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Un_buzon_personal_que_responde_con_su_identidad_da_ok_y_guarda_el_token_rotado()
     {
         var entorno = new Entorno();

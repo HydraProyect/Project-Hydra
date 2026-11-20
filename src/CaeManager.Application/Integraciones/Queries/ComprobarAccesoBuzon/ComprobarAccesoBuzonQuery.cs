@@ -37,8 +37,9 @@ public enum ResultadoComprobacionAccesoBuzon
 /// buzón personal: <see cref="AccesoGraphService"/> puede rotar el refresh token y no lo persiste por sí solo.
 /// </para>
 /// <para>
-/// Solo el Administrador comprueba, con la misma guarda que «Reconectar»: el rol efectivo se mira antes de leer nada, y la
-/// conexión tiene que ser visible para quien pregunta.
+/// Solo el Administrador comprueba, con la misma guarda que «Reconectar»: el rol efectivo se mira antes de leer nada, la
+/// conexión tiene que ser visible para quien pregunta, y el Encargo de administración no pleno no la abre
+/// (<c>ActosExcluidosDelEncargo</c>). Una conexión desconectada no se abre en Microsoft: solo se dice si otra la ocupa.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Integraciones")]
@@ -80,6 +81,13 @@ public class ComprobarAccesoBuzonQueryHandler(
                 cancellationToken))
             return Result.Exito(ResultadoComprobacionAccesoBuzon.Ocupado);
 
+        // Una desconectada no se abre en Microsoft: refrescar su credencial delegada le alargaría la vida, y en un compartido
+        // ya liberado un «ok» no diría que TALVEG lo lee. Lo único que se le contesta es si otra conexión lo ocupa.
+        if (conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
+            return Fallo(
+                ReactivarConexionCommandHandler.CodigoReconexionNecesaria,
+                "Este buzón está desconectado: reconéctalo para que TALVEG vuelva a leerlo.");
+
         // Sin identidad guardada no hay con qué comparar lo que responda Microsoft: lo mismo que dice «Reconectar».
         if (identidad is null)
             return Fallo(
@@ -90,7 +98,19 @@ public class ComprobarAccesoBuzonQueryHandler(
         if (token.EsFallido)
             return SinComprobacion();
 
-        var leida = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
+        Result<string> leida;
+        try
+        {
+            leida = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
+        }
+        catch
+        {
+            // Cancelación o fallo inesperado tras refrescar: la credencial rotada no queda rastreada para otra operación.
+            if (!conexion.EsBuzonCompartido)
+                descarteCambios.DescartarCambiosPendientes();
+            throw;
+        }
+
         if (!conexion.EsBuzonCompartido)
             await GuardarTokenRotadoAsync(cancellationToken);
 

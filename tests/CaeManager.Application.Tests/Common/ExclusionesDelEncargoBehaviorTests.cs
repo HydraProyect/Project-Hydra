@@ -9,6 +9,7 @@ using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Facturacion.Commands.EliminarTarifaCliente;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Queries.ComprobarAccesoBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Retencion.Commands;
 using CaeManager.Application.Tenants.Commands.RegistrarEncargoAdministracion;
@@ -50,6 +51,7 @@ public class ExclusionesDelEncargoBehaviorTests
         { "Auditoria: registro del Tenant entero", new ObtenerAuditoriaQuery(null, null) },
         { "Auditoria: registro del Tenant por tipo de entidad", new ObtenerAuditoriaQuery("Trabajador", null) },
         { "DocumentosIa: auditoría de IA", new ObtenerAuditoriaIaQuery(null) },
+        { "Integraciones: comprobar acceso a un buzón, con la guarda de Reconectar", new ComprobarAccesoBuzonQuery(Guid.NewGuid()) },
     };
 
     /// <summary>Lo que la cartera ya tenía, o el encargo abre a propósito: no se cierra de más.</summary>
