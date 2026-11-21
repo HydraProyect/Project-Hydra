@@ -64,8 +64,6 @@
   <data name="RedactarPara" xml:space="preserve"><value>Para</value></data>
   <data name="RedactarAsunto" xml:space="preserve"><value>Asunto</value></data>
   <data name="RedactarMensaje" xml:space="preserve"><value>Mensaje</value></data>
-  <data name="BandaConsultaRol" xml:space="preserve"><value>Rol Consulta</value></data>
-  <data name="BandaConsultaTexto" xml:space="preserve"><value>Ves todas las conversaciones, notas y fichas, pero no puedes responder, cambiar el estado ni aprobar acciones.</value></data>
   <data name="OrigenConversaciones" xml:space="preserve"><value>Origen de las conversaciones</value></data>
   <data name="NavClientes" xml:space="preserve"><value>Clientes</value></data>
   <data name="NavBuzonPersonal" xml:space="preserve"><value>Mi buzón personal</value></data>

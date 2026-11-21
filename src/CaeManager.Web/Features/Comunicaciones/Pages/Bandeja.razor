@@ -61,12 +61,6 @@
         }
     </header>
 
-    @* Banda del Rol Consulta (lienzo, L-4: líneas 548-550 del tablero). Solo informa: no da ni quita permisos (los quitan SoloConEscritura y
-       AutorizacionEscrituraBehavior). Mismo rol efectivo que AvisoSoloConsulta del layout. *@
-    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="autorizacionConsulta">
-        <div class="bandeja-banda-consulta" role="status"><b>@TextosLista["BandaConsultaRol"]</b><span>@TextosLista["BandaConsultaTexto"]</span></div>
-    </AuthorizeView>
-
     @{
         // Vacíos de la lista por vista (lienzo «Pulida: bandeja de la cartera», L-15): «Sin resultados» con búsqueda, «Sin buzones
         // conectados», «No quedan conversaciones» con «Al día» en la vista por defecto y «Nada en «vista»» en las demás. Los textos

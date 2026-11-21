@@ -64,8 +64,6 @@
   <data name="RedactarPara" xml:space="preserve"><value>Per a</value></data>
   <data name="RedactarAsunto" xml:space="preserve"><value>Assumpte</value></data>
   <data name="RedactarMensaje" xml:space="preserve"><value>Missatge</value></data>
-  <data name="BandaConsultaRol" xml:space="preserve"><value>Rol Consulta</value></data>
-  <data name="BandaConsultaTexto" xml:space="preserve"><value>Veus totes les converses, notes i fitxes, però no pots respondre, canviar l'estat ni aprovar accions.</value></data>
   <data name="OrigenConversaciones" xml:space="preserve"><value>Origen de les converses</value></data>
   <data name="NavClientes" xml:space="preserve"><value>Clients</value></data>
   <data name="NavBuzonPersonal" xml:space="preserve"><value>La meva bústia personal</value></data>
