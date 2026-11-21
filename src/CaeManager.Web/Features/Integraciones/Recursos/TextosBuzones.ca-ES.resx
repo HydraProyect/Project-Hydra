@@ -237,6 +237,9 @@
   <data name="AvisoSoloConsulta" xml:space="preserve">
     <value>Només consulta. Per canviar aquestes bústies, obre a dalt, a «Treballant a», {0}.</value>
   </data>
+  <data name="AvisoSoloConsultaNoAdministrador" xml:space="preserve">
+    <value>Només consulta. Només l&apos;Administrador de {0} pot canviar aquestes bústies.</value>
+  </data>
   <data name="AvisoCargaEmpresaFallida" xml:space="preserve">
     <value>No hem pogut carregar les bústies de {0}. Torna-ho a provar d&apos;aquí a uns minuts.</value>
   </data>

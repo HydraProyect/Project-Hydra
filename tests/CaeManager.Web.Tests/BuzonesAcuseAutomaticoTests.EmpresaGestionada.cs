@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.Integraciones.Pages;
 using FluentAssertions;
 using Xunit;
@@ -151,6 +152,46 @@ public partial class BuzonesAcuseAutomaticoTests
         foreach (var control in new[] { "interruptor-acuse", "selector-responsable", "comprobar-acceso-buzon", "reconectar-buzon", "anadir-buzon" })
             cut.FindAll($"[data-testid={control}]").Should().BeEmpty($"{control} actuaría en el Tenant activo");
         mediador.ComandosAcuse.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_Administrador_que_consulta_otra_Empresa_gestionada_lee_como_pasar_a_ella_para_cambiar_los_buzones()
+    {
+        var cut = RenderizarConsultaDeOtra(Roles.Administrador);
+
+        var aviso = cut.FindAll("[data-testid=aviso-consulta-empresa]").Should().ContainSingle().Subject;
+        aviso.TextContent.Trim()
+            .Should().Be("Solo consulta. Para cambiar estos buzones, abre arriba, en «Trabajando en», Otra gestionada.");
+        cut.Markup.Should().NotContain("Tenant");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.Consulta)]
+    [InlineData(null)]
+    public void Quien_no_es_Administrador_y_consulta_otra_Empresa_gestionada_lee_quien_puede_cambiar_los_buzones(string? rol)
+    {
+        var cut = RenderizarConsultaDeOtra(rol);
+
+        var aviso = cut.FindAll("[data-testid=aviso-consulta-empresa]").Should().ContainSingle().Subject;
+        aviso.TextContent.Trim()
+            .Should().Be("Solo consulta. Solo el Administrador de Otra gestionada puede cambiar estos buzones.");
+        cut.Markup.Should().NotContain("Tenant").And.NotContain("Trabajando en");
+    }
+
+    private IRenderedComponent<Buzones> RenderizarConsultaDeOtra(string? rol)
+    {
+        var empresas = DosEmpresas();
+        empresas.Buzones[TenantOtro] = new BuzonesDeTenantBeneficiarioDto(
+            [Buzon("obra")], new Dictionary<Guid, string>(), new Dictionary<Guid, ActividadBuzonDto>());
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, rol, empresas: empresas);
+
+        Pulsar(cut, "Otra gestionada");
+
+        cut.FindAll("[data-testid=fila-buzon]").Should().ContainSingle("control positivo: se consultan los buzones de la otra Empresa gestionada");
+        return cut;
     }
 
     [Fact]

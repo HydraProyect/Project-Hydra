@@ -237,6 +237,9 @@
   <data name="AvisoSoloConsulta" xml:space="preserve">
     <value>Solo consulta. Para cambiar estos buzones, abre arriba, en «Trabajando en», {0}.</value>
   </data>
+  <data name="AvisoSoloConsultaNoAdministrador" xml:space="preserve">
+    <value>Solo consulta. Solo el Administrador de {0} puede cambiar estos buzones.</value>
+  </data>
   <data name="AvisoCargaEmpresaFallida" xml:space="preserve">
     <value>No pudimos cargar los buzones de {0}. Inténtalo de nuevo en unos minutos.</value>
   </data>

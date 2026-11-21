@@ -64,7 +64,16 @@
 
     @if (_empresaConsultada is { } consultada)
     {
-        <p class="aviso-consulta-empresa" role="status" data-testid="aviso-consulta-empresa">@Textos["AvisoSoloConsulta", consultada.TenantNombre]</p>
+        @* DN-U: quien es Administrador lee cómo pasar a la Empresa gestionada para cambiar los buzones (la misma comprobación que
+           muestra «Añadir buzón» y los controles de cada fila); quien no lo es, quién puede cambiarlos. *@
+        <AuthorizeView Roles="@RolAdministrador" Context="autorizacionAviso">
+            <Authorized>
+                <p class="aviso-consulta-empresa" role="status" data-testid="aviso-consulta-empresa">@Textos["AvisoSoloConsulta", consultada.TenantNombre]</p>
+            </Authorized>
+            <NotAuthorized>
+                <p class="aviso-consulta-empresa" role="status" data-testid="aviso-consulta-empresa">@Textos["AvisoSoloConsultaNoAdministrador", consultada.TenantNombre]</p>
+            </NotAuthorized>
+        </AuthorizeView>
     }
 
     @if (_cargando || (SoloConsulta && _cargandoConsulta))
