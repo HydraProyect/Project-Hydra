@@ -419,17 +419,20 @@ public partial class ComunicacionesGen2Tests
     }
 
     /// <summary>
-    /// BAJA 5: con la lista vacía y un recuento del selector mayor que cero para lo elegido, no se pinta «Al día»; con cero, sí.
+    /// BAJA 5: con la lista vacía y un recuento del selector mayor que cero para lo elegido, no se pinta «Al día»; con cero, sí. Los
+    /// recuentos del Tenant activo y de la otra Empresa gestionada son distintos (revisión de la #2418, BAJA 1): con una Empresa
+    /// gestionada elegida manda su recuento y no la suma; con «Todas», la suma y no el de una sola.
     /// </summary>
     [Theory]
-    [InlineData("Construcciones Ebro", 2, false)]
-    [InlineData("Construcciones Ebro", 0, true)]
-    [InlineData("Todas las Empresas gestionadas", 2, false)]
-    [InlineData("Todas las Empresas gestionadas", 0, true)]
-    public void Al_dia_no_se_pinta_si_el_selector_cuenta_abiertas_para_lo_elegido(string eleccion, int abiertas, bool alDia)
+    [InlineData("Construcciones Ebro", 3, 2, false)]
+    [InlineData("Construcciones Ebro", 3, 0, true)]
+    [InlineData("Todas las Empresas gestionadas", 3, 0, false)]
+    [InlineData("Todas las Empresas gestionadas", 0, 2, false)]
+    [InlineData("Todas las Empresas gestionadas", 0, 0, true)]
+    public void Al_dia_no_se_pinta_si_el_selector_cuenta_abiertas_para_lo_elegido(string eleccion, int abiertasActiva, int abiertasOtra, bool alDia)
     {
         var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(ConjuntoDeEmpresas(
-            EmpresaActiva with { Abiertas = abiertas }, EmpresaOtra with { Abiertas = abiertas })));
+            EmpresaActiva with { Abiertas = abiertasActiva }, EmpresaOtra with { Abiertas = abiertasOtra })));
         cut.WaitForElement(".eg-boton");
 
         Elegir(cut, eleccion);

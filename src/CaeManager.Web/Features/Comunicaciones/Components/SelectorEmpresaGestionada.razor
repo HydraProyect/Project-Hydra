@@ -8,7 +8,7 @@
 @inject IStringLocalizer<TextosListaConversaciones> Textos
 
 <div class="eg-selector">
-    <button type="button" class="eg-boton" aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
+    <button type="button" class="eg-boton" aria-haspopup="dialog" aria-expanded="@(_abierto ? "true" : "false")"
             aria-label="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]" title="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]"
             @onclick="Alternar">
         @if (Elegida is { TenantId: null })
@@ -26,7 +26,9 @@
     @if (_abierto)
     {
         <div class="eg-superposicion" @onclick="Cerrar"></div>
-        <div class="eg-pop" role="listbox" aria-label="@Textos["EmpresasGestionadas"]" @onkeydown="TeclaAsync">
+        @* El panel es un diálogo con el buscador, la cabecera, el aviso y la lista de opciones; solo las opciones van en el listbox,
+           que no puede contener un role="status" (revisión de la #2418). *@
+        <div class="eg-pop" role="dialog" aria-label="@Textos["EmpresasGestionadas"]" @onkeydown="TeclaAsync">
             <input class="eg-buscar" type="search" aria-label="@Textos["BuscarEmpresaGestionada"]" placeholder="@Textos["BuscarEmpresaGestionada"]"
                    value="@_busqueda" @oninput="e => _busqueda = e.Value?.ToString() ?? string.Empty" />
             <span class="eg-pop-t">@ResumenEmpresas</span>
@@ -35,6 +37,7 @@
                 @* Contrato del DTO: las no contadas nunca son «cero». El aviso las nombra y los dos números de arriba son parciales (§ 4.3). *@
                 <span class="eg-pop-t eg-pop-aviso" role="status">@Textos["EmpresasGestionadasSinContar", string.Join(", ", NoConsultados)]</span>
             }
+            <div class="eg-lista" role="listbox" aria-label="@Textos["EmpresasGestionadas"]">
             <button type="button" class="eg-opcion" role="option" aria-selected="@(Elegida is { TenantId: null } ? "true" : "false")"
                     @onclick="() => ElegirAsync(new EleccionEmpresaGestionada(null))">
                 <span class="eg-q">@Textos["TodasLasEmpresasGestionadas"]</span><span class="eg-contador" title="@TituloTotal">@TotalEnTodas</span>
@@ -47,6 +50,7 @@
                     <span class="eg-mono eg-mono-p">@Iniciales(empresa.TenantNombre)</span><span class="eg-q">@empresa.TenantNombre</span><span class="eg-contador">@empresa.Abiertas</span>
                 </button>
             }
+            </div>
             @if (!string.IsNullOrWhiteSpace(_busqueda) && !Coincidentes.Any())
             {
                 <span class="eg-pop-t">@Textos["NingunaEmpresaGestionadaCoincide", _busqueda]</span>

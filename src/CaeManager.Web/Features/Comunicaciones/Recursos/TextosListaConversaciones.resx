@@ -108,4 +108,18 @@
   <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No se han podido contar las conversaciones de {0}; el total es parcial.</value></data>
   <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
   <data name="RecuentoParcial" xml:space="preserve"><value>Recuento parcial: faltan las Empresas gestionadas que no se han podido contar</value></data>
+<data name="Buzon" xml:space="preserve"><value>Buzón</value></data>
+  <data name="BuzonAccesible" xml:space="preserve"><value>Buzón: {0}. Cambiar de buzón</value></data>
+  <data name="BuzonElegir" xml:space="preserve"><value>Elegir buzón</value></data>
+  <data name="BuzonBuscar" xml:space="preserve"><value>Buscar buzón o Empresa gestionada</value></data>
+  <data name="BuzonOpciones" xml:space="preserve"><value>Buzón · {0} opciones</value></data>
+  <data name="Buzones" xml:space="preserve"><value>Buzones</value></data>
+  <data name="TodosLosBuzones" xml:space="preserve"><value>Todos los buzones</value></data>
+  <data name="BuzonTipoPersonal" xml:space="preserve"><value>Personal</value></data>
+  <data name="BuzonesDeEmpresaUno" xml:space="preserve"><value>1 buzón</value></data>
+  <data name="BuzonesDeEmpresaVarios" xml:space="preserve"><value>{0} buzones</value></data>
+  <data name="BuzonConError" xml:space="preserve"><value>Con error</value></data>
+  <data name="NingunBuzonCoincide" xml:space="preserve"><value>Ningún buzón coincide con «{0}»</value></data>
+  <data name="SinConversacionesIncompleta" xml:space="preserve"><value>Lista incompleta</value></data>
+  <data name="SinConversacionesIncompletaAyuda" xml:space="preserve"><value>No hay conversaciones abiertas en lo que pudimos leer, pero faltan Empresas gestionadas por leer.</value></data>
 </root>
