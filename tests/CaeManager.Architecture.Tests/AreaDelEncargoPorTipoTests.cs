@@ -111,6 +111,7 @@ namespace CaeManager.Architecture.Tests
             "AsignarTrabajadoresAutorizacionCommand",
             "BuscarDatosPurgablesCommand",
             "CancelarPurgaCommand",
+            "ComprobarAccesoBuzonQuery",
             "ConcederAutorizacionLecturaCommand",
             "ConcederCapacidadTenantCommand",
             "ConectarBuzonMicrosoft365Command",

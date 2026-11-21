@@ -204,4 +204,25 @@
   <data name="CajonErrorCarga" xml:space="preserve">
     <value>No pudimos cargar las Empresas sin rol CAE ni los Gestores CAE. Puedes seguir con un buzón de la organización propia o compartido.</value>
   </data>
+  <data name="ColAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="ComprobarAcceso" xml:space="preserve">
+    <value>Comprobar acceso</value>
+  </data>
+  <data name="AriaComprobarAcceso" xml:space="preserve">
+    <value>Comprobar acceso: {0}</value>
+  </data>
+  <data name="ComprobacionOk" xml:space="preserve">
+    <value>TALVEG puede leer este buzón.</value>
+  </data>
+  <data name="ComprobacionSinAcceso" xml:space="preserve">
+    <value>TALVEG no tiene acceso a este buzón. Pide a tu equipo de IT que lo incluya.</value>
+  </data>
+  <data name="ComprobacionOcupado" xml:space="preserve">
+    <value>Este buzón ya está conectado en esta Empresa gestionada.</value>
+  </data>
+  <data name="ErrorComprobarAcceso" xml:space="preserve">
+    <value>No pudimos comprobar el acceso al buzón. Inténtalo de nuevo.</value>
+  </data>
 </root>

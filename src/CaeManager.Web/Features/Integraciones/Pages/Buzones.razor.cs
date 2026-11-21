@@ -3,6 +3,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
+using CaeManager.Application.Integraciones.Queries.ComprobarAccesoBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Common;
@@ -20,8 +21,8 @@ namespace CaeManager.Web.Features.Integraciones.Pages;
 
 /// <summary>
 /// Administración de los buzones de Microsoft 365 (maqueta <c>Buzones.dc.html</c>): el listado con su Responsable y el
-/// interruptor del acuse automático, «Añadir buzón» (el mismo flujo de conectar que Conexiones) y «Reconectar» un buzón con error;
-/// desconectar sigue en Conexiones. La página no es una frontera de
+/// interruptor del acuse automático, «Añadir buzón» (el mismo flujo de conectar que Conexiones), «Reconectar» un buzón con error
+/// y «Comprobar acceso» en las demás filas; desconectar sigue en Conexiones. La página no es una frontera de
 /// autorización: <c>FijarAcuseAutomaticoBuzonCommand</c> y <c>FijarResponsableBuzonCommand</c> exigen Administrador y buzón
 /// visible por su cuenta; aquí solo se decide qué se enseña (quien no es Administrador ve el estado, sin controles).
 /// </summary>
@@ -370,6 +371,52 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         finally
         {
             _procesandoId = null;
+        }
+    }
+
+    /// <summary>La franja de error con «Reconectar» (E32) sale solo con ConError y un último error que enseñar.</summary>
+    private static bool MuestraFranjaError(ConexionIntegracionListaDto conexion) =>
+        conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError);
+
+    // ---- Comprobar acceso ----
+
+    private Guid? _comprobandoId;
+
+    /// <summary>
+    /// «Comprobar acceso» de una fila (L-57): <c>ComprobarAccesoBuzonQuery</c> lee en Microsoft la Bandeja de entrada del buzón
+    /// con el mismo token que lo abre, como «Reconectar», pero sin cambiar nada; exige Administrador efectivo en el servidor. El
+    /// resultado es un aviso con los textos del lienzo y la tabla no se recarga, porque la comprobación no cambia la conexión.
+    /// </summary>
+    private async Task ComprobarAccesoAsync(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null) return;
+        _procesandoId = conexion.Id;
+        _comprobandoId = conexion.Id;
+        StateHasChanged();
+        try
+        {
+            var resultado = await Mediator.Send(new ComprobarAccesoBuzonQuery(conexion.Id), _cancelacion.Token);
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else if (resultado.Valor == ResultadoComprobacionAccesoBuzon.Ok)
+                ToastService.Mostrar(Textos["ComprobacionOk"], TonoToast.Exito);
+            else
+                ToastService.Mostrar(
+                    Textos[resultado.Valor == ResultadoComprobacionAccesoBuzon.Ocupado ? "ComprobacionOcupado" : "ComprobacionSinAcceso"],
+                    TonoToast.Error);
+        }
+        catch (OperationCanceledException) when (_dispuesto)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al comprobar el acceso a la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorComprobarAcceso"], TonoToast.Error);
+        }
+        finally
+        {
+            _procesandoId = null;
+            _comprobandoId = null;
         }
     }
 

@@ -69,6 +69,8 @@
                             <th scope="col">@Textos["ColResponsable"]</th>
                             <th scope="col">@Textos["ColAbiertas"]</th>
                             <th scope="col">@Textos["ColAcuse"]</th>
+                            @* Lienzo Pulida-Buzones: la columna de acciones no tiene rótulo visible, solo para el lector de pantalla. *@
+                            <th scope="col"><span class="sr-solo">@Textos["ColAcciones"]</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -144,12 +146,28 @@
                                         </AuthorizeView>
                                     }
                                 </td>
+                                <td>
+                                    @* L-57: «Comprobar acceso» en la fila, salvo en la que ya ofrece «Reconectar» en su franja de error (en el
+                                       lienzo, un buzón con error solo lleva «Reconectar buzón»). «Pausar lectura» y «Quitar buzón…» no están
+                                       (B4 y DN-I). *@
+                                    @if (!MuestraFranjaError(conexion))
+                                    {
+                                        <AuthorizeView Roles="@RolAdministrador" Context="autorizacionComprobar">
+                                            <div class="acciones-buzon">
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)" Cargando="@(_comprobandoId == conexion.Id)"
+                                                       aria-label="@Textos["AriaComprobarAcceso", conexion.Nombre]"
+                                                       OnClick="() => ComprobarAccesoAsync(conexion)" data-testid="comprobar-acceso-buzon">@Textos["ComprobarAcceso"]</Boton>
+                                            </div>
+                                        </AuthorizeView>
+                                    }
+                                </td>
                             </tr>
-                            @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
+                            @if (MuestraFranjaError(conexion))
                             {
                                 @* E32 (parcial): franja con el último error de ese buzón y «Reconectar», que es la acción de «Reactivar». *@
                                 <tr class="fila-franja-error">
-                                    <td colspan="8">
+                                    <td colspan="9">
                                         <div class="franja-error" role="alert" data-testid="franja-error-buzon">
                                             <span class="franja-error-texto">@Textos["FranjaErrorBuzon", conexion.BuzonEmail]: @conexion.UltimoError</span>
                                             <AuthorizeView Roles="@RolAdministrador" Context="autorizacionReconectar">

@@ -17,6 +17,7 @@ using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae
 using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
+using CaeManager.Application.Integraciones.Queries.ComprobarAccesoBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
@@ -149,6 +150,8 @@ public static class ActosExcluidosDelEncargo
         typeof(DesconectarBuzonCommand),
         typeof(RepararMarcaHuecoCommand),
         typeof(ReactivarConexionCommand),
+        // «Comprobar acceso» lleva la guarda de «Reconectar»: pide el token del buzón y puede rotar su credencial.
+        typeof(ComprobarAccesoBuzonQuery),
         typeof(FijarResponsableBuzonCommand),
         typeof(FijarAcuseAutomaticoBuzonCommand),
         typeof(CrearLineaWhatsAppCommand),
