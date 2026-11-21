@@ -120,6 +120,9 @@
   <data name="Rev_Toast_Rechazado" xml:space="preserve">
     <value>Rechazado · el documento queda sin asignar</value>
   </data>
+  <data name="Rev_Toast_ErrorOtro" xml:space="preserve">
+    <value>No se pudo revisar «{0}»: {1}</value>
+  </data>
   <data name="Rev_Toast_Reabierto" xml:space="preserve">
     <value>El documento vuelve a estar pendiente</value>
   </data>

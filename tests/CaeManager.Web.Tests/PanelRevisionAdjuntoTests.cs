@@ -325,7 +325,12 @@ public class PanelRevisionAdjuntoTests : BunitContext
         mediador.PuertaFijar = new TaskCompletionSource();
         var (a, b, c) = (Adjunto(), Adjunto(), Adjunto());
         var resueltos = new List<ResolucionAdjuntoVisor>();
-        var cut = PintarVisor([a, b, c], RevisionDe(a, b, c), resueltos);
+        // La propuesta de b es otra (otro Trabajador y otra fecha): si el panel leyera la del adjunto en pantalla tras el await, se vería.
+        var revision = RevisionDe(a, b, c);
+        var cut = PintarVisor([a, b, c], revision with
+        {
+            Propuestas = new Dictionary<Guid, PropuestaRevision>(revision.Propuestas) { [b.Id] = new(Pedro, null, TipoDni, new DateOnly(2020, 2, 2)) }
+        }, resueltos);
         await cut.FindAll("button").First(x => x.TextContent.Trim() == "Buscar a otra persona o Empresa").ClickAsync(new MouseEventArgs());
         await EscribirAsync(cut.Find("input[type=search]"), "Ped");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
@@ -342,9 +347,56 @@ public class PanelRevisionAdjuntoTests : BunitContext
         var lote = mediador.Enviados.OfType<AsignarAdjuntosLoteCommand>().Should().ContainSingle().Subject;
         lote.Adjuntos.Single().AdjuntoId.Should().Be(a.Id);
         lote.Adjuntos.Single().TrabajadorId.Should().Be(Pedro);
+        lote.Adjuntos.Single().FechaEmision.Should().Be(Emision);
         resueltos.Should().Equal(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Asignado));
         cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-asignado");
         cut.FindAll(".vz-marca")[1].ClassList.Should().NotContain("vz-marca-asignado");
+    }
+
+    [Fact]
+    public async Task Si_el_visor_cambia_de_adjunto_y_el_Command_del_de_origen_falla_se_avisa_con_su_nombre_y_no_se_resuelve_nada()
+    {
+        var mediador = Preparar();
+        mediador.PuertaFijar = new TaskCompletionSource();
+        mediador.Fijar = _ => Result.Fallo<Guid>(Error.Crear("estado", "No se pudo guardar."));
+        var (a, b) = (Adjunto(), Adjunto());
+        var resueltos = new List<ResolucionAdjuntoVisor>();
+        var cut = PintarVisor([a, b], RevisionDe(a, b), resueltos);
+        await cut.FindAll("button").First(x => x.TextContent.Trim() == "Buscar a otra persona o Empresa").ClickAsync(new MouseEventArgs());
+        await EscribirAsync(cut.Find("input[type=search]"), "Ped");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
+        await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Elegir a Pedro Gil").ClickAsync(new MouseEventArgs());
+
+        var asignando = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Asignar el documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<FijarDestinoAdjuntoCommand>().Should().ContainSingle());
+        await cut.Find("button[aria-label='Ir al adjunto siguiente']").ClickAsync(new MouseEventArgs());
+        mediador.PuertaFijar.SetResult();
+        await asignando;
+
+        resueltos.Should().BeEmpty();
+        Toasts().Should().ContainSingle().Which.Should().Be("No se pudo revisar «dni-marta.pdf»: No se pudo guardar.");
+    }
+
+    [Fact]
+    public async Task Si_fijar_el_destino_falla_el_reintento_vuelve_a_fijarlo()
+    {
+        var mediador = Preparar();
+        var llamadas = 0;
+        mediador.Fijar = c => ++llamadas == 1 ? Result.Fallo<Guid>(Error.Crear("estado", "No se pudo guardar.")) : Result.Exito(c.AdjuntoId);
+        var adjunto = Adjunto();
+        var (cut, avisos) = Pintar(adjunto, Revision(adjunto));
+        await Pulsar(cut, "Buscar a otra persona o Empresa");
+        await EscribirAsync(cut.Find("input[type=search]"), "Ped");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
+        await Pulsar(cut, "Elegir a Pedro Gil");
+        await Pulsar(cut, "Asignar el documento");
+        Aviso(cut).Should().Be("No se pudo guardar.");
+
+        await Pulsar(cut, "Asignar el documento");
+
+        mediador.Enviados.OfType<FijarDestinoAdjuntoCommand>().Should().HaveCount(2);
+        mediador.Enviados.OfType<AsignarAdjuntosLoteCommand>().Should().ContainSingle();
+        avisos.Resueltos.Should().ContainSingle().Which.Estado.Should().Be(EstadoAdjuntoVisor.Asignado);
     }
 
     [Fact]
@@ -363,6 +415,9 @@ public class PanelRevisionAdjuntoTests : BunitContext
         cut.WaitForAssertion(() => BotonDe(cut, "Asignar el documento").GetAttribute("aria-disabled").Should().Be("true"));
         await ElegirMartaAsync(cut);
         cut.Find($"button[data-cand='{Pedro}']").GetAttribute("aria-checked").Should().Be("true");
+        cut.Find($"button[data-cand='{Marta}']").GetAttribute("aria-disabled").Should().Be("true");
+        // El tipo no se edita con el Command en curso: el select no cambia lo que se ve sin cambiar lo que se enviará.
+        cut.Find("select").HasAttribute("disabled").Should().BeTrue();
         mediador.PuertaFijar.SetResult();
         await asignando;
 

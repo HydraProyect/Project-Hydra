@@ -64,7 +64,7 @@
             {
                 var elegido = b.Destino?.Id == c.Id;
                 var destino = c;
-                <button type="button" role="radio" class="vz-cand" data-cand="@c.Id" aria-checked="@(elegido ? "true" : "false")" aria-disabled="@(editable ? null : "true")"
+                <button type="button" role="radio" class="vz-cand" data-cand="@c.Id" aria-checked="@(elegido ? "true" : "false")" aria-disabled="@(editable && !_ocupado ? null : "true")"
                         tabindex="@((b.Destino is null ? candidatos[0].Id == c.Id : elegido) ? 0 : -1)" @onclick="() => ElegirDestino(b, destino)" @key="c.Id">
                     <span class="vz-radio" aria-hidden="true"></span>
                     <span class="vz-cand-txt">
@@ -103,7 +103,7 @@
                 </div>
             }
             <div @onkeydown="e => TeclaCampoAsync(e, b)" @onkeydown:stopPropagation="true">
-                <CampoSelect Etiqueta="@Textos["Rev_Tipo"]" Valor="@(TipoVigente(b)?.ToString() ?? string.Empty)" ValorChanged="v => ElegirTipo(b, v)">
+                <CampoSelect Etiqueta="@Textos["Rev_Tipo"]" Deshabilitado="_ocupado" Valor="@(TipoVigente(b)?.ToString() ?? string.Empty)" ValorChanged="v => ElegirTipo(b, v)">
                     <option value="">@Textos["Rev_Tipo_Elegir"]</option>
                     @foreach (var t in TiposOfrecidos(b))
                     {
@@ -150,14 +150,14 @@
             var motivoOk = !string.IsNullOrWhiteSpace(b.Motivo);
             @* @key por adjunto: CampoTextarea reutiliza su instancia al cambiar de adjunto y, si el valor que recibe sigue siendo "", el navegador conservaría el motivo escrito en el anterior. *@
             <div @key="Adjunto.Id" @onkeydown="e => TeclaCampoAsync(e, b)" @onkeydown:stopPropagation="true">
-                <CampoTextarea Etiqueta="@Textos["Rev_Motivo"]" Placeholder="@Textos["Rev_Motivo_Placeholder"]" Filas="3" Valor="@b.Motivo" ValorChanged="v => b.Motivo = v" />
+                <CampoTextarea Etiqueta="@Textos["Rev_Motivo"]" Placeholder="@Textos["Rev_Motivo_Placeholder"]" Filas="3" Deshabilitado="_ocupado" Valor="@b.Motivo" ValorChanged="v => b.Motivo = v" />
             </div>
             @if (!motivoOk)
             {
                 <span class="vz-ayuda" id="vz-ayuda-motivo">@Textos["Rev_Motivo_Ayuda"]</span>
             }
             <div class="vz-acciones">
-                <Boton Variante="VarianteBoton.Destructivo" class="vz-acc" aria-disabled="@(motivoOk ? null : "true")" aria-describedby="@(motivoOk ? null : "vz-ayuda-motivo")" OnClick="() => RechazarAsync(b)">@Textos["Rev_Rechazar"]</Boton>
+                <Boton Variante="VarianteBoton.Destructivo" class="vz-acc" aria-disabled="@(motivoOk && !_ocupado ? null : "true")" aria-describedby="@(motivoOk ? null : "vz-ayuda-motivo")" OnClick="() => RechazarAsync(b)">@Textos["Rev_Rechazar"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" class="vz-acc" Deshabilitado="_ocupado" OnClick="() => CancelarRechazo(b)">@Textos["Rev_Rechazo_Cancelar"]</Boton>
             </div>
         }
@@ -326,6 +326,7 @@
 
     private void ElegirBusqueda(BorradorRevision b, DestinoRevision elegido)
     {
+        if (_ocupado) return;
         b.Buscados.Add(elegido);
         b.Buscando = false;
         b.Consulta = string.Empty;
@@ -456,6 +457,9 @@
         if (fallo is not null)
         {
             b.Aviso = fallo;
+            // Con el visor ya en otro adjunto el aviso en línea no se ve: el fallo se dice aparte y con el nombre del archivo.
+            if (Adjunto.Id != adjuntoId)
+                ToastService.Mostrar(Textos["Rev_Toast_ErrorOtro", contexto.Adjunto.NombreArchivo, fallo].Value, TonoToast.Error);
             return;
         }
 
