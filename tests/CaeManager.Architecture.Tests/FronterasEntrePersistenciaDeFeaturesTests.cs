@@ -423,6 +423,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IProyectosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IClientesQueryContext"),
+        // Selector de la vista unificada (D-6 b, R-4, 2026-11-20): las mismas tres que la lista unificada, porque cuenta
+        // por la misma entrada y la misma lectura por Tenant (EntradaVistaUnificada).
+        ("Comunicaciones.ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler", "IIntegracionesQueryContext"),
+        ("Comunicaciones.ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler", "IOperacionesQueryContext"),
+        ("Comunicaciones.ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler", "ITenantsQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "ICentrosQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ResponderConversacionCommandHandler", "IConexionIntegracionRepository"),

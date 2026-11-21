@@ -239,6 +239,12 @@ public class UsosDeEsPlataformaCongeladosTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-11-20 (D-6 b, R-4): esa guarda pasa, sin cambiar, de <c>ObtenerConversacionesUnificadasQuery.cs</c> a
+    /// <c>EntradaVistaUnificada.cs</c>, la entrada común de la lista y del selector. Mismo recuento: <b>53 ficheros, 97
+    /// apariciones</b>.
+    /// </para>
+    ///
+    /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
     /// escaneo — eso es precisamente cómo mueren estos ratchets. Así se explicó, por
     /// ejemplo, que <c>Tenant.cs</c> aportara 7 y no 4: las líneas del mutador contienen
@@ -336,7 +342,8 @@ public class UsosDeEsPlataformaCongeladosTests
         // ── GUARDA ────────────────────────────────────────────────────────────────
         // D-6 b, R-3 (2026-11-20): exclusión de plano del Soporte TALVEG en la vista unificada de Comunicaciones (§ 4.2).
         // Solo impide: con Tenant de origen de plataforma la vista lanza; no concede nada a nadie.
-        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/ObtenerConversacionesUnificadasQuery.cs"] =
+        // R-4 (2026-11-20): la guarda se mueve, sin cambiar, a la entrada que comparten la lista y el selector.
+        ["src/CaeManager.Application/Comunicaciones/VistaUnificada/EntradaVistaUnificada.cs"] =
             new(1, CategoriaUso.Guarda,
                 "Rechaza la vista unificada de Comunicaciones si el Tenant de origen es de plataforma (Soporte TALVEG, " +
                 "§ 4.2 del diseño D-6 b); mitad negativa, no autoriza"),
