@@ -101,9 +101,9 @@ public class ObtenerConexionesIntegracionQueryHandler(
 
         var query =
             from conexion in integracionesContext.ConexionesIntegracion
-                // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
-                // la misma pantalla (ObtenerLineasWhatsAppQuery) y sin este filtro
-                // aparecían duplicadas como "buzón".
+            // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
+            // la misma pantalla (ObtenerLineasWhatsAppQuery) y sin este filtro
+            // aparecían duplicadas como "buzón".
             where conexion.Proveedor == ProveedorIntegracion.Microsoft365
             where clienteIdsVisibles == null || conexion.ClienteId == null || clienteIdsVisibles.Contains(conexion.ClienteId!.Value)
             where !soloPropiasYGenerales || conexion.GestorPropietarioId == null || conexion.GestorPropietarioId == usuarioActualId
