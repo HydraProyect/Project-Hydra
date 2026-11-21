@@ -167,6 +167,10 @@ public partial class ConversacionesUnificadasBajoRuntimeTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Integraciones.IIntegracionesQueryContext>(_runtime);
+        // Los buzones por Empresa gestionada (partial .Buzones): la razón social de la Empresa a la que enruta cada buzón
+        // y un directorio que anota en qué Tenant del ámbito se le pregunta.
+        servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_runtime);
+        servicios.AddSingleton<IDirectorioUsuariosService>(_directorio);
         servicios.AddSingleton<ICurrentUserService>(_usuarioReal);
         // Una sola instancia para todo el fan-out, como el ámbito scoped real: la memoización entre vueltas es lo
         // que tiene que resolver bien. Con el criterio de Outbound, como lo compone el contenedor de producción

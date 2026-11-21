@@ -225,4 +225,19 @@
   <data name="ErrorComprobarAcceso" xml:space="preserve">
     <value>No pudimos comprobar el acceso al buzón. Inténtalo de nuevo.</value>
   </data>
+  <data name="EmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="TituloDeEmpresa" xml:space="preserve">
+    <value>Buzones de correo de {0}</value>
+  </data>
+  <data name="SubtituloDeEmpresa" xml:space="preserve">
+    <value>Lo que entra por ellos es de {0}.</value>
+  </data>
+  <data name="AvisoSoloConsulta" xml:space="preserve">
+    <value>Solo consulta. Para cambiar estos buzones, abre arriba, en «Trabajando en», {0}.</value>
+  </data>
+  <data name="AvisoCargaEmpresaFallida" xml:space="preserve">
+    <value>No pudimos cargar los buzones de {0}. Inténtalo de nuevo en unos minutos.</value>
+  </data>
 </root>

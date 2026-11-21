@@ -117,6 +117,18 @@ public class ObtenerActividadBuzonesQueryTests
                 d.ImplementationType == typeof(ActividadBuzonesService) && d.Lifetime == ServiceLifetime.Scoped);
     }
 
+    [Fact]
+    public void El_puerto_de_los_buzones_por_Empresa_gestionada_esta_registrado_con_su_implementacion_de_la_vista_unificada()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+
+        servicios.Should().ContainSingle(d => d.ServiceType == typeof(IBuzonesDeTenantsBeneficiarios))
+            .Which.Should().Match<ServiceDescriptor>(d =>
+                d.ImplementationType == typeof(CaeManager.Application.Comunicaciones.VistaUnificada.BuzonesDeTenantsBeneficiariosService)
+                && d.Lifetime == ServiceLifetime.Scoped);
+    }
+
     private sealed class EmisorFalso(IReadOnlyDictionary<Guid, ActividadBuzonDto> respuesta) : ISender
     {
         public List<object> Peticiones { get; } = [];

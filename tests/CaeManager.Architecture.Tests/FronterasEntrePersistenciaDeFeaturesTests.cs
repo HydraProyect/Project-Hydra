@@ -393,6 +393,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // visibilidad de la bandeja (ConversacionesVisibles), que consulta la conexión de integración para los buzones
         // personales: la misma lectura que ya hace la bandeja, sin ampliar lo visible.
         ("Comunicaciones.ObtenerActividadBuzonesQueryHandler", "IIntegracionesQueryContext"),
+        // Buzones por Empresa gestionada (D-6 b, L-55, PR-S5): la entrada y la lectura por Tenant de la vista unificada
+        // (Operaciones y Tenants) y, dentro del ámbito de cada Tenant, el mismo listado de buzones que Integraciones
+        // (ConexionesIntegracion y la razón social de la Empresa a la que enruta). Solo lectura.
+        ("Comunicaciones.ObtenerBuzonesVistaUnificadaQueryHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.ObtenerBuzonesVistaUnificadaQueryHandler", "IIntegracionesQueryContext"),
+        ("Comunicaciones.ObtenerBuzonesVistaUnificadaQueryHandler", "IOperacionesQueryContext"),
+        ("Comunicaciones.ObtenerBuzonesVistaUnificadaQueryHandler", "ITenantsQueryContext"),
         // La búsqueda de la bandeja encuentra por el nombre del Centro ligado a la conversación: lee Centros, las
         // Gestiones nacidas de un mensaje del hilo y las Visitas creadas desde él, siempre como semi-join dentro de la
         // misma consulta y sumado con AND a la regla de visibilidad (que no cambia).

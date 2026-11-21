@@ -203,7 +203,6 @@ src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs :: Cli
 src/CaeManager.Application/Integraciones/Queries/ComprobarAccesoBuzon/ComprobarAccesoBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
-src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/ObtenerConexionesIntegracionQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Integraciones/Queries/ObtenerEstructuraBuzon/ObtenerEstructuraBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerLineasWhatsApp/ObtenerLineasWhatsAppQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Integraciones/Queries/ObtenerMensajesCarpeta/ObtenerMensajesCarpetaQuery.cs :: ClienteId = 1
