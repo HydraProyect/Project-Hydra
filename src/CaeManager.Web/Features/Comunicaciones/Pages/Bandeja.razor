@@ -38,7 +38,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Comunicaciones — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina bandeja-contenedor">
-    @* Cabecera de página (maqueta 2026-11-01, E3): banda de 52 px con el título, el buscador y «Nuevo correo». Esta
+    @* Cabecera de página (maqueta 2026-11-01, E3): banda de 52 px con el título, el buscador y «Redactar correo». Esta
        página NO usa CabeceraPagina como el resto del programa Gen 2: su maqueta es un maestro-detalle a pantalla
        completa y la banda es la propia de la maqueta, no la del kit. El buscador solo aplica a las conversaciones,
        por eso no se dibuja en el ámbito del buzón personal. *@
@@ -52,8 +52,16 @@
                        @oninput="async e => { _busqueda = e.Value?.ToString() ?? string.Empty; await AplicarFiltrosAsync(); }" />
             </label>
         }
-        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">@TextosLista["NuevoCorreo"]</Boton></SoloConEscritura>
+        @* «Redactar correo» (lienzo «Pulida: bandeja de la cartera», L-2: línea 535 del tablero): botón secundario pequeño con el lápiz,
+           aria-label y title con el mismo rótulo; solo con rol que escribe (puedeEscribir). Sustituye a «Nuevo correo». *@
+        <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync" aria-label="@TextosLista["RedactarCorreo"]" title="@TextosLista["RedactarCorreo"]"><Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@TextosLista["RedactarCorreo"]</Boton></SoloConEscritura>
     </header>
+
+    @* Banda del Rol Consulta (lienzo, L-4: líneas 548-550 del tablero). Solo informa: no da ni quita permisos (los quitan SoloConEscritura y
+       AutorizacionEscrituraBehavior). Mismo rol efectivo que AvisoSoloConsulta del layout. *@
+    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="autorizacionConsulta">
+        <div class="bandeja-banda-consulta" role="status"><b>@TextosLista["BandaConsultaRol"]</b><span>@TextosLista["BandaConsultaTexto"]</span></div>
+    </AuthorizeView>
 
     @{
         // Vacíos de la lista por vista (lienzo «Pulida: bandeja de la cartera», L-15): «Sin resultados» con búsqueda, «Sin buzones
@@ -739,25 +747,28 @@
         buzón candidato se pide explícitamente, nunca se manda "a ciegas"
         desde el primero que aparezca.
     *@
-    <DrawerFormulario HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje"
+    <DrawerFormulario HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v"
+            Titulo="@TextosLista["RedactarCorreo"]" Subtitulo="@TextosLista["RedactarCorreoSubtitulo"]"
             Guardando="_enviandoRedaccion" MensajeError="@_redactarError" SinContenido="@(_conexionesRedactar.Count == 0 ? SinBuzonRedactar : null)"
             MotivoGuardarDeshabilitado="@(_conexionesRedactar.Count == 0 ? TextosComunesPagina["SinBuzonMotivo"].Value : null)"
             TextoCancelar="Cancelar" TextoGuardar="Enviar" TextoGuardando="Enviar" OnGuardar="EnviarMensajeNuevoDesdeRedactarAsync">
         <ChildContent>
             @if (_conexionesRedactar.Count > 1)
             {
-                <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
+                @* Rótulos del cajón como en el lienzo (L-48: líneas 986-994 del tablero): «Desde», con «nombre · dirección» por opción.
+                   Diferencia con el lienzo (L989): aquí «Desde» solo se dibuja con más de un buzón conectado; con uno solo se usa ese. *@
+                <CampoSelect Etiqueta="@TextosLista["RedactarDesde"]" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
                     <option value="">Selecciona un buzón…</option>
                     @foreach (var conexion in _conexionesRedactar)
                     {
-                        <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)</option>
+                        <option value="@conexion.Id">@conexion.Nombre · @conexion.BuzonEmail</option>
                     }
                 </CampoSelect>
             }
 
-            <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
-            <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
-            <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
+            <CampoTexto Etiqueta="@TextosLista["RedactarPara"]" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
+            <CampoTexto Etiqueta="@TextosLista["RedactarAsunto"]" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
+            <CampoTextarea Etiqueta="@TextosLista["RedactarMensaje"]" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
         </ChildContent>
     </DrawerFormulario>
 

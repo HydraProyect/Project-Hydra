@@ -38,8 +38,33 @@
     gap: var(--space-5);
     align-items: start;
     /* 120 px de marco de la página + 64 px de la cabecera de página (52 px de banda y 12 px de aire). */
-    height: calc(100vh - 184px);
+    height: calc(100vh - var(--bandeja-alto-reservado, 184px));
     min-height: 480px;
+}
+
+/* La banda del Rol Consulta (46 px más 12 de aire) se resta del alto del layout para que la página no desborde.
+   shortcut: alto fijo para una banda de una línea; con la ventana estrecha el texto envuelve (unos 66 px) y el layout desborda unos 20 px;
+   mejorar cuando la bandeja pase a ser una columna flex que reparta el alto sola. */
+.bandeja-contenedor:has(.bandeja-banda-consulta) {
+    --bandeja-alto-reservado: 242px;
+}
+
+/* Banda del Rol Consulta (lienzo, L-4: `.aviso.info.aviso-banda`, líneas 61 y 195-197 del tablero). Como en el lienzo, `.aviso` (línea 195)
+   viene después de `.aviso-banda` (línea 61) en la misma hoja y pisa su borde, su radio, su relleno y su peso: lo que se ve es el aviso
+   informativo con caja (relleno 12/16, borde 1 px, radio md), el rol en negrita y el texto en 500. */
+.bandeja-banda-consulta {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: 12px;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-info-50);
+    color: var(--color-info-500);
+    font: 500 14px/20px var(--font-family);
 }
 
 .bandeja-layout:has(.bandeja-cliente) {
@@ -92,7 +117,7 @@
 }
 
 /* Cabecera de página (maqueta 2026-11-01, `.cab`): banda de 52 px con el título (16/20 700), el buscador
-   (máx. 420 px, 36 px de alto) y «Nuevo correo» a la derecha. */
+   (máx. 420 px, 36 px de alto) y «Redactar correo» a la derecha. */
 .bandeja-cabecera-pagina {
     display: flex;
     align-items: center;
