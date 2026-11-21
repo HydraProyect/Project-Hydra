@@ -380,15 +380,24 @@ public partial class ComunicacionesGen2Tests : BunitContext
     // ---------------------------------------------------------------- arnés
 
     private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) Renderizar(
-        Escenario escenario, string url = "comunicaciones", bool medidorActivo = false)
+        Escenario escenario, string url = "comunicaciones", bool medidorActivo = false, Guid? tenantActivo = null)
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<Bandeja>>(_ => NullLogger<Bandeja>.Instance);
         Services.AddSingleton<ILogger<RecordatorioPropuesto>>(_ => NullLogger<RecordatorioPropuesto>.Instance);
-        Services.AddScoped<ITenantActual, TenantActualFalso>();
-        Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorQueNadieDebeTocar>();
+        // Con Tenant activo (selector «Empresa gestionada», PR-S2b) la página se suscribe al notificador: uno inerte.
+        if (tenantActivo is { } activo)
+        {
+            Services.AddScoped<ITenantActual>(_ => new TenantActualConId(activo));
+            Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorInerte>();
+        }
+        else
+        {
+            Services.AddScoped<ITenantActual, TenantActualFalso>();
+            Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorQueNadieDebeTocar>();
+        }
         Services.AddScoped(_ => CrearDirectorio());
         // Un caso que fija el reloj lo registra antes de renderizar; el resto usa el del sistema.
         Services.TryAddSingleton(TimeProvider.System);

@@ -44,7 +44,7 @@
        por eso no se dibuja en el ámbito del buzón personal. *@
     <header class="bandeja-cabecera-pagina">
         <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-        @if (_vista == "clientes" && !MostrandoHistorial)
+        @if (_vista == "clientes" && !MostrandoHistorial && !EnVistaUnificada)
         {
             <label class="bandeja-buscar bandeja-buscar-cabecera">
                 <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
@@ -54,7 +54,11 @@
         }
         @* «Redactar correo» (lienzo «Pulida: bandeja de la cartera», L-2: línea 535 del tablero): botón secundario pequeño con el lápiz,
            aria-label y title con el mismo rótulo; solo con rol que escribe (puedeEscribir). Sustituye a «Nuevo correo». *@
+        @* En la vista unificada no se redacta: es solo consulta y el correo saldría del Tenant activo, no de la Empresa gestionada consultada. *@
+        @if (!EnVistaUnificada)
+        {
         <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync" aria-label="@TextosLista["RedactarCorreo"]" title="@TextosLista["RedactarCorreo"]"><Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@TextosLista["RedactarCorreo"]</Boton></SoloConEscritura>
+        }
     </header>
 
     @* Banda del Rol Consulta (lienzo, L-4: líneas 548-550 del tablero). Solo informa: no da ni quita permisos (los quitan SoloConEscritura y
@@ -95,6 +99,12 @@
 
     <div class="bandeja-layout bandeja-modo-@ModoDeRejilla">
         <aside class="bandeja-columna bandeja-filtros">
+            @* Selector «Empresa gestionada» (lienzo «Comunicaciones multi-buzón», L-1: líneas 510-527 del tablero). Solo estrecha la lista;
+               no cambia el Tenant activo (PR-S2b). *@
+            @if (MuestraSelectorEmpresas)
+            {
+                <SelectorEmpresaGestionada Empresas="_empresasGestionadas" NoConsultados="_empresasSinContar" TenantActivoId="TenantActivoId" Elegida="_eleccionEmpresa" OnElegir="ElegirEmpresaGestionadaAsync" />
+            }
             @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
                a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
@@ -164,7 +174,13 @@
                 </details>
             }
 
-            @if (_vista == "clientes")
+            @if (EnVistaUnificada)
+            {
+                @* Vista unificada en solo consulta: sin filtros, sin buscador, sin tabla y sin abrir conversaciones (S4, DN-J). *@
+                <ListaConversacionesUnificadas Eleccion="_eleccionEmpresa!" Titulo="@TituloVistaUnificada" NombreConsultada="@NombreEmpresaConsultada"
+                                               AbiertasSegunSelector="AbiertasSegunSelector" />
+            }
+            else if (_vista == "clientes")
             {
                 <div class="bandeja-filtros-form">
                     @* Origen de las conversaciones del filtro (lienzo de Documentos, PR6b): «Reclamaciones» es el historial de lotes
@@ -366,7 +382,11 @@
              data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
 
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">
-            @if (MostrandoHistorial)
+            @if (EnVistaUnificada)
+            {
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["VistaUnificadaCentroTitulo"]" Descripcion="@TextosLista["VistaUnificadaCentroAyuda"]" />
+            }
+            else if (MostrandoHistorial)
             {
                 @* Filtro Origen «Reclamaciones» (lienzo «Documentos · listado sin pestañas», PR6b): el historial de lotes enviados,
                    antes pestaña de Documentos, en el hueco de la tabla de conversaciones. Solo con rol de lectura (PuedeLeerReclamaciones).
@@ -590,8 +610,10 @@
            no se puede editar ni guardar bajo la selección nueva. Única excepción: la nota fija en edición de ESTA conversación mantiene
            montado su componente aunque la recarga cambie el Cliente empresarial (PanelContextoVisible); desmontarlo destruiría el
            borrador sin confirmar el abandono (revisión Codex r3 de la #2167, MEDIO 1). Entonces solo se pinta la nota fija. *@
+        @* En la vista unificada (solo consulta, PR-S2b) no se pinta nunca: sus acciones y su nota fija son de una conversación del
+           Tenant activo. Elegir otra Empresa gestionada ya cierra la conversación abierta; esta condición es la segunda defensa. *@
         @{ var contextoVigente = ContextoEsDelDetalle; }
-        @if (_vista == "clientes" && PanelContextoVisible)
+        @if (_vista == "clientes" && PanelContextoVisible && !EnVistaUnificada)
         {
             <aside class="bandeja-columna bandeja-cliente">
                 @if (contextoVigente)

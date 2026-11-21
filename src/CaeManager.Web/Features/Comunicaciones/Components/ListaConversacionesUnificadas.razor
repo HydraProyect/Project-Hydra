@@ -1,0 +1,179 @@
+@* La lista de la vista unificada de Comunicaciones: las conversaciones abiertas de las Empresas gestionadas que el servidor deja leer
+   (ObtenerConversacionesUnificadasQuery, D-6 b, R-3), en solo consulta (PR-S2b). La fila sigue la del lienzo («Comunicaciones
+   multi-buzón», tablero Pulida-Bandeja, líneas 651-654: Empresa gestionada con icono y hora, asunto, estado, buzón corto y Nº de
+   ticket) pero no es un botón: abrir una conversación de otra Empresa gestionada exige cambiar antes de contexto (DN-6), que es S4.
+   Ninguna fila lleva acción. *@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
+@using CaeManager.Application.Comunicaciones.VistaUnificada
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosListaConversaciones> Textos
+@inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
+@inject IStringLocalizer<TextosPlazoConversacion> TextosPlazo
+@inject ILogger<ListaConversacionesUnificadas> Logger
+
+<div class="eu-lista">
+    <div class="eu-cab">
+        <h2 class="eu-titulo">@Titulo</h2>
+    </div>
+    <div class="eu-aviso" role="status">@AvisoSoloConsulta</div>
+    @if (_noConsultadas.Count > 0)
+    {
+        <div class="eu-aviso eu-aviso-incompleto" role="status">@Textos["EmpresasGestionadasSinLeer", string.Join(", ", _noConsultadas)]</div>
+    }
+    @if (_error)
+    {
+        <EstadoVacio SinIcono="true" Titulo="@Textos["ErrorBuzon"]" Descripcion="@Textos["ErrorBuzonAyuda"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RecargarAsync">@Textos["RecargarLista"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando && _filas.Count == 0)
+    {
+        <EstadoCargando Filas="4" />
+        <p class="eu-cargando" role="status">@Textos["Cargando"]</p>
+    }
+    else if (_filas.Count == 0)
+    {
+        @* «Al día» solo si se leyeron todas: con alguna Empresa gestionada sin leer, la lista vacía no dice que no quede nada (§ 4.3).
+           Tampoco si el selector cuenta Abiertas para lo elegido: el recuento y la lista no coinciden y «Al día» lo contradiría. *@
+        <div class="eu-vacio">
+            @if (_noConsultadas.Count == 0 && AbiertasSegunSelector is not > 0)
+            {
+                <span class="eu-al-dia">@Textos["AlDia"]</span>
+            }
+            <EstadoVacio SinIcono="true" Titulo="@Textos["SinConversaciones"]" Descripcion="@Textos["SinConversacionesAyuda"]" />
+        </div>
+    }
+    else
+    {
+        <ul class="eu-filas">
+            @foreach (var fila in _filas)
+            {
+                <li @key="fila.Id" class="eu-fila">
+                    <span class="eu-l1">
+                        <span class="eu-emp" title="@fila.TenantNombre"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /><span class="eu-emp-n">@fila.TenantNombre</span></span>
+                        <span class="eu-hora">@Hora(fila.FechaUltimoMensajeUtc)</span>
+                    </span>
+                    <span class="eu-l2" title="@fila.Asunto">@fila.Asunto</span>
+                    <span class="eu-l3">
+                        <Badge Tono="EstadoConversacionPresentacion.Tono(fila.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, fila.Estado)</Badge>
+                        <span class="eu-der">
+                            @if (!string.IsNullOrWhiteSpace(fila.BuzonNombre))
+                            {
+                                <span class="eu-buzon" title="@fila.BuzonNombre.Trim()">@fila.BuzonNombre.Trim()</span>
+                            }
+                            @if (fila.NumeroTicket > 0)
+                            {
+                                <span class="eu-ticket" title="@TextosPlazo["TituloTicket"]">@TextosPlazo["NumeroTicket", fila.NumeroTicket]</span>
+                            }
+                        </span>
+                    </span>
+                </li>
+            }
+        </ul>
+        @if (_siguiente is not null)
+        {
+            <div class="eu-pie">
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargando" OnClick="CargarMasAsync">@Textos["CargarMasConversaciones"]</Boton>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>La Empresa gestionada consultada, o «Todas» (<c>TenantId</c> nulo).</summary>
+    [Parameter, EditorRequired] public EleccionEmpresaGestionada Eleccion { get; set; } = default!;
+
+    /// <summary>El título de la lista, que la página compone con la Empresa gestionada y la vista.</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>El nombre de la Empresa gestionada consultada, para el aviso de solo consulta; vacío con «Todas».</summary>
+    [Parameter] public string NombreConsultada { get; set; } = string.Empty;
+
+    /// <summary>Las Abiertas que el selector cuenta para lo elegido; <c>null</c> si no las cuenta.</summary>
+    [Parameter] public int? AbiertasSegunSelector { get; set; }
+
+    /// <summary>Filas por página: las de la lista del Tenant activo.</summary>
+    private const int TamanoPagina = 20;
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private EleccionEmpresaGestionada? _cargada;
+    private int _generacion;
+    private List<ConversacionUnificadaDto> _filas = [];
+    private CursorConversacionesUnificadas? _siguiente;
+    private bool _cargando;
+    private bool _error;
+
+    private string AvisoSoloConsulta =>
+        Eleccion.TenantId is null || string.IsNullOrWhiteSpace(NombreConsultada)
+            ? Textos["SoloConsultaTodas"].Value
+            : Textos["SoloConsultaEmpresa", NombreConsultada].Value;
+
+    protected override Task OnParametersSetAsync() =>
+        Eleccion == _cargada ? Task.CompletedTask : RecargarAsync();
+
+    private Task RecargarAsync()
+    {
+        _cargada = Eleccion;
+        _filas = [];
+        _noConsultadas = [];
+        _siguiente = null;
+        return CargarAsync(null);
+    }
+
+    // Los nombres de las Empresas gestionadas que el servidor no pudo leer (NoConsultados), acumulados entre páginas.
+    private List<string> _noConsultadas = [];
+
+    private Task CargarMasAsync() => _siguiente is { } cursor && !_cargando ? CargarAsync(cursor) : Task.CompletedTask;
+
+    /// <summary>
+    /// Una página de la vista unificada, acotada a Abiertas (DN-O, como el recuento del selector). La Empresa gestionada elegida viaja
+    /// como filtro y el servidor la interseca con su conjunto. Una respuesta que llega después de otra elección se descarta.
+    /// </summary>
+    private async Task CargarAsync(CursorConversacionesUnificadas? cursor)
+    {
+        var generacion = ++_generacion;
+        var tenantIds = Eleccion.TenantId is { } tenantId ? new[] { tenantId } : null;
+        _cargando = true;
+        _error = false;
+        try
+        {
+            var pagina = await Mediator.Send(
+                new ObtenerConversacionesUnificadasQuery(tenantIds, cursor, TamanoPagina, GrupoEstadoConversacion.Abiertas), _ciclo.Token);
+            if (generacion != _generacion) return;
+            _filas.AddRange(pagina.Filas);
+            _noConsultadas = _noConsultadas.Union(pagina.NoConsultados.Select(n => n.TenantNombre)).ToList();
+            _siguiente = pagina.Siguiente;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al cargar la vista unificada de Comunicaciones.");
+            if (generacion != _generacion) return;
+            _error = true;
+        }
+        finally
+        {
+            if (generacion == _generacion) _cargando = false;
+        }
+    }
+
+    /// <summary>La hora del último mensaje, como el lienzo (<c>c.hora</c>, «8:30»), si es de hoy en hora peninsular; si no, la fecha.</summary>
+    private static string Hora(DateTime fechaUtc)
+    {
+        var local = fechaUtc.EnHoraPeninsular();
+        return local.Date == DateTime.UtcNow.EnHoraPeninsular().Date ? local.ToString("H:mm") : local.ToString("dd/MM/yyyy");
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

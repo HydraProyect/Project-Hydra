@@ -1,0 +1,161 @@
+/* Selector «Empresa gestionada» (lienzo, tablero Pulida-Bandeja, L-1: CSS de las líneas 38-46, 52-55, 296-297 y 302). Las clases son
+   propias del componente (CSS aislado): las del lienzo (.sel-boton, .mono, .pop) no existen como globales en la app. */
+.eg-selector {
+    position: relative;
+}
+
+.eg-boton {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.eg-boton:hover {
+    background-color: var(--color-surface-subtle);
+}
+
+.eg-boton:focus-visible,
+.eg-opcion:focus-visible,
+.eg-buscar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.eg-mono {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--space-8);
+    height: var(--space-8);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-subtle);
+    color: var(--color-neutral-700);
+    font: 500 0.75rem/1rem var(--font-family);
+}
+
+.eg-mono-p {
+    width: var(--space-6);
+    height: var(--space-6);
+}
+
+.eg-tx {
+    display: block;
+    flex: 1;
+    min-width: 0;
+}
+
+.eg-sub {
+    display: block;
+    color: var(--color-text-muted);
+    font: 500 0.75rem/1rem var(--font-family);
+}
+
+.eg-nom {
+    display: block;
+    overflow: hidden;
+    font: 600 0.875rem/1.25rem var(--font-family);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.eg-superposicion {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+}
+
+/* Fixed y no absolute, como el panel de vistas de la página: la columna de filtros recorta con overflow: hidden. */
+.eg-pop {
+    position: fixed;
+    z-index: 1031;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    box-sizing: border-box;
+    width: 300px;
+    max-width: calc(100vw - 2 * var(--space-4));
+    max-height: min(420px, calc(100dvh - 2 * var(--space-4)));
+    margin-top: var(--space-1);
+    overflow-y: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-card-sm);
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+}
+
+.eg-buscar {
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.eg-pop-t {
+    padding: var(--space-1) var(--space-2);
+    color: var(--color-text-muted);
+    font: 600 0.75rem/1rem var(--font-family);
+}
+
+/* Aviso de recuento parcial (NoConsultados): el tono de aviso de la app, sin color nuevo. */
+.eg-pop-aviso {
+    color: var(--color-warning-700);
+    font-weight: 400;
+}
+
+.eg-opcion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: var(--space-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: 500 0.875rem/1.25rem var(--font-family);
+    text-align: left;
+    cursor: pointer;
+}
+
+.eg-opcion:hover {
+    background-color: var(--color-surface-subtle);
+}
+
+.eg-opcion[aria-selected="true"] {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.eg-opcion[aria-selected="true"] .eg-mono {
+    border-color: var(--color-primary-400);
+}
+
+.eg-q {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.eg-contador {
+    flex: none;
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    font-variant-numeric: tabular-nums;
+}

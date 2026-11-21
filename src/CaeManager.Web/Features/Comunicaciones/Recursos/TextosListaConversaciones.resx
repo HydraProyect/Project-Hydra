@@ -91,4 +91,23 @@
   <data name="SinBuzonesConectadosAyuda" xml:space="preserve"><value>Conéctalos en Configuración, Integraciones.</value></data>
   <data name="NadaEnVista" xml:space="preserve"><value>Nada en «{0}»</value></data>
   <data name="NadaEnVistaAyuda" xml:space="preserve"><value>Prueba con otra vista o con «Todas».</value></data>
+  <data name="EmpresaGestionada" xml:space="preserve"><value>Empresa gestionada</value></data>
+  <data name="EmpresaGestionadaAccesible" xml:space="preserve"><value>Empresa gestionada: {0}. Cambiar de Empresa gestionada</value></data>
+  <data name="EmpresasGestionadas" xml:space="preserve"><value>Empresas gestionadas</value></data>
+  <data name="EmpresasGestionadasResumen" xml:space="preserve"><value>Empresas gestionadas · {0}</value></data>
+  <data name="BuscarEmpresaGestionada" xml:space="preserve"><value>Buscar Empresa gestionada</value></data>
+  <data name="TodasLasEmpresasGestionadas" xml:space="preserve"><value>Todas las Empresas gestionadas</value></data>
+  <data name="NingunaEmpresaGestionadaCoincide" xml:space="preserve"><value>Ninguna Empresa gestionada coincide con «{0}»</value></data>
+  <data name="SoloConsultaEmpresa" xml:space="preserve"><value>Solo consulta. Para responder, abre arriba, en «Trabajando en», {0}.</value></data>
+  <data name="SoloConsultaTodas" xml:space="preserve"><value>Solo consulta. Para responder una conversación, abre su Empresa gestionada arriba, en «Trabajando en».</value></data>
+  <data name="EmpresasGestionadasSinLeer" xml:space="preserve"><value>No pudimos leer las conversaciones de {0}.</value></data>
+  <data name="CargarMasConversaciones" xml:space="preserve"><value>Cargar más conversaciones</value></data>
+  <data name="TituloTodasEmpresas" xml:space="preserve"><value>Todas mis Empresas gestionadas · {0}</value></data>
+  <data name="TituloEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="VistaUnificadaCentroTitulo" xml:space="preserve"><value>Vista de solo consulta</value></data>
+  <data name="VistaUnificadaCentroAyuda" xml:space="preserve"><value>Aquí se leen las conversaciones abiertas de tus Empresas gestionadas. Para abrir y responder una, elige su Empresa gestionada arriba, en «Trabajando en».</value></data>
+  <data name="EmpresasGestionadasResumenParcial" xml:space="preserve"><value>Empresas gestionadas · {0} de {1} contadas</value></data>
+  <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No se han podido contar las conversaciones de {0}; el total es parcial.</value></data>
+  <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
+  <data name="RecuentoParcial" xml:space="preserve"><value>Recuento parcial: faltan las Empresas gestionadas que no se han podido contar</value></data>
 </root>

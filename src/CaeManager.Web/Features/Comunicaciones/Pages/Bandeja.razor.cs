@@ -29,6 +29,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCen
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
+using CaeManager.Application.Comunicaciones.VistaUnificada;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
@@ -569,6 +570,95 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         else
             await CargarListaAsync();
         _refrescoPlazos = RefrescarPlazosAsync();
+        await CargarEmpresasGestionadasAsync();
+    }
+
+    // Selector «Empresa gestionada» y vista unificada en solo consulta (PR-S2b, L-1, D-6 b). La elección es una coordenada que solo
+    // estrecha la lista: no cambia el Tenant activo, y toda orden de esta página sigue yendo a él. Con otra Empresa gestionada o
+    // «Todas» elegidas, la página no abre conversaciones ni ofrece acciones: abrir una de otra Empresa gestionada exige cambiar antes
+    // de contexto, que es S4 (DN-J), y actuar desde la vista unificada es la decisión DN-S, pendiente (recomendación: solo consulta).
+    private IReadOnlyList<TenantBeneficiarioVistaUnificadaDto> _empresasGestionadas = [];
+
+    // Los nombres de las Empresas gestionadas del conjunto que el servidor no pudo contar (NoConsultados): el selector marca su
+    // total como parcial.
+    private IReadOnlyList<string> _empresasSinContar = [];
+    private EleccionEmpresaGestionada? _eleccionEmpresa;
+
+    /// <summary>Otra Empresa gestionada o «Todas» elegidas: la lista es la de la vista unificada, en solo consulta.</summary>
+    private bool EnVistaUnificada => _eleccionEmpresa is not null;
+
+    private Guid TenantActivoId => TenantActual.TenantId ?? Guid.Empty;
+
+    /// <summary>Como en Buzones (#2415): solo si el conjunto del servidor contiene el Tenant activo y alguna otra Empresa gestionada.</summary>
+    private bool MuestraSelectorEmpresas =>
+        TenantActual.TenantId is { } activo && _empresasGestionadas.Count > 1 && _empresasGestionadas.Any(e => e.TenantId == activo);
+
+    private string NombreEmpresaConsultada =>
+        _eleccionEmpresa?.TenantId is { } id ? _empresasGestionadas.FirstOrDefault(e => e.TenantId == id)?.TenantNombre ?? string.Empty : string.Empty;
+
+    /// <summary>El título de la lista del lienzo (línea 1665): «Todas mis Empresas gestionadas · vista» o «Empresa gestionada · vista».</summary>
+    private string TituloVistaUnificada => _eleccionEmpresa?.TenantId is null
+        ? TextosLista["TituloTodasEmpresas", TextosLista["Abiertas"].Value].Value
+        : TextosLista["TituloEmpresa", NombreEmpresaConsultada, TextosLista["Abiertas"].Value].Value;
+
+    /// <summary>
+    /// Las Abiertas que el selector enseña para lo elegido (la de la Empresa gestionada, o la suma con «Todas»): con más de cero, la
+    /// lista vacía no pinta «Al día», porque el recuento y la lista no coinciden.
+    /// </summary>
+    private int? AbiertasSegunSelector => _eleccionEmpresa?.TenantId is { } id
+        ? _empresasGestionadas.FirstOrDefault(e => e.TenantId == id)?.Abiertas
+        : _empresasGestionadas.Sum(e => e.Abiertas);
+
+    /// <summary>
+    /// Las Empresas gestionadas del selector con su recuento de Abiertas (ObtenerTenantsBeneficiariosVistaUnificadaQuery, #2407). Sin
+    /// Tenant activo no se pide. La página no mira el plano de plataforma: con Sesión Privilegiada, papel Inbound, Usuario de Cliente o
+    /// Soporte TALVEG es la entrada de la vista unificada la que rechaza (UnauthorizedAccessException), y entonces, o si falla, la lista
+    /// queda vacía y la página se comporta como antes, sin selector.
+    /// </summary>
+    private async Task CargarEmpresasGestionadasAsync()
+    {
+        if (TenantActual.TenantId is null || _ciclo.IsCancellationRequested) return;
+        try
+        {
+            var conjunto = await Mediator.Send(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), _ciclo.Token);
+            _empresasGestionadas = conjunto.Tenants;
+            _empresasSinContar = conjunto.NoConsultados.Select(n => n.TenantNombre).ToList();
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _empresasGestionadas = [];
+            _empresasSinContar = [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudieron leer las Empresas gestionadas del selector de Comunicaciones.");
+            _empresasGestionadas = [];
+            _empresasSinContar = [];
+        }
+    }
+
+    /// <summary>
+    /// Elegir el Tenant activo vuelve a la lista de siempre; otra Empresa gestionada o «Todas» abren la vista unificada en solo consulta.
+    /// Antes se pregunta por una respuesta a medias y se cierra la conversación abierta, que es del Tenant activo.
+    /// </summary>
+    private async Task ElegirEmpresaGestionadaAsync(EleccionEmpresaGestionada eleccion)
+    {
+        var siguiente = eleccion.TenantId == TenantActual.TenantId ? null : eleccion;
+        if (siguiente == _eleccionEmpresa) return;
+        if (siguiente is not null)
+        {
+            if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+            if (_conversacionSeleccionadaId is not null)
+            {
+                DescartarConversacionAbierta();
+                NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["conversacion"] = null });
+            }
+            _modoTabla = false;
+        }
+        _eleccionEmpresa = siguiente;
     }
 
     /// <summary>
@@ -677,6 +767,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Quien no lee el historial (Consulta) tampoco lo fija desde la URL: su Origen queda en «todos» y un enlace como «Ver
         // reclamación» del hilo no le cierra la conversación abierta.
         var origenUrl = _puedeLeerReclamaciones && OrigenInicial == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
+        var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
+
+        // Una vista o un Origen que llegan por la URL (Atrás, enlace) son del Tenant activo: salen de la vista unificada, como el botón.
+        if (origenUrl != _origen || vistaUrl != _vista) _eleccionEmpresa = null;
+
         if (origenUrl != _origen)
         {
             _origen = origenUrl;
@@ -684,7 +779,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 DescartarConversacionAbierta();
         }
 
-        var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
         if (vistaUrl == _vista) return;
 
         // La vista cambió desde la URL (atrás/adelante, enlace compartido), no por el botón: lo que espera sobre la conversación
@@ -719,6 +813,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task CambiarVistaAsync(string vista)
     {
+        // «Clientes» y «Mi buzón personal» son siempre del Tenant activo: salen de la vista unificada.
+        _eleccionEmpresa = null;
         if (_vista == vista) return;
 
         // Cambiar de vista desmonta el composer sin salir de la página: se pregunta
@@ -1345,6 +1441,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
+        // La conversación que se abre es del Tenant activo (un enlace o la URL): la vista unificada se cierra.
+        _eleccionEmpresa = null;
         _conversacionSeleccionadaId = id;
         CambiarApertura();
         _idEnfocado = id;

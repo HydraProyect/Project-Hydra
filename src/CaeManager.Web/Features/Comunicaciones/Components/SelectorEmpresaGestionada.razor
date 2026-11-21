@@ -1,0 +1,152 @@
+@* Selector «Empresa gestionada» de Comunicaciones (lienzo «Comunicaciones multi-buzón», tablero Pulida-Bandeja, estado L-1,
+   líneas 510-527). El servidor da las Empresas gestionadas (Tenants beneficiarios) con su recuento de Abiertas
+   (ObtenerTenantsBeneficiariosVistaUnificadaQuery); este componente no calcula ningún conjunto. Elegir es una coordenada que solo
+   estrecha la lista de la vista unificada: no cambia el Tenant activo ni da permiso para nada (PR-S2b). *@
+@using CaeManager.Application.Comunicaciones.VistaUnificada
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosListaConversaciones> Textos
+
+<div class="eg-selector">
+    <button type="button" class="eg-boton" aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-label="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]" title="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]"
+            @onclick="Alternar">
+        @if (Elegida is { TenantId: null })
+        {
+            @* «Todas» no tiene iniciales: el lienzo solo da el monograma del contexto (ctx.ini). *@
+            <span class="eg-mono" aria-hidden="true"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /></span>
+        }
+        else
+        {
+            <span class="eg-mono">@Iniciales(NombreEnBoton)</span>
+        }
+        <span class="eg-tx" aria-live="polite"><span class="eg-sub">@Textos["EmpresaGestionada"]</span><span class="eg-nom">@NombreEnBoton</span></span>
+        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+    </button>
+    @if (_abierto)
+    {
+        <div class="eg-superposicion" @onclick="Cerrar"></div>
+        <div class="eg-pop" role="listbox" aria-label="@Textos["EmpresasGestionadas"]" @onkeydown="TeclaAsync">
+            <input class="eg-buscar" type="search" aria-label="@Textos["BuscarEmpresaGestionada"]" placeholder="@Textos["BuscarEmpresaGestionada"]"
+                   value="@_busqueda" @oninput="e => _busqueda = e.Value?.ToString() ?? string.Empty" />
+            <span class="eg-pop-t">@ResumenEmpresas</span>
+            @if (Parcial)
+            {
+                @* Contrato del DTO: las no contadas nunca son «cero». El aviso las nombra y los dos números de arriba son parciales (§ 4.3). *@
+                <span class="eg-pop-t eg-pop-aviso" role="status">@Textos["EmpresasGestionadasSinContar", string.Join(", ", NoConsultados)]</span>
+            }
+            <button type="button" class="eg-opcion" role="option" aria-selected="@(Elegida is { TenantId: null } ? "true" : "false")"
+                    @onclick="() => ElegirAsync(new EleccionEmpresaGestionada(null))">
+                <span class="eg-q">@Textos["TodasLasEmpresasGestionadas"]</span><span class="eg-contador" title="@TituloTotal">@TotalEnTodas</span>
+            </button>
+            @foreach (var empresa in Coincidentes)
+            {
+                <button @key="empresa.TenantId" type="button" class="eg-opcion" role="option"
+                        aria-selected="@(EsLaMostrada(empresa.TenantId) ? "true" : "false")"
+                        @onclick="() => ElegirAsync(new EleccionEmpresaGestionada(empresa.TenantId))">
+                    <span class="eg-mono eg-mono-p">@Iniciales(empresa.TenantNombre)</span><span class="eg-q">@empresa.TenantNombre</span><span class="eg-contador">@empresa.Abiertas</span>
+                </button>
+            }
+            @if (!string.IsNullOrWhiteSpace(_busqueda) && !Coincidentes.Any())
+            {
+                <span class="eg-pop-t">@Textos["NingunaEmpresaGestionadaCoincide", _busqueda]</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Las Empresas gestionadas con recuento, en el orden del servidor (por nombre).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<TenantBeneficiarioVistaUnificadaDto> Empresas { get; set; } = [];
+
+    /// <summary>El Tenant activo: es la Empresa gestionada que se ve cuando no se consulta otra.</summary>
+    [Parameter, EditorRequired] public Guid TenantActivoId { get; set; }
+
+    /// <summary>Lo que muestra la lista: <c>null</c>, el Tenant activo; con valor, la vista unificada.</summary>
+    [Parameter] public EleccionEmpresaGestionada? Elegida { get; set; }
+
+    /// <summary>
+    /// Los nombres de las Empresas gestionadas del conjunto que el servidor no pudo contar (<c>NoConsultados</c> del DTO): con alguna,
+    /// los totales son parciales.
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> NoConsultados { get; set; } = [];
+
+    [Parameter] public EventCallback<EleccionEmpresaGestionada> OnElegir { get; set; }
+
+    private bool _abierto;
+    private string _busqueda = string.Empty;
+
+    private bool Parcial => NoConsultados.Count > 0;
+
+    /// <summary>La cabecera del desplegable: «Empresas gestionadas · N» o, con alguna sin contar, «· N de M contadas».</summary>
+    private string ResumenEmpresas => Parcial
+        ? Textos["EmpresasGestionadasResumenParcial", Empresas.Count, Empresas.Count + NoConsultados.Count].Value
+        : Textos["EmpresasGestionadasResumen", Empresas.Count].Value;
+
+    /// <summary>El total de «Todas»: con alguna Empresa gestionada sin contar es una cota inferior («N+»), nunca un número cerrado.</summary>
+    private string TotalEnTodas => Parcial ? Textos["ContadorParcial", TotalAbiertas].Value : TotalAbiertas.ToString();
+
+    private string? TituloTotal => Parcial ? Textos["RecuentoParcial"].Value : null;
+
+    /// <summary>
+    /// El botón nombra lo que muestra la lista: «Todas las Empresas gestionadas» con «Todas» elegida, la Empresa gestionada consultada
+    /// con una elegida y, sin elección, la del Tenant activo. En el lienzo nombra el contexto (<c>ctx.nombre</c>), que aquí no cambia
+    /// hasta S4; por eso con «Todas» no puede nombrar el Tenant activo, que no es lo que se ve.
+    /// </summary>
+    private string NombreEnBoton
+    {
+        get
+        {
+            if (Elegida is { TenantId: null }) return Textos["TodasLasEmpresasGestionadas"].Value;
+            var mostrada = Elegida?.TenantId ?? TenantActivoId;
+            return Empresas.FirstOrDefault(e => e.TenantId == mostrada)?.TenantNombre ?? string.Empty;
+        }
+    }
+
+    /// <summary>El contador de «Todas» (lienzo L520, <c>totalAbiertas</c>): la suma de las Abiertas de cada Empresa gestionada.</summary>
+    private int TotalAbiertas
+    {
+        get { return Empresas.Sum(e => e.Abiertas); }
+    }
+
+    private IEnumerable<TenantBeneficiarioVistaUnificadaDto> Coincidentes =>
+        string.IsNullOrWhiteSpace(_busqueda)
+            ? Empresas
+            : Empresas.Where(e => e.TenantNombre.Contains(_busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>La opción marcada es la que la lista muestra: la consultada, o el Tenant activo si no se consulta ninguna.</summary>
+    private bool EsLaMostrada(Guid tenantId) => Elegida is null ? tenantId == TenantActivoId : Elegida.TenantId == tenantId;
+
+    private void Alternar()
+    {
+        _abierto = !_abierto;
+        if (!_abierto) _busqueda = string.Empty;
+    }
+
+    private void Cerrar()
+    {
+        _abierto = false;
+        _busqueda = string.Empty;
+    }
+
+    private Task TeclaAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Cerrar();
+        return Task.CompletedTask;
+    }
+
+    private async Task ElegirAsync(EleccionEmpresaGestionada eleccion)
+    {
+        Cerrar();
+        await OnElegir.InvokeAsync(eleccion);
+    }
+
+    /// <summary>Las iniciales del monograma (lienzo <c>ini</c>: «Construcciones Ebro» da «CE»): la primera letra de las dos primeras palabras.</summary>
+    public static string Iniciales(string nombre) =>
+        new(nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(palabra => palabra.FirstOrDefault(char.IsLetterOrDigit))
+            .Where(letra => letra != default)
+            .Take(2)
+            .Select(char.ToUpperInvariant)
+            .ToArray());
+}
