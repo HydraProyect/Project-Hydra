@@ -41,12 +41,21 @@ public record ObtenerBuzonesVistaUnificadaQuery(Guid TenantId) : IRequest<Buzone
 /// Implementación en Outbound del puerto <see cref="IBuzonesDeTenantsBeneficiarios"/> del Núcleo: envía las peticiones de la
 /// vista unificada por el mediador, para que pasen por la guarda y el ámbito de Outbound (como <c>ActividadBuzonesService</c>).
 /// </summary>
-public sealed class BuzonesDeTenantsBeneficiariosService(ISender mediador) : IBuzonesDeTenantsBeneficiarios
+public sealed class BuzonesDeTenantsBeneficiariosService(
+    ISender mediador, ICoordenadaSesionPrivilegiada coordenadaSesionPrivilegiada) : IBuzonesDeTenantsBeneficiarios
 {
     public async Task<IReadOnlyList<TenantBeneficiarioDeBuzonesDto>> ObtenerTenantsAsync(
         CancellationToken cancellationToken = default)
     {
-        // Los del selector de la bandeja unificada que se pudieron leer; un Tenant no consultado no se ofrece.
+        // Con Sesión Privilegiada la vista no existe y la entrada lo rechazaría con una excepción que LoggingBehavior
+        // registra como error en cada carga de Buzones. No es una segunda regla de acceso: solo ahorra esa petición, y la
+        // entrada sigue rechazando por su cuenta este plano y los demás.
+        if (coordenadaSesionPrivilegiada.HaySeleccionada)
+            return [];
+
+        // Los del selector de la bandeja unificada que se pudieron leer; un Tenant no consultado no se ofrece. Coste
+        // aceptado: el selector recorre el ámbito de cada Tenant del conjunto y cuenta sus Abiertas, que aquí se
+        // descartan; a cambio, el conjunto y la segunda línea tienen una sola definición.
         var selector = await mediador.Send(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), cancellationToken);
         return selector.Tenants.Select(t => new TenantBeneficiarioDeBuzonesDto(t.TenantId, t.TenantNombre)).ToList();
     }

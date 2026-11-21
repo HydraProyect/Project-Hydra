@@ -29,12 +29,20 @@
     }
     <CabeceraPagina Titulo="@TituloVisible" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            @Textos["Subtitulo"]
+            @* En solo consulta no se explica el acuse ni se enlaza a Conexiones: los dos hablan del Tenant activo, no de la
+               Empresa gestionada consultada. *@
+            @if (!SoloConsulta)
+            {
+                <text>@Textos["Subtitulo"] </text>
+            }
             @if (EmpresaRotulada is { } empresaVisible)
             {
                 <span data-testid="subtitulo-empresa">@Textos["SubtituloDeEmpresa", empresaVisible.TenantNombre]</span>
             }
-            @Textos["EnlaceConexiones"] <a href="/integraciones">@Textos["EnlaceConexionesVinculo"]</a>.
+            @if (!SoloConsulta)
+            {
+                <text> @Textos["EnlaceConexiones"] <a href="/integraciones">@Textos["EnlaceConexionesVinculo"]</a>.</text>
+            }
         </Descripcion>
         <Acciones>
             @* Secundario a la derecha del título (E31): abre el cajón con la elección de propietario y navega a la misma URL de

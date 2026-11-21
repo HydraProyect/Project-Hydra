@@ -104,8 +104,14 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     /// <summary>Se ven los buzones de otra Empresa gestionada, no los del Tenant activo.</summary>
     private bool SoloConsulta => _empresaConsultada is not null;
 
-    /// <summary>Solo hay pastillas si el conjunto tiene alguna Empresa gestionada distinta de la activa.</summary>
-    private bool MuestraEmpresas => _empresas.Any(e => e.TenantId != TenantActual.TenantId);
+    /// <summary>
+    /// Solo hay pastillas si el conjunto tiene la Empresa gestionada activa y alguna otra. Si la activa no está en el
+    /// conjunto (el Tenant de origen sin gestionar, por ejemplo), no habría pastilla que marcar ni nombre que poner en el
+    /// título, así que la página queda como en main (hueco declarado de PR-S5: la pastilla del Tenant activo fuera del
+    /// conjunto).
+    /// </summary>
+    private bool MuestraEmpresas =>
+        _empresas.Any(e => e.TenantId == TenantActual.TenantId) && _empresas.Any(e => e.TenantId != TenantActual.TenantId);
 
     private TenantBeneficiarioDeBuzonesDto? EmpresaVisible =>
         _empresaConsultada ?? _empresas.FirstOrDefault(e => e.TenantId == TenantActual.TenantId);
@@ -143,7 +149,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     /// </summary>
     private async Task ElegirEmpresaAsync(TenantBeneficiarioDeBuzonesDto empresa)
     {
-        if (_procesandoId is not null || _dispuesto) return;
+        // Ni con una acción en curso ni con el modal del acuse o el cajón de añadir abiertos: los dos actúan en el Tenant
+        // activo y su recarga no debe cruzarse con la consulta de otra Empresa gestionada.
+        if (_procesandoId is not null || _guardandoAcuse || _acuseAActivar is not null || _cajonVisible || _dispuesto) return;
         if (empresa.TenantId == TenantActual.TenantId || empresa.TenantId == _empresaConsultada?.TenantId)
         {
             await VolverAlTenantActivoAsync();
@@ -211,7 +219,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
             // evalúe el servidor hace falta ser Administrador, y es quien ve el selector.
             var elegibles = await ObtenerElegiblesAsync(conexiones, candidatos, token);
             var actividad = await ObtenerActividadAsync(conexiones, token);
-            if (generacion != _generacionCarga || token.IsCancellationRequested) return;
+            // Mientras se consultan los buzones de otra Empresa gestionada, una recarga del Tenant activo (tras una acción
+            // que empezó antes de elegirla) no los sustituye: quedarían rotulados con la Empresa consultada.
+            if (generacion != _generacionCarga || token.IsCancellationRequested || SoloConsulta) return;
             _conexiones = conexiones;
             _candidatos = candidatos;
             _elegibles = elegibles;
@@ -219,7 +229,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
             _actividad = actividad;
             _cargaFallida = false;
         }
-        catch (Exception) when (generacion == _generacionCarga && !token.IsCancellationRequested)
+        catch (Exception) when (generacion == _generacionCarga && !token.IsCancellationRequested && !SoloConsulta)
         {
             _conexiones = [];
             _cargaFallida = true;

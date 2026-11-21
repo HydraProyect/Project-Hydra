@@ -78,6 +78,51 @@ public partial class BuzonesAcuseAutomaticoTests
         cut.Find("h1").TextContent.Trim().Should().Be("Buzones de correo de Propia");
         cut.Find("[data-testid=subtitulo-empresa]").TextContent.Trim().Should().Be("Lo que entra por ellos es de Propia.");
         cut.Markup.Should().NotContain("Tenant");
+        cut.Find("a[href='/integraciones']").Should().NotBeNull("control positivo: en el Tenant activo se enlaza a Conexiones");
+    }
+
+    [Fact]
+    public void Si_la_Empresa_gestionada_activa_no_esta_en_el_conjunto_no_hay_pastillas_y_la_pagina_es_la_de_siempre()
+    {
+        // El Tenant de origen sin gestionar, por ejemplo: no habría pastilla pulsada ni nombre para el título.
+        var empresas = new EmpresasGestionadasFalsas { Empresas = [new(TenantOtro, "Otra gestionada")] };
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, empresas: empresas);
+
+        cut.FindAll("[data-testid=empresas-gestionadas]").Should().BeEmpty();
+        cut.Find("h1").TextContent.Trim().Should().Be("Buzones de correo");
+        cut.FindAll("[data-testid=interruptor-acuse]").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void En_solo_consulta_no_se_explica_el_acuse_ni_se_enlaza_a_las_Conexiones_del_Tenant_activo()
+    {
+        var empresas = DosEmpresas();
+        empresas.Buzones[TenantOtro] = new BuzonesDeTenantBeneficiarioDto(
+            [Buzon("obra")], new Dictionary<Guid, string>(), new Dictionary<Guid, ActividadBuzonDto>());
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, empresas: empresas);
+        var subtituloDeMain = cut.Find("[data-testid=subtitulo-empresa]").ParentElement!.TextContent;
+        subtituloDeMain.Should().Contain("acuse", "control positivo: en el Tenant activo el subtítulo de main explica el acuse");
+
+        Pulsar(cut, "Otra gestionada");
+
+        cut.FindAll("a[href='/integraciones']").Should().BeEmpty();
+        var descripcion = cut.Find("[data-testid=subtitulo-empresa]").ParentElement!.TextContent;
+        descripcion.Should().NotContain("acuse").And.Contain("Lo que entra por ellos es de Otra gestionada.");
+    }
+
+    [Fact]
+    public void Con_el_modal_del_acuse_abierto_pulsar_otra_Empresa_gestionada_no_la_consulta()
+    {
+        var empresas = DosEmpresas();
+        empresas.Buzones[TenantOtro] = new BuzonesDeTenantBeneficiarioDto(
+            [Buzon("obra")], new Dictionary<Guid, string>(), new Dictionary<Guid, ActividadBuzonDto>());
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, empresas: empresas);
+        cut.Find("[data-testid=interruptor-acuse]").Click();
+
+        Pulsar(cut, "Otra gestionada");
+
+        empresas.Consultas.Should().BeEmpty("el modal del acuse actúa en el Tenant activo");
+        Pulsada(cut).Should().Be("Propia");
     }
 
     [Fact]
