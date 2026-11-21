@@ -101,8 +101,9 @@
             }
             @* Desplegable «Buzón» (lienzo, L-9): solo estrecha la lista por una conexión de buzón; el servidor lo suma con AND a su
                visibilidad. Un buzón de otra Empresa gestionada abre su vista unificada en solo consulta, como el selector de arriba.
-               No se ofrece mientras se ve el historial de Reclamaciones, que no depende del buzón. *@
-            @if (TenantActual.TenantId is not null && !MostrandoHistorial)
+               No se ofrece mientras se ve el historial de Reclamaciones, que no depende del buzón; pero la vista unificada manda sobre el
+               historial (el Origen no se restablece al elegir otra Empresa gestionada y esa vista no dibuja el historial), así que ahí sí. *@
+            @if (TenantActual.TenantId is not null && (!MostrandoHistorial || EnVistaUnificada))
             {
                 <SelectorBuzon Grupos="_gruposBuzones" Elegida="BuzonEnBoton" SubtextoTodos="@SubtextoTodosLosBuzones" AbiertasTodos="AbiertasTodosLosBuzones"
                                Cargando="_cargandoBuzones" OnAbrir="CargarBuzonesDelDesplegableAsync" OnElegir="ElegirBuzonAsync" />

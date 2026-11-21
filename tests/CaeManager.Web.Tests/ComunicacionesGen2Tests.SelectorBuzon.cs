@@ -7,6 +7,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal
 using CaeManager.Application.Comunicaciones.VistaUnificada;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -254,6 +255,41 @@ public partial class ComunicacionesGen2Tests
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".bz-cab")));
         Assert.Equal("Talleres Norte2 buzones", cut.Find(".bz-cab").TextContent.Trim());
         Assert.DoesNotContain(cut.FindAll(".bz-fila"), f => f.TextContent.Contains("CAE Ebro", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// BAJA de la revisión de la #2420: con el Origen «Reclamaciones» elegido (el Gestor CAE lo lee) el desplegable «Buzón» se oculta, porque
+    /// el historial no depende del buzón; pero elegir otra Empresa gestionada abre la vista unificada sin restablecer el Origen, y esa vista
+    /// no dibuja el historial: el desplegable tiene que seguir ahí para filtrar por buzón. Detecta volver a la guarda que solo mira
+    /// el historial.
+    /// </summary>
+    [Fact]
+    public void Con_el_Origen_Reclamaciones_el_desplegable_Buzon_se_oculta_pero_vuelve_en_la_vista_unificada_de_otra_Empresa_gestionada()
+    {
+        var (cut, mediador) = RenderizarConBuzones(p => p is ObtenerReclamacionesEnviadasQuery q
+            ? Task.FromResult<object?>(new ResultadoPaginado<ReclamacionEnviadaDto>([], 0, q.Pagina, q.TamanoPagina)) : null);
+        cut.WaitForElement(".eg-boton");
+        Assert.NotEmpty(cut.FindAll(".bz-boton"));
+
+        cut.FindAll(".menu-acciones-disparador-pastilla")
+            .Single(b => b.GetAttribute("aria-label") is { } nombre && nombre.StartsWith("Origen", StringComparison.Ordinal)).Click();
+        cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == "Reclamaciones").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados, p => p is ObtenerReclamacionesEnviadasQuery));
+        Assert.Empty(cut.FindAll(".bz-boton"));
+
+        Elegir(cut, "Construcciones Ebro");
+
+        cut.WaitForElement(".eu-fila");
+        Assert.NotEmpty(cut.FindAll(".bz-boton"));
+        ElegirBuzon(cut, "CAE Ebro");
+        cut.WaitForAssertion(() => Assert.Equal(BuzonEbro, mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().ConexionIntegracionId));
+
+        // Al volver al Tenant activo desde el selector, el Origen sigue puesto y el historial vuelve: el desplegable se oculta otra vez.
+        Elegir(cut, "Talleres Norte");
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".eu-lista")));
+        Assert.Empty(cut.FindAll(".bz-boton"));
     }
 
     // --- Hallazgos BAJA de la revisión de la #2418 ---
