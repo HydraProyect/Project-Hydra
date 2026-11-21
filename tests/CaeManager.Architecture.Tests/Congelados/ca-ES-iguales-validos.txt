@@ -67,3 +67,6 @@ Administrador
 #
 # 2026-11-17 (regla del plazo de una Conversación, TextosPlazoConversacion): «Crítica: 1 h laborable» se escribe igual en catalán; adjetivo, cifra y unidad coinciden.
 Crítica: 1 h laborable
+#
+# 2026-11-21 (banda del Rol Consulta de la Bandeja, PR-C3): «Rol Consulta» es el nombre del rol (Roles.Consulta) precedido de «rol», que se escribe igual en catalán; no hay nada que traducir.
+Rol Consulta
