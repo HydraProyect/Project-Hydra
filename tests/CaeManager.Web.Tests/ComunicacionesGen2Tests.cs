@@ -1511,14 +1511,14 @@ public partial class ComunicacionesGen2Tests : BunitContext
     // ---------------------------------------------------------------- mockup Gen 2
 
     [Fact]
-    public void El_titulo_el_buscador_y_Nuevo_correo_viven_en_la_cabecera_de_la_pagina()
+    public void El_titulo_el_buscador_y_Redactar_correo_viven_en_la_cabecera_de_la_pagina()
     {
         var (cut, _) = Renderizar(new Escenario());
 
         var cabecera = cut.Find(".bandeja-cabecera-pagina");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Comunicaciones");
-        cabecera.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Nuevo correo")
-            .And.NotContain("Redactar");
+        cabecera.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Redactar correo")
+            .And.NotContain("Nuevo correo");
         var buscador = cabecera.QuerySelector("input")!;
         buscador.GetAttribute("placeholder").Should().Be("Buscar en el asunto, el Centro y el texto de los mensajes");
 
@@ -4346,13 +4346,13 @@ public partial class ComunicacionesGen2Tests : BunitContext
     public async Task Redactar_sin_tocar_no_pregunta_escribir_si_y_enviar_filtra_sin_preguntar()
     {
         var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".drawer-panel").Should().ContainSingle("el test necesita el drawer de redactar abierto");
         await cut.Find(".drawer-panel button.drawer-cerrar").ClickAsync(new MouseEventArgs());
         cut.FindAll(".drawer-panel").Should().BeEmpty("sin cambios, la X cierra sin preguntar");
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
@@ -4461,7 +4461,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync(conBuzon: false);
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel .aviso-sin-buzon").TextContent.Should().Contain("no hay ningún buzón de Microsoft 365 conectado"));
         cut.Find(".drawer-panel .aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
@@ -4522,12 +4522,12 @@ public partial class ComunicacionesGen2Tests : BunitContext
     public async Task Cancelar_Redactar_con_el_mensaje_a_medias_pregunta_y_sin_escribir_cierra()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
         await PulsarCancelarEnAsync(cut, ".drawer-pie");
         cut.FindAll(".drawer-panel").Should().BeEmpty("sin cambios, Cancelar cierra directamente");
         PreguntaDescartar(cut).Should().BeFalse();
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
         await PulsarCancelarEnAsync(cut, ".drawer-pie");
 
@@ -4563,7 +4563,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     public async Task Enviar_Redactar_manda_el_comando_con_lo_escrito_y_cierra()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
         await cut.FindAll(".drawer-panel input.campo-input")[1].InputAsync(new ChangeEventArgs { Value = "Asunto nuevo" });
         await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Cuerpo nuevo." });
@@ -4581,7 +4581,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     public async Task Enviar_Redactar_sin_destinatario_dice_por_que_y_no_cierra_ni_envia()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
 
@@ -4594,7 +4594,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     public async Task Si_el_envio_de_Redactar_falla_el_Drawer_sigue_abierto_con_lo_escrito_y_el_motivo()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync(envioFalla: true);
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo correo").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar correo").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());

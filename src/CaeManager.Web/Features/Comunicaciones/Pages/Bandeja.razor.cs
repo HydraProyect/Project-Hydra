@@ -180,8 +180,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// son una partición del enum, así que «Todas» (sin grupo) es la suma de ambas. «Abiertas» es la vista por defecto, como en el
     /// lienzo. Faltan las que ese filtro no puede expresar hoy (Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados y No
     /// deseado) y «Resueltas» y «En espera de tercero», que son un estado concreto y ya salen del filtro «Estado» de «Más filtros»:
-    /// no se dibujan. «Mías», «Esperando respuesta», «Sin asignar» y «Fuera de plazo» no mandan grupo: el lienzo las deriva de
-    /// «Abiertas», pero acotarlas es un cambio de comportamiento de vistas que ya existían y queda para un incremento propio.
+    /// no se dibujan. «Mías», «Esperando respuesta», «Sin asignar» y «Fuera de plazo» se cuentan y se listan dentro de «Abiertas»
+    /// (mandan su mismo grupo), como en el lienzo, donde «Mías» y «Sin asignar» salen de la variable local <c>abiertas</c> (todo lo que no
+    /// está Resuelta, línea 1354 del tablero): una conversación Resuelta o Cerrada no cuenta en ninguna de ellas, aunque siga asignada a
+    /// alguien o sin asignar. Consecuencia: con un estado archivado elegido, esas vistas dejan de existir (pasa a «Todas», ver
+    /// <c>AjustarVistaAlEstado</c>) y no hay combinación que liste solo mis archivadas o solo las archivadas sin asignar.
     /// </summary>
     private enum VistaLista { Abiertas, Mias, Esperando, Archivadas, SinAsignar, FueraDePlazo, Todas }
 
@@ -888,12 +891,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// El grupo de estados que manda una vista a la query (DN-O): «Abiertas» las vivas y «Archivadas» Resuelta y Cerrada; el resto de
-    /// vistas, ninguno.
+    /// El grupo de estados que manda una vista a la query (DN-O): «Abiertas» y las vistas que el lienzo deriva de ella (Mías,
+    /// Esperando respuesta, Sin asignar y Fuera de plazo) mandan el grupo de las vivas, para que recuento y lista salgan del mismo
+    /// universo; «Archivadas», Resuelta y Cerrada; «Todas», ninguno. El grupo se suma con AND a la visibilidad y a los demás filtros
+    /// de la query: nunca amplía lo que se ve.
     /// </summary>
     private static GrupoEstadoConversacion? GrupoDeVista(VistaLista vista) => vista switch
     {
-        VistaLista.Abiertas => GrupoEstadoConversacion.Abiertas,
+        VistaLista.Abiertas or VistaLista.Mias or VistaLista.Esperando or VistaLista.SinAsignar or VistaLista.FueraDePlazo
+            => GrupoEstadoConversacion.Abiertas,
         VistaLista.Archivadas => GrupoEstadoConversacion.Archivadas,
         _ => null
     };
