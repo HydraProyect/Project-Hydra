@@ -56,7 +56,7 @@
 
     @if (_empresaConsultada is { } consultada)
     {
-        <p class="aviso-solo-consulta" role="status" data-testid="aviso-solo-consulta">@Textos["AvisoSoloConsulta", consultada.TenantNombre]</p>
+        <p class="aviso-consulta-empresa" role="status" data-testid="aviso-consulta-empresa">@Textos["AvisoSoloConsulta", consultada.TenantNombre]</p>
     }
 
     @if (_cargando || (SoloConsulta && _cargandoConsulta))

@@ -98,7 +98,7 @@ public partial class BuzonesAcuseAutomaticoTests
         empresas.Consultas.Should().Equal(TenantOtro);
         Pulsada(cut).Should().Be("Otra gestionada");
         cut.Find("h1").TextContent.Trim().Should().Be("Buzones de correo de Otra gestionada");
-        cut.Find("[data-testid=aviso-solo-consulta]").TextContent.Trim()
+        cut.Find("[data-testid=aviso-consulta-empresa]").TextContent.Trim()
             .Should().Be("Solo consulta. Para cambiar estos buzones, abre arriba, en «Trabajando en», Otra gestionada.");
         cut.FindAll("[data-testid=fila-buzon]").Should().HaveCount(2);
         Fila(cut, "obra").Should().Contain("Marta Gestora").And.Contain("Activado").And.Contain("4");
@@ -121,7 +121,7 @@ public partial class BuzonesAcuseAutomaticoTests
         Pulsar(cut, "Otra gestionada");
 
         Pulsada(cut).Should().Be("Propia");
-        cut.FindAll("[data-testid=aviso-solo-consulta]").Should().BeEmpty();
+        cut.FindAll("[data-testid=aviso-consulta-empresa]").Should().BeEmpty();
         Fila(cut, "cae").Should().NotBeNull();
         cut.FindAll("[data-testid=interruptor-acuse]").Should().ContainSingle();
         cut.FindAll("[data-testid=anadir-buzon]").Should().ContainSingle();

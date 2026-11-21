@@ -94,11 +94,15 @@ public class ObtenerBuzonesVistaUnificadaQueryHandler(
 
         // Con los errores y los avisos: la entrada ya rechazó la Sesión Privilegiada, que es el único caso en que
         // ObtenerConexionesIntegracionQuery los omite (cae_app_soporte no lee UltimoError).
+        // La cartera de Clientes empresariales, por la extensión con el recorte de D6=a: en una petición acotada al Tenant
+        // solo Inbound la vacía, y entonces solo salen los buzones sin Cliente empresarial (LecturasDeCartera…SoloInbound).
+        ambito.ExigirAbierto();
+        var clientesEmpresarialesVisibles = await alcanceDatos.ClientesEmpresarialesVisiblesAsync(cancellationToken);
         ambito.ExigirAbierto();
         var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var conexiones = await ObtenerConexionesIntegracionQueryHandler.ListarAsync(
-            integracionesContext, empresasContext, alcanceDatos, soloPropiasYGenerales: true, usuarioActualId,
-            conErroresYAvisos: true, cancellationToken);
+            integracionesContext, empresasContext, clientesEmpresarialesVisibles, soloPropiasYGenerales: true,
+            usuarioActualId, conErroresYAvisos: true, cancellationToken);
 
         ambito.ExigirAbierto();
         var usuarioIds = conexiones.SelectMany(c => new[] { c.ResponsableUsuarioId, c.GestorPropietarioId })

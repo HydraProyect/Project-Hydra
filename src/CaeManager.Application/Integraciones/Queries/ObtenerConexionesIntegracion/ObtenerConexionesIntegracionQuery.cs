@@ -77,8 +77,10 @@ public class ObtenerConexionesIntegracionQueryHandler(
             : null;
 
         return await ListarAsync(
-            integracionesContext, empresasContext, alcanceDatos, request.SoloPropiasYGenerales, usuarioActualId,
-            conErroresYAvisos: clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is null, cancellationToken);
+            integracionesContext, empresasContext,
+            await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken), request.SoloPropiasYGenerales,
+            usuarioActualId, conErroresYAvisos: clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is null,
+            cancellationToken);
     }
 
     /// <summary>
@@ -87,13 +89,18 @@ public class ObtenerConexionesIntegracionQueryHandler(
     /// autorizado de cada Tenant con <paramref name="soloPropiasYGenerales"/> a <c>true</c>: así lista lo mismo que esta
     /// consulta listaría en ese Tenant para quien no administra los buzones, sin una segunda proyección que pueda divergir.
     /// </summary>
+    /// <param name="clientesEmpresarialesVisibles">
+    /// La cartera de Clientes empresariales de quien mira (<c>null</c>, sin restricción). La pide quien llama: esta consulta,
+    /// con la lectura directa del alcance, como siempre; la vista unificada, con
+    /// <see cref="AlcanceDatosServiceExtensions.ClientesEmpresarialesVisiblesAsync"/>, que la vacía en una petición acotada
+    /// al Tenant solo Inbound (D6=a) y deja entonces solo los buzones sin Cliente empresarial.
+    /// </param>
     /// <param name="conErroresYAvisos">Fuera de Sesión Privilegiada: el último error y los avisos de eventos (ver remarks).</param>
     internal static async Task<IReadOnlyList<ConexionIntegracionListaDto>> ListarAsync(
         IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext,
-        IAlcanceDatosService alcanceDatos, bool soloPropiasYGenerales, Guid? usuarioActualId, bool conErroresYAvisos,
-        CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? clientesEmpresarialesVisibles, bool soloPropiasYGenerales, Guid? usuarioActualId,
+        bool conErroresYAvisos, CancellationToken cancellationToken)
     {
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         // Misma regla que ConexionIntegracion.OperativaVerificada: Habilitada pero sin verificar en la ventana, la
         // ingesta deja el correo entrante en espera y no se envía nada desde el buzón. Conexiones lo avisa.
@@ -105,7 +112,8 @@ public class ObtenerConexionesIntegracionQueryHandler(
             // la misma pantalla (ObtenerLineasWhatsAppQuery) y sin este filtro
             // aparecían duplicadas como "buzón".
             where conexion.Proveedor == ProveedorIntegracion.Microsoft365
-            where clienteIdsVisibles == null || conexion.ClienteId == null || clienteIdsVisibles.Contains(conexion.ClienteId!.Value)
+            where clientesEmpresarialesVisibles == null || conexion.ClienteId == null
+                  || clientesEmpresarialesVisibles.Contains(conexion.ClienteId!.Value)
             where !soloPropiasYGenerales || conexion.GestorPropietarioId == null || conexion.GestorPropietarioId == usuarioActualId
             join cliente in empresasContext.Empresas on conexion.ClienteId equals cliente.Id into clientesUnidos
             from cliente in clientesUnidos.DefaultIfEmpty()
