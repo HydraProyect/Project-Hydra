@@ -42,10 +42,14 @@ public class PanelRevisionAdjuntoTests : BunitContext
         public Func<ResolverAdjuntoCommand, Result<Guid>>? Resolver { get; set; }
         public Exception? Lanza { get; set; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>Si se pone, FijarDestino no responde hasta que se complete: deja al panel con un Command en curso mientras el visor sigue vivo.</summary>
+        public TaskCompletionSource? PuertaFijar { get; set; }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
             if (Lanza is not null) throw Lanza;
+            if (request is FijarDestinoAdjuntoCommand && PuertaFijar is not null) await PuertaFijar.Task;
             object respuesta = request switch
             {
                 FijarDestinoAdjuntoCommand c => Fijar?.Invoke(c) ?? Result.Exito(c.AdjuntoId),
@@ -53,7 +57,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
                 ResolverAdjuntoCommand c => Resolver?.Invoke(c) ?? Result.Exito(c.AdjuntoId),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
-            return Task.FromResult((TResponse)respuesta);
+            return (TResponse)respuesta;
         }
 
         private static Result<IReadOnlyList<ResultadoAsignacionAdjunto>> Asignados(AsignarAdjuntosLoteCommand c)
@@ -257,7 +261,7 @@ public class PanelRevisionAdjuntoTests : BunitContext
     }
 
     [Fact]
-    public async Task Un_tipo_distinto_del_propuesto_tambien_se_guarda_antes_de_asignar_y_a_una_Empresa_solo_se_le_ofrecen_tipos_de_Empresa()
+    public async Task A_una_Empresa_solo_se_le_ofrecen_tipos_de_Empresa_y_con_el_tipo_propuesto_se_asigna_sin_guardar_antes()
     {
         var mediador = Preparar();
         var adjunto = Adjunto();
@@ -269,6 +273,100 @@ public class PanelRevisionAdjuntoTests : BunitContext
 
         mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<AsignarAdjuntosLoteCommand>()
             .Which.Adjuntos.Single().Should().Be(new AdjuntoAAsignar(adjunto.Id, TipoSeguro, null, ObrasNorte, Emision, null, false));
+    }
+
+    [Fact]
+    public async Task Un_tipo_distinto_del_propuesto_se_guarda_antes_de_asignar()
+    {
+        var mediador = Preparar();
+        var adjunto = Adjunto();
+        var tipoContrato = Guid.NewGuid();
+        var revision = Revision(adjunto) with { Tipos = [new(TipoDni, "DNI", false), new(tipoContrato, "Contrato", false)] };
+        var (cut, _) = Pintar(adjunto, revision);
+        await ElegirMartaAsync(cut);
+
+        cut.Find("select").Change(tipoContrato.ToString());
+        await Pulsar(cut, "Asignar el documento");
+
+        mediador.Enviados.Should().HaveCount(2);
+        mediador.Enviados[0].Should().Be(new FijarDestinoAdjuntoCommand(adjunto.Id, Marta, null, tipoContrato));
+        mediador.Enviados[1].Should().BeOfType<AsignarAdjuntosLoteCommand>().Which.Adjuntos.Single().TipoDocumentoId.Should().Be(tipoContrato);
+    }
+
+    [Fact]
+    public async Task Tras_fijar_otro_destino_y_fallar_el_lote_volver_a_la_propuesta_tambien_se_guarda_antes()
+    {
+        var mediador = Preparar();
+        var llamadas = 0;
+        mediador.Lote = c => ++llamadas == 1
+            ? Result.Exito<IReadOnlyList<ResultadoAsignacionAdjunto>>([new ResultadoAsignacionAdjunto(c.Adjuntos[0].AdjuntoId, EstadoAsignacionAdjunto.NoAsignado, null, "No se pudo dar de alta.")])
+            : Result.Exito<IReadOnlyList<ResultadoAsignacionAdjunto>>([new ResultadoAsignacionAdjunto(c.Adjuntos[0].AdjuntoId, EstadoAsignacionAdjunto.Asignado, Guid.NewGuid(), null)]);
+        var adjunto = Adjunto();
+        var (cut, _) = Pintar(adjunto, Revision(adjunto));
+        await Pulsar(cut, "Buscar a otra persona o Empresa");
+        await EscribirAsync(cut.Find("input[type=search]"), "Ped");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
+        await Pulsar(cut, "Elegir a Pedro Gil");
+        await Pulsar(cut, "Asignar el documento");
+        Aviso(cut).Should().Be("No se pudo dar de alta.");
+
+        // El servidor tiene ya a Pedro: asignar a Marta, la propuesta de la que se partió, exige guardarla de nuevo.
+        await ElegirMartaAsync(cut);
+        await Pulsar(cut, "Asignar el documento");
+
+        mediador.Enviados.OfType<FijarDestinoAdjuntoCommand>().Select(c => c.TrabajadorId).Should().Equal(Pedro, Marta);
+        mediador.Enviados.OfType<AsignarAdjuntosLoteCommand>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Si_el_visor_cambia_de_adjunto_mientras_se_asigna_la_asignacion_y_el_aviso_son_del_adjunto_de_origen()
+    {
+        var mediador = Preparar();
+        mediador.PuertaFijar = new TaskCompletionSource();
+        var (a, b, c) = (Adjunto(), Adjunto(), Adjunto());
+        var resueltos = new List<ResolucionAdjuntoVisor>();
+        var cut = PintarVisor([a, b, c], RevisionDe(a, b, c), resueltos);
+        await cut.FindAll("button").First(x => x.TextContent.Trim() == "Buscar a otra persona o Empresa").ClickAsync(new MouseEventArgs());
+        await EscribirAsync(cut.Find("input[type=search]"), "Ped");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
+        await cut.FindAll("button").Single(x => x.TextContent.Trim() == "Elegir a Pedro Gil").ClickAsync(new MouseEventArgs());
+
+        // «Asignar el documento» queda esperando a FijarDestino; mientras, la persona pasa al adjunto siguiente.
+        var asignando = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Asignar el documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<FijarDestinoAdjuntoCommand>().Should().ContainSingle());
+        await cut.Find("button[aria-label='Ir al adjunto siguiente']").ClickAsync(new MouseEventArgs());
+        Posicion(cut).Should().Be("Documento 2 de 3");
+        mediador.PuertaFijar.SetResult();
+        await asignando;
+
+        var lote = mediador.Enviados.OfType<AsignarAdjuntosLoteCommand>().Should().ContainSingle().Subject;
+        lote.Adjuntos.Single().AdjuntoId.Should().Be(a.Id);
+        lote.Adjuntos.Single().TrabajadorId.Should().Be(Pedro);
+        resueltos.Should().Equal(new ResolucionAdjuntoVisor(a.Id, EstadoAdjuntoVisor.Asignado));
+        cut.FindAll(".vz-marca")[0].ClassList.Should().Contain("vz-marca-asignado");
+        cut.FindAll(".vz-marca")[1].ClassList.Should().NotContain("vz-marca-asignado");
+    }
+
+    [Fact]
+    public async Task Mientras_se_asigna_no_se_cambia_el_destino_ni_se_puede_asignar_otra_vez()
+    {
+        var mediador = Preparar();
+        mediador.PuertaFijar = new TaskCompletionSource();
+        var adjunto = Adjunto();
+        var (cut, _) = Pintar(adjunto, Revision(adjunto));
+        await Pulsar(cut, "Buscar a otra persona o Empresa");
+        await EscribirAsync(cut.Find("input[type=search]"), "Ped");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 resultado"));
+        await Pulsar(cut, "Elegir a Pedro Gil");
+
+        var asignando = BotonDe(cut, "Asignar el documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => BotonDe(cut, "Asignar el documento").GetAttribute("aria-disabled").Should().Be("true"));
+        await ElegirMartaAsync(cut);
+        cut.Find($"button[data-cand='{Pedro}']").GetAttribute("aria-checked").Should().Be("true");
+        mediador.PuertaFijar.SetResult();
+        await asignando;
+
+        mediador.Enviados.OfType<AsignarAdjuntosLoteCommand>().Single().Adjuntos.Single().TrabajadorId.Should().Be(Pedro);
     }
 
     [Fact]
@@ -590,6 +688,19 @@ public class PanelRevisionAdjuntoTests : BunitContext
         avisos.Resueltos.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Con_el_rol_Consulta_un_adjunto_rechazado_muestra_el_motivo_y_no_manda_a_un_boton_que_no_existe()
+    {
+        Preparar(Roles.Consulta);
+        var adjunto = Adjunto(EstadoAdjuntoVisor.Rechazado);
+
+        var (cut, _) = Pintar(adjunto, Revision(adjunto, new PropuestaRevision(Marta, null, TipoDni, Emision, MotivoRechazo: "Falta la firma")));
+
+        cut.Find(".vz-resuelto").TextContent.Should().Contain("Rechazado").And.Contain("Falta la firma");
+        cut.Markup.Should().Contain("Con el rol Consulta puedes ver la revisión, pero no cambiarla.").And.NotContain("Revisar de nuevo");
+        cut.FindAll(".vz-pie button").Should().BeEmpty();
+    }
+
     // ---------- Teclado ----------
 
     [Fact]
@@ -621,6 +732,11 @@ public class PanelRevisionAdjuntoTests : BunitContext
         await cut.Find("[role=radiogroup]").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
         cut.Find($"button[data-cand='{Marta}']").GetAttribute("aria-checked").Should().Be("true");
         teclas.Should().BeEmpty();
+
+        // Una tarjeta no es un campo: sus teclas que no son flechas ni Escape son las del visor.
+        await cut.Find("[role=radiogroup]").KeyDownAsync(new KeyboardEventArgs { Key = "]" });
+        teclas.Should().Equal("]");
+        teclas.Clear();
 
         await cut.Find("aside").KeyDownAsync(new KeyboardEventArgs { Key = "=" });
         await cut.Find("aside").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
