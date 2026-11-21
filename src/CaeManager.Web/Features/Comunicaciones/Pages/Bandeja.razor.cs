@@ -174,17 +174,22 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>
     /// Las vistas del selector «Vista» (lienzo «Pulida: bandeja de la cartera», L-6). Son excluyentes, como en el lienzo, y cada una
-    /// es un filtro de servidor que <see cref="ObtenerConversacionesQuery"/> ya tiene. Faltan las que ese filtro no puede expresar
-    /// hoy (Abiertas, Archivadas, Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados y No deseado): no se dibujan.
+    /// es un filtro de servidor que <see cref="ObtenerConversacionesQuery"/> ya tiene. «Abiertas» y «Archivadas» mandan su
+    /// <see cref="GrupoEstadoConversacion"/> (DN-O, 2026-11-20): «Abiertas» son las conversaciones vivas (Abierta, Esperando respuesta
+    /// del Interlocutor, En espera de tercero y el estado histórico Pendiente) y «Archivadas» las Resuelta y Cerrada; los dos grupos
+    /// son una partición del enum, así que «Todas» (sin grupo) es la suma de ambas. «Abiertas» es la vista por defecto, como en el
+    /// lienzo. Faltan las que ese filtro no puede expresar hoy (Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados y No
+    /// deseado) y «Resueltas» y «En espera de tercero», que son un estado concreto y ya salen del filtro «Estado» de «Más filtros»:
+    /// no se dibujan. «Mías», «Esperando respuesta», «Sin asignar» y «Fuera de plazo» no mandan grupo: el lienzo las deriva de
+    /// «Abiertas», pero acotarlas es un cambio de comportamiento de vistas que ya existían y queda para un incremento propio.
     /// </summary>
-    private enum VistaLista { Todas, Mias, Esperando, SinAsignar, FueraDePlazo }
+    private enum VistaLista { Abiertas, Mias, Esperando, Archivadas, SinAsignar, FueraDePlazo, Todas }
 
-    // shortcut: «Todas» ocupa el lugar de «Abiertas» como vista por defecto porque la query no tiene filtro de estados vivos;
-    // sustituirla por «Abiertas» cuando ObtenerConversacionesQuery lo admita y moverla a «Más vistas».
-    private static readonly VistaLista[] VistasPrincipales = [VistaLista.Todas, VistaLista.Mias, VistaLista.Esperando];
-    private static readonly VistaLista[] VistasMasVistas = [VistaLista.SinAsignar, VistaLista.FueraDePlazo];
+    // Orden del lienzo: las cuatro principales y, en «Más vistas», las que esta pantalla sabe filtrar (Todas la última).
+    private static readonly VistaLista[] VistasPrincipales = [VistaLista.Abiertas, VistaLista.Mias, VistaLista.Esperando, VistaLista.Archivadas];
+    private static readonly VistaLista[] VistasMasVistas = [VistaLista.SinAsignar, VistaLista.FueraDePlazo, VistaLista.Todas];
 
-    private VistaLista _vistaLista = VistaLista.Todas;
+    private VistaLista _vistaLista = VistaLista.Abiertas;
     private CanalConversacion? _canalFiltro;
     private bool _vistasAbiertas;
     private bool _masVistasAbiertas;
@@ -264,6 +269,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private string NombreVista(VistaLista vista) => TextosLista[vista switch
     {
+        // Las claves de estas dos son el nombre del miembro (TextosListaConversaciones.resx): sin literal, para que el detector de textos
+        // sin localizar no cuente como texto de pantalla una clave de recurso.
+        VistaLista.Abiertas => nameof(VistaLista.Abiertas),
+        VistaLista.Archivadas => nameof(VistaLista.Archivadas),
         VistaLista.Mias => "Mias",
         VistaLista.Esperando => "EsperandoCliente",
         VistaLista.SinAsignar => "SinAsignar",
@@ -653,7 +662,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private void SincronizarFiltrosDesdeUrl()
     {
+        var estadoPrevio = _estadoFiltro;
         _estadoFiltro = EstadoInicial ?? string.Empty;
+        if (_estadoFiltro != estadoPrevio) AjustarVistaAlEstado();
         _mesFiltro = MesInicial ?? string.Empty;
         _clienteIdFiltro = ClienteInicial ?? string.Empty;
         _busqueda = BusquedaInicial ?? string.Empty;
@@ -872,7 +883,33 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Canal: canal,
             Pagina: pagina,
-            TamanoPagina: tamanoPagina);
+            TamanoPagina: tamanoPagina,
+            GrupoEstado: GrupoDeVista(vista));
+    }
+
+    /// <summary>
+    /// El grupo de estados que manda una vista a la query (DN-O): «Abiertas» las vivas y «Archivadas» Resuelta y Cerrada; el resto de
+    /// vistas, ninguno.
+    /// </summary>
+    private static GrupoEstadoConversacion? GrupoDeVista(VistaLista vista) => vista switch
+    {
+        VistaLista.Abiertas => GrupoEstadoConversacion.Abiertas,
+        VistaLista.Archivadas => GrupoEstadoConversacion.Archivadas,
+        _ => null
+    };
+
+    /// <summary>
+    /// El estado concreto («Estado» de «Más filtros» o <c>?estado=</c>) y el grupo de la vista se suman con AND y nunca amplían lo
+    /// visible. Si el estado que llega no cabe en el grupo de la vista vigente (por ejemplo «Resuelta» o «Cerrada» bajo la vista por
+    /// defecto «Abiertas»), la lista sería siempre vacía y el filtro «Estado» dejaría de servir: la vista pasa entonces a «Todas», que
+    /// no manda grupo, y el título, el disparador y los recuentos dicen lo que se está viendo. Solo se aplica cuando el estado cambia,
+    /// no al elegir una vista: quien elige «Abiertas» con un estado archivado ve la lista vacía y lo sabe.
+    /// </summary>
+    private void AjustarVistaAlEstado()
+    {
+        if (!Enum.TryParse<EstadoConversacion>(_estadoFiltro, out var estado)) return;
+        if (GrupoDeVista(_vistaLista) is { } grupo && !GruposEstadoConversacion.Estados(grupo).Contains(estado))
+            _vistaLista = VistaLista.Todas;
     }
 
     /// <summary>
@@ -881,8 +918,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     // shortcut: cada recuento es una ObtenerConversacionesQuery completa con TamanoPagina: 1, que además del CountAsync con todo el
     // predicado ejecuta la proyección y las lecturas de fila de una página (no es solo un conteo). Van una tras otra para no solapar
-    // bucles de recuento: dos más por carga de lista, y tres más cada vez que se abre el selector de vistas o se recarga la lista con él
-    // abierto (las cinco vistas menos la vigente y menos «Fuera de plazo», que no se cuenta), cuatro si «Fuera de plazo» es la vigente;
+    // bucles de recuento: dos más por carga de lista, y cinco más cada vez que se abre el selector de vistas o se recarga la lista con él
+    // abierto (las siete vistas menos la vigente y menos «Fuera de plazo», que no se cuenta), seis si «Fuera de plazo» es la vigente;
     // incluido el refresco de plazos de cada minuto. Si el selector se abre durante la fase de canal de CargarRecuentosTrasListaAsync,
     // pueden ejecutarse dos bucles de vista seguidos. Un recuento por canal y por vista en la propia query (como ContarPorEstadoAsync
     // de Clientes) cuando haya que quitar esas idas y vueltas.
@@ -1048,10 +1085,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>
     /// Los filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Todas» y el canal.
+    /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Abiertas» y el canal.
     /// </summary>
     private bool HayFiltrosActivos =>
-        HayFiltrosAvanzados || HayBusqueda || _vistaLista != VistaLista.Todas || _canalFiltro is not null;
+        HayFiltrosAvanzados || HayBusqueda || _vistaLista != VistaLista.Abiertas || _canalFiltro is not null;
 
     // --- Vacíos de la lista (lienzo «Pulida: bandeja de la cartera», L-15) ---
 
@@ -1068,9 +1105,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private bool _sinBuzonesConectados;
 
-    // shortcut: «Todas» hace de «Abiertas» (ver VistasPrincipales), por eso es la vista de «Al día» y «No quedan conversaciones»;
-    // cuando ObtenerConversacionesQuery admita el filtro de estados vivos (DN-O) y «Abiertas» sea la vista por defecto, pasar a _vistaLista == Abiertas.
-    private bool EsVistaAbiertas => _vistaLista == VistaLista.Todas;
+    /// <summary>
+    /// La vista «Abiertas», la de por defecto: la única cuyo vacío es «Al día» y «No quedan conversaciones», porque es la única que
+    /// dice que no queda nada vivo por atender. En el resto, vacío es «Nada en «vista»».
+    /// </summary>
+    private bool EsVistaAbiertas => _vistaLista == VistaLista.Abiertas;
 
     /// <summary>
     /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal, en cualquier vista. El lienzo dice
@@ -1128,7 +1167,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _mesFiltro = string.Empty;
         _clienteIdFiltro = string.Empty;
         _busqueda = string.Empty;
-        _vistaLista = VistaLista.Todas;
+        _vistaLista = VistaLista.Abiertas;
         _canalFiltro = null;
         return AplicarFiltrosAsync();
     }

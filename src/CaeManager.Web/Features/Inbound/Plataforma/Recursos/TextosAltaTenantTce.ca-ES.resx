@@ -253,10 +253,10 @@
     <value>Tria el tram i la modalitat del Producte Contractat.</value>
   </data>
   <data name="DeclaracionSoloInboundTitulo" xml:space="preserve">
-    <value>Declaro que aquesta organització contracta només Inbound.</value>
+    <value>Declaro que aquest Tenant no usa Outbound (només Inbound).</value>
   </data>
   <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
-    <value>Opcional. Marca-la només si l'organització no fa servir Outbound: amb la declaració i sense línia Outbound, se li tanca Outbound. Sense marcar, conserva Outbound.</value>
+    <value>Opcional. Marca-la només si l'organització no fa servir Outbound: amb la declaració i sense línia Outbound, se li tanca Outbound. Sense marcar, manté Outbound.</value>
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>

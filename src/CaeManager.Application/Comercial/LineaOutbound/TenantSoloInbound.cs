@@ -9,7 +9,9 @@ namespace CaeManager.Application.Comercial.LineaOutbound;
 /// (DECISION_LOG e496f33): lo es cuando se cumplen las tres condiciones a la vez: tiene la línea
 /// <see cref="LineaProductoContratado.Inbound"/> vigente, esa fila lleva marcada la declaración
 /// <see cref="ProductoContratado.DeclaraSoloInbound"/> y no tiene ninguna línea
-/// <see cref="LineaProductoContratado.OutboundGestionPropia"/>. Es el plano comercial: la autoridad la ejerce
+/// <see cref="LineaProductoContratado.OutboundGestionPropia"/> en ningún estado (vigente, también con el inicio aún no alcanzado, o finalizada). «En
+/// ningún estado» no incluye las filas eliminadas (borrado lógico, <c>EstaEliminado</c>): una fila eliminada no cuenta, ni
+/// de la línea Outbound ni de la Inbound. Es el plano comercial: la autoridad la ejerce
 /// <see cref="ICriterioDeOutbound"/>, que con el papel de Tenant de origen cierra Outbound a ese Tenant.
 ///
 /// <para>
@@ -23,8 +25,10 @@ namespace CaeManager.Application.Comercial.LineaOutbound;
 /// <para>
 /// La línea Inbound cuenta con el criterio de <c>LineaInboundVigenteQuery</c> y del gate de la base: estado
 /// <see cref="EstadoProductoContratado.Vigente"/>, no eliminada y con el inicio ya alcanzado; la declaración se lee en esa
-/// misma fila, nunca en una finalizada. La línea Outbound cuenta en cualquier estado (vigente, programada o finalizada)
-/// mientras no esté eliminada: «ninguna línea Outbound» es que no hay fila, y una finalizada sí es una línea. Así, ante la
+/// misma fila, nunca en una finalizada. La línea Outbound cuenta en cualquier estado (vigente o finalizada) y
+/// con cualquier inicio mientras no esté eliminada: «ninguna línea Outbound» es que no hay ninguna fila no eliminada de esa
+/// línea, y una finalizada o una vigente con el inicio aún no alcanzado (solo posible con un desfase de reloj entre quien
+/// la escribe y quien la lee, o con una fila escrita fuera de <c>ProductoContratado.Contratar</c>) sí es una línea. Así, ante la
 /// duda, el Tenant conserva Outbound: lo único que esta lectura puede hacer es cerrarlo, y solo lo cierra cuando el
 /// Producto Contratado dice exactamente «solo Inbound».
 /// </para>
@@ -59,6 +63,7 @@ public sealed class TenantSoloInboundService(
     private async Task<bool> LeerAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         var ahora = reloj.GetUtcNow().UtcDateTime;
+        // Las filas eliminadas (borrado lógico) se descartan aquí, para las dos líneas: no cuentan en ningún estado.
         var filas = await contexto.ProductosContratados
             .Where(p => p.TenantId == tenantId
                 && !p.EstaEliminado
@@ -67,11 +72,12 @@ public sealed class TenantSoloInboundService(
             .ToListAsync(cancellationToken);
 
         // Las tres condiciones de la opción A' (DECISION_LOG e496f33). La declaración cuenta en la misma fila de la línea
-        // Inbound vigente: la de una fila finalizada o programada no vale.
+        // Inbound vigente: la de una fila finalizada o con el inicio aún no alcanzado no vale.
         var inboundVigenteDeclarada = filas.Any(f => f.Linea == LineaProductoContratado.Inbound
             && f.Estado == EstadoProductoContratado.Vigente
             && f.VigenteDesdeUtc <= ahora
             && f.DeclaraSoloInbound);
+        // La línea Outbound cuenta en cualquier estado (vigente o finalizada) y con cualquier inicio, aunque no haya llegado.
         var algunaOutbound = filas.Any(f => f.Linea == LineaProductoContratado.OutboundGestionPropia);
 
         return inboundVigenteDeclarada && !algunaOutbound;
