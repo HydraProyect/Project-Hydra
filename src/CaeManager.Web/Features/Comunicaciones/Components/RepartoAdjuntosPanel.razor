@@ -174,7 +174,7 @@ else if (_errorCarga is not null)
 {
     @* Fuera del bloque: el visor es una capa a pantalla completa y no debe heredar su maquetación. El panel de revisión es de Comunicaciones
        y entra por el hueco Panel del visor del Núcleo; el visor solo le da el adjunto actual y sus salidas. *@
-    <VisorDocumentoPantallaCompleta Visible="true" VisibleChanged="AlCambiarVisibleVisor" Adjuntos="_adjuntosVisor" IndiceInicial="0"
+    <VisorDocumentoPantallaCompleta Visible="true" VisibleChanged="AlCambiarVisibleVisor" Adjuntos="_adjuntosVisor" IndiceInicial="_indiceInicialVisor"
                                     Titulo="@Textos["Visor_Titulo"].Value" AdjuntoResuelto="AlResolverEnVisorAsync">
         <Panel Context="contexto">
             <PanelRevisionAdjunto Contexto="contexto" Revision="_revisionVisor" />
@@ -255,6 +255,7 @@ else if (_errorCarga is not null)
         _plegado = _verResueltos = _agruparPorTrabajador = _enFoco = false;
         // El visor es de la conversación que se dejó: no sigue abierto sobre otra.
         _visorAbierto = false;
+        _cambiosEnVisor = false;
         _adjuntosVisor = [];
         _listosAbiertos = true;
         _cola = [];
@@ -293,7 +294,12 @@ else if (_errorCarga is not null)
             // Sin el reparto el resto de la conversación sigue funcionando: se avisa en el sitio, no se tumba la página.
             Logger.LogError(ex, "Error al cargar el reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
             if (conversacionId == ConversacionId && generacion == _generacionCarga)
+            {
                 _errorCarga = (_filas.Count > 0 ? Textos["ErrorRecargar"] : Textos["ErrorCargar"]).Value;
+                // Con el reparto bloqueado hasta releer, el visor no sigue ofreciendo asignar sobre una lectura que ya no es la del servidor.
+                _visorAbierto = false;
+                _adjuntosVisor = [];
+            }
         }
     }
 
@@ -772,17 +778,33 @@ else if (_errorCarga is not null)
     // Con uno solo no hay cola que revisar: el lienzo lo desactiva (`fl.length<2`).
     private bool HayVariosParaElVisor => FilasDelVisor().Count > 1;
 
+    // Se abre en el primer adjunto por decidir (si no hay, en el primero): abrir sobre uno ya resuelto sería un documento de solo lectura.
+    private int _indiceInicialVisor;
+
+    // Lo resuelto en el visor se avisa a la página al cerrarlo, no en cada resolución: al releer el hilo la página repinta con el esqueleto
+    // de carga, desmonta este panel y con él el visor abierto y las fechas escritas en las otras filas (revisión de la PR-A4, ALTA).
+    private bool _cambiosEnVisor;
+
     private void AbrirVisor()
     {
         if (Bloqueado || !HayVariosParaElVisor) return;
         ActualizarVisor();
+        _indiceInicialVisor = Math.Max(0, _adjuntosVisor.ToList().FindIndex(a => a.Estado == EstadoAdjuntoVisor.Pendiente));
+        _cambiosEnVisor = false;
         _visorAbierto = true;
     }
 
-    private Task AlCambiarVisibleVisor(bool visible)
+    private async Task AlCambiarVisibleVisor(bool visible)
     {
         _visorAbierto = visible;
-        return Task.CompletedTask;
+        if (!visible) await NotificarCambiosDelVisorAsync();
+    }
+
+    private async Task NotificarCambiosDelVisorAsync()
+    {
+        if (!_cambiosEnVisor) return;
+        _cambiosEnVisor = false;
+        await OnCambiado.InvokeAsync();
     }
 
     // Los datos del visor y del panel salen de lo que el reparto ya leyó (filas, selectores de Trabajadores, Empresas y tipos): ninguno
@@ -823,13 +845,17 @@ else if (_errorCarga is not null)
     // El lienzo avisa con `talveg:adjunto-revisado` (Visor-Documento.dc.html:442) y la conversación lo recoge en `alRevisado`
     // (Pulida-Bandeja.dc.html:1255): asignado o rechazado quita la acción pendiente del adjunto y deja el evento en el hilo; omitido la
     // conserva. Aquí el aviso es el AdjuntoResuelto del visor: se relee el reparto (el adjunto cambia de estado y de grupo) y se avisa a la
-    // página, que relee el hilo con sus eventos y sus Documentos.
+    // página, que relee el hilo con sus eventos y sus Documentos, al cerrar el visor (o enseguida si ya se cerró: no quedan adjuntos o
+    // la relectura falló). shortcut: el evento del hilo («asignó X desde el Visor de documento») aparece al cerrar el visor y no en cada
+    // resolución, y no existe el evento resumen del lienzo (Pulida-Bandeja.dc.html:1249); mejorarlo cuando la página (Bandeja) se pueda
+    // tocar para que releer el hilo no desmonte este panel.
     private async Task AlResolverEnVisorAsync(ResolucionAdjuntoVisor resolucion)
     {
         var conversacionId = ConversacionId;
         await CargarAsync(conversacionId);
         if (conversacionId != ConversacionId) return;
-        await OnCambiado.InvokeAsync();
+        _cambiosEnVisor = true;
+        if (!_visorAbierto) await NotificarCambiosDelVisorAsync();
     }
 
     private static string FormatearTamano(long bytes) => bytes switch
