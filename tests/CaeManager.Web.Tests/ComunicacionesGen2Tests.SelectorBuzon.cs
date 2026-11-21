@@ -284,6 +284,12 @@ public partial class ComunicacionesGen2Tests
         Assert.NotEmpty(cut.FindAll(".bz-boton"));
         ElegirBuzon(cut, "CAE Ebro");
         cut.WaitForAssertion(() => Assert.Equal(BuzonEbro, mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().ConexionIntegracionId));
+
+        // Al volver al Tenant activo desde el selector, el Origen sigue puesto y el historial vuelve: el desplegable se oculta otra vez.
+        Elegir(cut, "Talleres Norte");
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".eu-lista")));
+        Assert.Empty(cut.FindAll(".bz-boton"));
     }
 
     // --- Hallazgos BAJA de la revisión de la #2418 ---
