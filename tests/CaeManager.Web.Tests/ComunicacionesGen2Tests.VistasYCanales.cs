@@ -219,7 +219,8 @@ public partial class ComunicacionesGen2Tests
         var consulta = ConsultasDeLista(mediador).Last();
         (consulta.SoloAsignadasAMi, consulta.SoloEsperandoCliente, consulta.SoloSinAsignar, consulta.SoloFueraDeSla)
             .Should().Be((mias, esperando, sinAsignar, fueraDePlazo));
-        consulta.GrupoEstado.Should().BeNull("estas vistas no acotan por grupo de estados: eso es de «Abiertas» y «Archivadas»");
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas,
+            "el lienzo deriva estas vistas de «Abiertas» (porVista.abiertas, línea 1355-1360 del tablero): cuentan y listan solo estados vivos");
         cut.FindAll(".bandeja-vista-panel").Should().BeEmpty("elegir una vista cierra el panel");
         DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().StartWith($"{vista} · ");
         cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be(vista);
@@ -432,6 +433,75 @@ public partial class ComunicacionesGen2Tests
 
         ConsultasDeLista(mediador).Last().GrupoEstado.Should().BeNull("la vista sigue en «Todas» hasta que se elija otra");
         AsuntosVisibles(cut).Should().HaveCount(6);
+    }
+
+    // ---------------------------------------------------------------- Mías, Sin asignar y Fuera de plazo dentro de Abiertas (lienzo, porVista)
+
+    /// <summary>
+    /// Tres vivas y tres archivadas, con cada archivada en un caso en que su vista la contaría sin el grupo: una mía y resuelta, una sin
+    /// asignar y cerrada, y una con el plazo vencido y resuelta. Antes de acotarlas, «Mías» daba 2, «Sin asignar» 2 y «Fuera de plazo» 2.
+    /// </summary>
+    private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) RenderizarConArchivadasEnCadaVista()
+    {
+        var escenario = new Escenario();
+        var gestor = escenario.MiUsuarioId;
+        var otro = Guid.NewGuid();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Mía viva", ClienteRefrielectric) with { EjecutivoAsignadoId = gestor },
+            Conversacion("Mía resuelta", ClienteRefrielectric, estado: EstadoConversacion.Resuelta) with { EjecutivoAsignadoId = gestor },
+            Conversacion("Sin asignar viva", ClienteRefrielectric),
+            Conversacion("Sin asignar cerrada", ClienteRefrielectric, estado: EstadoConversacion.Cerrada),
+            Conversacion("Vencida viva", ClienteRefrielectric) with { EjecutivoAsignadoId = otro, SlaRestante = TimeSpan.FromHours(-2) },
+            Conversacion("Vencida resuelta", ClienteRefrielectric, estado: EstadoConversacion.Resuelta)
+                with { EjecutivoAsignadoId = otro, SlaRestante = TimeSpan.FromHours(-2) }]);
+        return Renderizar(escenario);
+    }
+
+    [Fact]
+    public async Task Las_cifras_de_Mias_y_Sin_asignar_no_cuentan_archivadas_y_ninguna_supera_a_Abiertas()
+    {
+        var (cut, mediador) = RenderizarConArchivadasEnCadaVista();
+        await AbrirPanelDeVistasAsync(cut);
+        await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
+
+        CifraDeVista(cut, "Abiertas").Should().Be("3");
+        CifraDeVista(cut, "Archivadas").Should().Be("3");
+        CifraDeVista(cut, "Todas").Should().Be("6");
+        CifraDeVista(cut, "Mías").Should().Be("1", "la asignada a mí y Resuelta es de Archivadas, no de Mías");
+        CifraDeVista(cut, "Sin asignar").Should().Be("1", "la sin asignar y Cerrada es de Archivadas, no de Sin asignar");
+        var recuentos = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1).ToList();
+        recuentos.Where(q => q.SoloAsignadasAMi || q.SoloSinAsignar).Should().OnlyContain(
+            q => q.GrupoEstado == GrupoEstadoConversacion.Abiertas, "el recuento sale del mismo grupo que la lista");
+    }
+
+    [Theory]
+    [InlineData("Mías", false, "Mía viva")]
+    [InlineData("Sin asignar", true, "Sin asignar viva")]
+    [InlineData("Fuera de plazo", true, "Vencida viva")]
+    public async Task Mias_Sin_asignar_y_Fuera_de_plazo_listan_solo_conversaciones_vivas(string vista, bool enMasVistas, string unica)
+    {
+        var (cut, mediador) = RenderizarConArchivadasEnCadaVista();
+
+        await ElegirVistaAsync(cut, vista, enMasVistas);
+
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        AsuntosVisibles(cut).Should().Equal([unica], "las archivadas de la misma asignación o del mismo plazo no entran");
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be($"{vista} · 1");
+    }
+
+    [Fact]
+    public async Task Con_Mias_vigente_un_estado_archivado_pasa_a_Todas_y_la_lista_no_queda_vacia()
+    {
+        var (cut, mediador) = RenderizarConArchivadasEnCadaVista();
+        await ElegirVistaAsync(cut, "Mías");
+
+        await SelectorDeEstado(cut).ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.GrupoEstado.Should().BeNull("«Mías» es de «Abiertas», que no puede contener una Resuelta: la vista pasa a «Todas»");
+        consulta.SoloAsignadasAMi.Should().BeFalse();
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas", "el título dice lo que se está viendo");
+        AsuntosVisibles(cut).Should().BeEquivalentTo(["Mía resuelta", "Vencida resuelta"]);
     }
 
     // ---------------------------------------------------------------- chips de canal
