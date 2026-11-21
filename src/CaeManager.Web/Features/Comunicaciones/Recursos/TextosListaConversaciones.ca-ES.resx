@@ -108,7 +108,7 @@
   <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No s&apos;han pogut comptar les converses de {0}; el total és parcial.</value></data>
   <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
   <data name="RecuentoParcial" xml:space="preserve"><value>Recompte parcial: hi falten les Empreses gestionades que no s&apos;han pogut comptar</value></data>
-<data name="Buzon" xml:space="preserve"><value>Bústia</value></data>
+  <data name="Buzon" xml:space="preserve"><value>Bústia</value></data>
   <data name="BuzonAccesible" xml:space="preserve"><value>Bústia: {0}. Canviar de bústia</value></data>
   <data name="BuzonElegir" xml:space="preserve"><value>Triar bústia</value></data>
   <data name="BuzonBuscar" xml:space="preserve"><value>Cercar bústia o Empresa gestionada</value></data>

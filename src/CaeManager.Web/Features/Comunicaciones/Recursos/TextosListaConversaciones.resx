@@ -108,7 +108,7 @@
   <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No se han podido contar las conversaciones de {0}; el total es parcial.</value></data>
   <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
   <data name="RecuentoParcial" xml:space="preserve"><value>Recuento parcial: faltan las Empresas gestionadas que no se han podido contar</value></data>
-<data name="Buzon" xml:space="preserve"><value>Buzón</value></data>
+  <data name="Buzon" xml:space="preserve"><value>Buzón</value></data>
   <data name="BuzonAccesible" xml:space="preserve"><value>Buzón: {0}. Cambiar de buzón</value></data>
   <data name="BuzonElegir" xml:space="preserve"><value>Elegir buzón</value></data>
   <data name="BuzonBuscar" xml:space="preserve"><value>Buscar buzón o Empresa gestionada</value></data>

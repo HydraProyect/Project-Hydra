@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
@@ -36,9 +37,10 @@ public partial class ComunicacionesGen2Tests
     /// más con un buzón. Las Abiertas son distintas en cada sitio para que ningún recuento se confunda con otro.
     /// </summary>
     private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) RenderizarConBuzones(
-        Func<object, Task<object?>?>? ademas = null)
+        Func<object, Task<object?>?>? ademas = null, Action<Escenario>? preparar = null)
     {
         var escenario = new Escenario();
+        preparar?.Invoke(escenario);
         escenario.ConexionesBuzon.Clear();
         escenario.ConexionesBuzon.AddRange([
             Conexion(BuzonNorte, "cae@norte.example.invalid", "CAE Norte"),
@@ -167,6 +169,50 @@ public partial class ComunicacionesGen2Tests
         cut.WaitForAssertion(() => Assert.Null(mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().TenantIds));
         Assert.Null(mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().ConexionIntegracionId);
         Assert.Equal("Todos los buzones", cut.Find(".bz-nom").TextContent);
+
+        // Volver a la misma Empresa gestionada desde su selector la abre entera: el buzón elegido antes no reaparece.
+        Elegir(cut, "Construcciones Ebro");
+
+        cut.WaitForAssertion(() => Assert.Equal([TenantOtro], mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().TenantIds!));
+        Assert.Null(mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>().Last().ConexionIntegracionId);
+        Assert.Equal("Todos los buzones", cut.Find(".bz-nom").TextContent);
+    }
+
+    [Fact]
+    public async Task Elegir_un_buzon_desde_Mi_buzon_personal_pide_la_lista_filtrada_desde_la_pagina_1()
+    {
+        var (cut, mediador) = RenderizarConBuzones(preparar: e =>
+        {
+            for (var i = 1; i <= 25; i++) e.Conversaciones.Add(Conversacion($"Hilo {i}", e.Clientes[0]));
+        });
+        cut.WaitForElement(".eg-boton");
+        await cut.InvokeAsync(() => cut.FindComponent<PaginadorSimple>().Instance.PaginaActualChanged.InvokeAsync(2));
+        cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados, p => p is ObtenerConversacionesQuery { Pagina: 2 }));
+        ElegirBuzon(cut, "Mi buzón personal");
+        cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados, p => p is ObtenerMensajesBuzonPersonalQuery));
+        var antes = mediador.Enviados.Count;
+
+        ElegirBuzon(cut, "CAE Norte");
+
+        cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados.Skip(antes), p => p is ObtenerConversacionesQuery));
+        var lista = mediador.Enviados.Skip(antes).OfType<ObtenerConversacionesQuery>().First(q => q.TamanoPagina > 1);
+        Assert.Equal(1, lista.Pagina);
+        Assert.Equal(BuzonNorte, lista.ConexionIntegracionId);
+    }
+
+    [Fact]
+    public void Un_buzon_sin_conversaciones_en_Abiertas_dice_Sin_resultados_y_no_Al_dia()
+    {
+        var vacia = new ResultadoPaginado<ConversacionListaDto>([], 0, 1, 20);
+        var (cut, _) = RenderizarConBuzones(p => p is ObtenerConversacionesQuery { ConexionIntegracionId: not null }
+            ? Task.FromResult<object?>(vacia) : null);
+        cut.WaitForElement(".eg-boton");
+
+        ElegirBuzon(cut, "Avisos Norte");
+
+        cut.WaitForAssertion(() => Assert.Equal("Sin resultados", TituloDelVacio(cut)));
+        Assert.Empty(cut.FindAll(".bandeja-al-dia"));
+        Assert.Contains(cut.FindAll(".bandeja-lista .estado-vacio button"), b => b.TextContent.Trim() == "Quitar los filtros");
     }
 
     [Fact]

@@ -839,9 +839,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _buzonActivo = eleccion;
             if (_vista == "personal")
             {
+                // Como cualquier otro filtro, la lista filtrada empieza en la página 1 (revisión puente, MEDIA 1).
+                var paginaPrevia = _pagina;
+                _pagina = 1;
                 await CambiarVistaAsync("clientes");
                 // «Seguir editando» deja la vista personal: el buzón no se queda puesto a escondidas.
-                if (_vista == "personal") _buzonActivo = previo;
+                if (_vista == "personal")
+                {
+                    _buzonActivo = previo;
+                    _pagina = paginaPrevia;
+                }
                 return;
             }
             if (veniaDeUnificada || previo?.ConexionId != eleccion.ConexionId) await RecargarListaFiltradaAsync();
@@ -1413,10 +1420,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool EsVistaAbiertas => _vistaLista == VistaLista.Abiertas;
 
     /// <summary>
-    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal, en cualquier vista. El lienzo dice
-    /// «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era «Sin resultados».
+    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros», un chip de canal o un buzón del desplegable, en cualquier
+    /// vista. El lienzo dice «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era
+    /// «Sin resultados».
     /// </summary>
-    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || _canalFiltro is not null;
+    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || _canalFiltro is not null || _buzonActivo is not null;
 
     /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda ni filtros, en la vista por defecto y con buzones conectados.</summary>
     private bool AlDiaVacio => !VacioPorFiltros && !_sinBuzonesConectados && EsVistaAbiertas;

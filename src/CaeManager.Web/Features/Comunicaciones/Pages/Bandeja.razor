@@ -100,8 +100,9 @@
                 <SelectorEmpresaGestionada Empresas="_empresasGestionadas" NoConsultados="_empresasSinContar" TenantActivoId="TenantActivoId" Elegida="_eleccionEmpresa" OnElegir="ElegirEmpresaGestionadaAsync" />
             }
             @* Desplegable «Buzón» (lienzo, L-9): solo estrecha la lista por una conexión de buzón; el servidor lo suma con AND a su
-               visibilidad. Un buzón de otra Empresa gestionada abre su vista unificada en solo consulta, como el selector de arriba. *@
-            @if (TenantActual.TenantId is not null)
+               visibilidad. Un buzón de otra Empresa gestionada abre su vista unificada en solo consulta, como el selector de arriba.
+               No se ofrece mientras se ve el historial de Reclamaciones, que no depende del buzón. *@
+            @if (TenantActual.TenantId is not null && !MostrandoHistorial)
             {
                 <SelectorBuzon Grupos="_gruposBuzones" Elegida="BuzonEnBoton" SubtextoTodos="@SubtextoTodosLosBuzones" AbiertasTodos="AbiertasTodosLosBuzones"
                                Cargando="_cargandoBuzones" OnAbrir="CargarBuzonesDelDesplegableAsync" OnElegir="ElegirBuzonAsync" />
