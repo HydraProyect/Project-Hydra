@@ -49,9 +49,20 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         public IEnumerable<T> De<T>() => Enviados.OfType<T>();
 
+        /// <summary>Si se da, el próximo lote queda en vuelo hasta que el test complete esta tarea (después responde como siempre).</summary>
+        public TaskCompletionSource? RetenerLote { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
+            if (request is AsignarAdjuntosLoteCommand retenido && RetenerLote is { } espera)
+            {
+                RetenerLote = null;
+                return espera.Task.ContinueWith(
+                    _ => (TResponse)(object)(Lote is not null ? Lote(retenido) : Todos(retenido, EstadoAsignacionAdjunto.Asignado)),
+                    TaskScheduler.Default);
+            }
+
             if (SelectoresFallan.Contains(request.GetType())) throw new InvalidOperationException("falla el selector");
             if (request is ObtenerTrabajadoresParaSelectorQuery && RetenerTrabajadores is { } retenida)
             {
@@ -1289,6 +1300,31 @@ public class RepartoAdjuntosPanelTests : BunitContext
         mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle();
         Texto(cut).Should().Contain("Reintentar");
         avisos.Should().Be(1, "el lote ya se escribió: la página relee el hilo");
+    }
+
+    [Fact]
+    public async Task Si_se_cierra_el_visor_con_el_lote_en_vuelo_la_pagina_se_entera_cuando_termina()
+    {
+        var a = Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, a, Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "a.pdf", "2026-03-01");
+        AbrirVisor(cut);
+        await cut.Find($"button[data-cand='{Marta}']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var lote = new TaskCompletionSource();
+        mediador.RetenerLote = lote;
+
+        _ = BotonDelPanel(cut, "Asignar el documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        cut.FindAll(".vz-ov").Should().BeEmpty();
+        avisos.Should().Be(0, "el lote sigue en vuelo: todavía no hay nada que la página deba releer");
+        lote.SetResult();
+
+        // Sin esta rama el aviso se perdía: el visor ya estaba cerrado cuando llegó la resolución y nadie lo cerraba después.
+        cut.WaitForAssertion(() => avisos.Should().Be(1, "la resolución llega con el visor ya cerrado y la página se entera igualmente, una sola vez"));
     }
 
     [Fact]
