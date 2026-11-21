@@ -13,7 +13,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Selector «Vista» y chips de canal de la lista (lienzo «Pulida: bandeja de la cartera», L-6 y L-10): textos, orden, iconos, cifras,
 /// estado activo y filtro que cada elección manda al servidor. Solo se dibujan las vistas que <c>ObtenerConversacionesQuery</c> ya sabe
-/// filtrar; las que no (Abiertas, Archivadas, Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados, No deseado) quedan fuera.
+/// filtrar: «Abiertas» y «Archivadas» mandan su grupo de estados (DN-O); las que no (Por aprobar, Cubro, Propuestas, Borradores,
+/// Pospuestas, Enviados, No deseado, Resueltas y En espera de tercero) quedan fuera.
 /// </summary>
 public partial class ComunicacionesGen2Tests
 {
@@ -67,8 +68,8 @@ public partial class ComunicacionesGen2Tests
         var (cut, _) = RenderizarConCanalesYVistas();
 
         var disparador = DisparadorDeVista(cut);
-        disparador.QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Todas · 3");
-        disparador.GetAttribute("aria-label").Should().Be("Vista: Todas · 3. Cambiar de vista");
+        disparador.QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Abiertas · 3");
+        disparador.GetAttribute("aria-label").Should().Be("Vista: Abiertas · 3. Cambiar de vista");
         disparador.GetAttribute("aria-haspopup").Should().Be("dialog");
         disparador.GetAttribute("aria-expanded").Should().Be("false");
         disparador.QuerySelector("svg").Should().NotBeNull("el chevron del disparador");
@@ -87,7 +88,7 @@ public partial class ComunicacionesGen2Tests
         panel.GetAttribute("role").Should().Be("dialog");
         panel.GetAttribute("aria-label").Should().Be("Elegir vista");
         panel.QuerySelector(".bandeja-vista-titulo")!.TextContent.Trim().Should().Be("Vistas principales");
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
+        NombresDeVista(cut).Should().Equal("Abiertas", "Mías", "Esperando respuesta del Interlocutor", "Archivadas");
         var mas = cut.Find(".bandeja-vista-mas");
         mas.TextContent.Trim().Should().Be("Más vistas");
         mas.GetAttribute("aria-expanded").Should().Be("false");
@@ -95,7 +96,7 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public async Task Mas_vistas_se_despliega_con_Sin_asignar_y_Fuera_de_plazo_y_se_pliega_otra_vez()
+    public async Task Mas_vistas_se_despliega_con_Sin_asignar_Fuera_de_plazo_y_Todas_y_se_pliega_otra_vez()
     {
         var (cut, _) = RenderizarConCanalesYVistas();
         await AbrirPanelDeVistasAsync(cut);
@@ -103,11 +104,12 @@ public partial class ComunicacionesGen2Tests
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         cut.Find(".bandeja-vista-mas").GetAttribute("aria-expanded").Should().Be("true");
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor", "Sin asignar", "Fuera de plazo");
+        NombresDeVista(cut).Should().Equal(
+            "Abiertas", "Mías", "Esperando respuesta del Interlocutor", "Archivadas", "Sin asignar", "Fuera de plazo", "Todas");
 
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
+        NombresDeVista(cut).Should().Equal("Abiertas", "Mías", "Esperando respuesta del Interlocutor", "Archivadas");
     }
 
     [Fact]
@@ -117,8 +119,8 @@ public partial class ComunicacionesGen2Tests
 
         await AbrirPanelDeVistasAsync(cut);
 
-        FilaDeVista(cut, "Todas").GetAttribute("aria-current").Should().Be("true");
-        FilaDeVista(cut, "Todas").ClassList.Should().Contain("bandeja-vista-fila-activa");
+        FilaDeVista(cut, "Abiertas").GetAttribute("aria-current").Should().Be("true");
+        FilaDeVista(cut, "Abiertas").ClassList.Should().Contain("bandeja-vista-fila-activa");
         FilaDeVista(cut, "Mías").GetAttribute("aria-current").Should().Be("false");
         FilaDeVista(cut, "Mías").ClassList.Should().NotContain("bandeja-vista-fila-activa");
         FilaDeVista(cut, "Esperando respuesta del Interlocutor").GetAttribute("aria-current").Should().Be("false");
@@ -131,11 +133,13 @@ public partial class ComunicacionesGen2Tests
         await AbrirPanelDeVistasAsync(cut);
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
+        CifraDeVista(cut, "Abiertas").Should().Be("3");
+        CifraDeVista(cut, "Archivadas").Should().BeNull("ninguna de las tres está resuelta ni cerrada y el lienzo no pinta un cero");
         CifraDeVista(cut, "Todas").Should().Be("3");
         CifraDeVista(cut, "Mías").Should().Be("2", "solo dos conversaciones están asignadas al Gestor CAE de la sesión");
         CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().Be("1");
         CifraDeVista(cut, "Sin asignar").Should().Be("1");
-        FilaDeVista(cut, "Todas").QuerySelector(".bandeja-vista-alerta").Should().BeNull("solo «Fuera de plazo» va en tono de alerta");
+        FilaDeVista(cut, "Abiertas").QuerySelector(".bandeja-vista-alerta").Should().BeNull("solo «Fuera de plazo» va en tono de alerta");
         CifraDeVista(cut, "Fuera de plazo").Should().BeNull("su recuento calcula el plazo de todas las conversaciones vivas y no se pide al abrir el selector");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should().NotContain(q => q.SoloFueraDeSla);
 
@@ -154,6 +158,7 @@ public partial class ComunicacionesGen2Tests
         await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
 
         CifraDeVista(cut, "Fuera de plazo").Should().BeNull("el lienzo no pinta un cero");
+        CifraDeVista(cut, "Abiertas").Should().Be("1");
         CifraDeVista(cut, "Todas").Should().Be("1");
     }
 
@@ -167,7 +172,7 @@ public partial class ComunicacionesGen2Tests
         var texto = cut.Find(".bandeja-vista-panel").TextContent;
         foreach (var ausente in new[]
                  {
-                     "Abiertas", "Archivadas", "Por aprobar", "Cubro", "Propuestas", "Borradores", "Pospuestas", "Enviados",
+                     "Por aprobar", "Cubro", "Propuestas", "Borradores", "Pospuestas", "Enviados",
                      "No deseado", "Avisos automáticos", "Resueltas", "En espera de tercero"
                  })
             texto.Should().NotContain(ausente);
@@ -214,6 +219,7 @@ public partial class ComunicacionesGen2Tests
         var consulta = ConsultasDeLista(mediador).Last();
         (consulta.SoloAsignadasAMi, consulta.SoloEsperandoCliente, consulta.SoloSinAsignar, consulta.SoloFueraDeSla)
             .Should().Be((mias, esperando, sinAsignar, fueraDePlazo));
+        consulta.GrupoEstado.Should().BeNull("estas vistas no acotan por grupo de estados: eso es de «Abiertas» y «Archivadas»");
         cut.FindAll(".bandeja-vista-panel").Should().BeEmpty("elegir una vista cierra el panel");
         DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().StartWith($"{vista} · ");
         cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be(vista);
@@ -221,7 +227,7 @@ public partial class ComunicacionesGen2Tests
         await AbrirPanelDeVistasAsync(cut);
         if (enMasVistas) cut.Find(".bandeja-vista-mas").GetAttribute("aria-expanded").Should().Be("true", "«Más vistas» sigue desplegado al reabrir el panel");
         FilaDeVista(cut, vista).GetAttribute("aria-current").Should().Be("true");
-        FilaDeVista(cut, "Todas").GetAttribute("aria-current").Should().Be("false", "las vistas son excluyentes");
+        FilaDeVista(cut, "Abiertas").GetAttribute("aria-current").Should().Be("false", "las vistas son excluyentes");
     }
 
     [Fact]
@@ -237,17 +243,18 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public async Task Volver_a_Todas_quita_el_filtro_de_la_vista()
+    public async Task Volver_a_Abiertas_quita_el_filtro_de_la_vista_y_vuelve_a_mandar_los_estados_vivos()
     {
         var (cut, mediador) = RenderizarConCanalesYVistas();
         await ElegirVistaAsync(cut, "Mías");
 
-        await ElegirVistaAsync(cut, "Todas");
+        await ElegirVistaAsync(cut, "Abiertas");
 
         var consulta = ConsultasDeLista(mediador).Last();
         (consulta.SoloAsignadasAMi, consulta.SoloEsperandoCliente, consulta.SoloSinAsignar, consulta.SoloFueraDeSla)
             .Should().Be((false, false, false, false));
-        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
     }
 
     [Fact]
@@ -256,9 +263,175 @@ public partial class ComunicacionesGen2Tests
         var (cut, mediador) = RenderizarConCanalesYVistas();
         var antes = ListasPedidas(mediador);
 
-        await ElegirVistaAsync(cut, "Todas");
+        await ElegirVistaAsync(cut, "Abiertas");
 
         ListasPedidas(mediador).Should().Be(antes);
+    }
+
+    // ---------------------------------------------------------------- «Abiertas» y «Archivadas» (DN-O, lienzo L-6)
+
+    /// <summary>Una conversación por estado: cuatro vivas (con el estado histórico Pendiente) y dos archivadas.</summary>
+    private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) RenderizarConUnaConversacionPorEstado(string url = "comunicaciones")
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Abierta", ClienteRefrielectric),
+            Conversacion("Pendiente histórica", ClienteRefrielectric, estado: EstadoConversacion.Pendiente),
+            Conversacion("Esperando al Interlocutor", ClienteRefrielectric, estado: EstadoConversacion.EsperandoRespuestaExterna),
+            Conversacion("Esperando a un tercero", ClienteRefrielectric, estado: EstadoConversacion.EnEsperaDeTercero),
+            Conversacion("Resuelta", ClienteRefrielectric, estado: EstadoConversacion.Resuelta),
+            Conversacion("Cerrada", ClienteRefrielectric, estado: EstadoConversacion.Cerrada)]);
+        return Renderizar(escenario, url);
+    }
+
+    private static readonly string[] AsuntosVivos = ["Abierta", "Pendiente histórica", "Esperando al Interlocutor", "Esperando a un tercero"];
+
+    [Fact]
+    public void Abiertas_es_la_vista_por_defecto_y_manda_el_grupo_de_estados_vivos()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+
+        ConsultasDeLista(mediador).Should().OnlyContain(q => q.GrupoEstado == GrupoEstadoConversacion.Abiertas);
+        AsuntosVisibles(cut).Should().BeEquivalentTo(AsuntosVivos, "ni Resuelta ni Cerrada son vivas");
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Abiertas · 4");
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
+    }
+
+    [Fact]
+    public async Task Archivadas_manda_el_grupo_de_estados_archivados_y_deja_solo_las_resueltas_y_cerradas()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+
+        await ElegirVistaAsync(cut, "Archivadas");
+
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().Be(GrupoEstadoConversacion.Archivadas);
+        AsuntosVisibles(cut).Should().BeEquivalentTo(["Resuelta", "Cerrada"]);
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Archivadas · 2");
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Archivadas");
+        cut.Find(".bandeja-lis-cab small").TextContent.Trim().Should().Be("2 conversaciones");
+    }
+
+    [Fact]
+    public async Task Todas_esta_en_Mas_vistas_no_manda_grupo_y_lista_las_vivas_y_las_archivadas()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+
+        await ElegirVistaAsync(cut, "Todas", enMasVistas: true);
+
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().BeNull();
+        AsuntosVisibles(cut).Should().HaveCount(6);
+        DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().Be("Todas · 6");
+    }
+
+    [Fact]
+    public async Task De_Archivadas_a_Abiertas_se_vuelve_a_mandar_el_grupo_de_vivas()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+        await ElegirVistaAsync(cut, "Archivadas");
+
+        await ElegirVistaAsync(cut, "Abiertas");
+
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        AsuntosVisibles(cut).Should().BeEquivalentTo(AsuntosVivos);
+    }
+
+    [Fact]
+    public async Task Los_recuentos_de_vista_llevan_su_grupo_y_Abiertas_mas_Archivadas_suman_Todas()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+        await AbrirPanelDeVistasAsync(cut);
+        await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
+
+        CifraDeVista(cut, "Abiertas").Should().Be("4");
+        CifraDeVista(cut, "Archivadas").Should().Be("2");
+        CifraDeVista(cut, "Todas").Should().Be("6", "Abiertas y Archivadas son una partición de los estados");
+        var recuentos = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1).ToList();
+        recuentos.Should().Contain(q => q.GrupoEstado == GrupoEstadoConversacion.Archivadas, "la cifra de Archivadas sale de su propio grupo");
+        recuentos.Should().Contain(q => q.GrupoEstado == null && !q.SoloAsignadasAMi && !q.SoloSinAsignar && !q.SoloEsperandoCliente && !q.SoloFueraDeSla,
+            "la cifra de Todas no lleva grupo");
+    }
+
+    [Fact]
+    public async Task Las_cifras_de_Abiertas_y_Archivadas_aplican_el_canal_activo_igual_que_la_lista()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([
+            Conversacion("Viva de correo", ClienteRefrielectric),
+            Conversacion("Archivada de correo", ClienteRefrielectric, estado: EstadoConversacion.Resuelta),
+            Conversacion("Viva de WhatsApp", ClienteRefrielectric) with { Canal = CanalConversacion.WhatsApp },
+            Conversacion("Cerrada de WhatsApp", ClienteRefrielectric, estado: EstadoConversacion.Cerrada) with { Canal = CanalConversacion.WhatsApp }]);
+        var (cut, _) = Renderizar(escenario);
+        await ChipsDeCanal(cut)[2].ClickAsync(new MouseEventArgs());
+        await AbrirPanelDeVistasAsync(cut);
+
+        await cut.WaitForAssertionAsync(() =>
+        {
+            CifraDeVista(cut, "Abiertas").Should().Be("1");
+            CifraDeVista(cut, "Archivadas").Should().Be("1");
+        }, PlazoEspera);
+        AsuntosVisibles(cut).Should().Equal(["Viva de WhatsApp"]);
+    }
+
+    [Fact]
+    public void Un_estado_de_la_URL_que_no_cabe_en_Abiertas_deja_la_vista_en_Todas_y_la_lista_no_queda_vacia()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.Estado.Should().Be(EstadoConversacion.Cerrada);
+        consulta.GrupoEstado.Should().BeNull("la vista pasó a «Todas», que no manda grupo");
+        AsuntosVisibles(cut).Should().Equal(["Cerrada"]);
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas", "el título dice lo que se está viendo");
+    }
+
+    [Fact]
+    public void Un_estado_de_la_URL_que_cabe_en_Abiertas_conserva_la_vista_y_manda_el_grupo()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Abierta");
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.Estado.Should().Be(EstadoConversacion.Abierta);
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
+    }
+
+    [Fact]
+    public async Task Elegir_a_mano_una_vista_que_no_contiene_el_estado_manda_el_grupo_y_no_amplia_lo_visible()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
+
+        await ElegirVistaAsync(cut, "Abiertas");
+
+        var consulta = ConsultasDeLista(mediador).Last();
+        consulta.Estado.Should().Be(EstadoConversacion.Cerrada);
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
+        AsuntosVisibles(cut).Should().BeEmpty("una conversación Cerrada no es de la vista Abiertas");
+    }
+
+    [Fact]
+    public async Task Con_un_estado_concreto_las_cifras_de_Archivadas_y_Todas_siguen_cuadrando()
+    {
+        var (cut, _) = RenderizarConUnaConversacionPorEstado("comunicaciones?estado=Cerrada");
+        await AbrirPanelDeVistasAsync(cut);
+        await cut.Find(".bandeja-vista-mas").ClickAsync(new MouseEventArgs());
+
+        CifraDeVista(cut, "Archivadas").Should().Be("1");
+        CifraDeVista(cut, "Todas").Should().Be("1");
+    }
+
+    [Fact]
+    public async Task Elegir_un_estado_archivado_bajo_Abiertas_pasa_a_Todas_y_quitarlo_no_vuelve_a_Abiertas()
+    {
+        var (cut, mediador) = RenderizarConUnaConversacionPorEstado();
+
+        await SelectorDeEstado(cut).ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().BeNull();
+        AsuntosVisibles(cut).Should().Equal(["Resuelta"]);
+
+        await SelectorDeEstado(cut).ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = string.Empty });
+
+        ConsultasDeLista(mediador).Last().GrupoEstado.Should().BeNull("la vista sigue en «Todas» hasta que se elija otra");
+        AsuntosVisibles(cut).Should().HaveCount(6);
     }
 
     // ---------------------------------------------------------------- chips de canal
@@ -376,7 +549,7 @@ public partial class ComunicacionesGen2Tests
     }
 
     [Fact]
-    public async Task Un_canal_sin_conversaciones_en_una_vista_distinta_de_Todas_dice_Sin_resultados_y_Quitar_filtros_lo_deja_en_Todos_y_Todas()
+    public async Task Un_canal_sin_conversaciones_en_una_vista_distinta_de_Abiertas_dice_Sin_resultados_y_Quitar_filtros_lo_deja_en_Todos_y_Abiertas()
     {
         var (cut, mediador) = RenderizarConUnaConversacion();
         await ElegirVistaAsync(cut, "Mías");
@@ -390,8 +563,9 @@ public partial class ComunicacionesGen2Tests
         var consulta = ConsultasDeLista(mediador).Last();
         consulta.Canal.Should().BeNull();
         consulta.SoloAsignadasAMi.Should().BeFalse();
+        consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas);
         ChipsDeCanal(cut).Select(c => c.GetAttribute("aria-pressed")).Should().Equal("true", "false", "false");
-        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
         cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle();
     }
 
@@ -446,7 +620,7 @@ public partial class ComunicacionesGen2Tests
 
         await AbrirPanelDeVistasAsync(cut);
 
-        NombresDeVista(cut).Should().Equal("Todas", "Mías", "Esperando respuesta del Interlocutor");
+        NombresDeVista(cut).Should().Equal("Abiertas", "Mías", "Esperando respuesta del Interlocutor", "Archivadas");
         cut.FindAll(".bandeja-vista-panel .bandeja-vista-contador, .bandeja-vista-panel .bandeja-vista-alerta").Should().BeEmpty();
     }
 
@@ -545,6 +719,7 @@ public partial class ComunicacionesGen2Tests
         var recuentosDeVista = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina == 1 && q.SoloAsignadasAMi).ToList();
         recuentosDeVista.Should().ContainSingle().Which.Canal.Should().Be(CanalConversacion.Correo, "las cifras de las vistas llevan el canal activo, como la lista");
         // Con «Correo»: dos de correo (una sin asignar y una mía), ninguna de WhatsApp.
+        CifraDeVista(cut, "Abiertas").Should().Be("2");
         CifraDeVista(cut, "Todas").Should().Be("2");
         CifraDeVista(cut, "Mías").Should().Be("1", "la mía de WhatsApp no cuenta con el chip de Correo");
         CifraDeVista(cut, "Esperando respuesta del Interlocutor").Should().BeNull("la única que espera es de WhatsApp");

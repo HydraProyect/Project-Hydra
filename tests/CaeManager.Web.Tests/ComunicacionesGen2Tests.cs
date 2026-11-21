@@ -354,6 +354,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
                 .Where(c => !q.SoloFueraDeSla || c.SlaRestante is { } restante && restante < TimeSpan.Zero)
                 .Where(c => q.ClienteId is null || c.ClienteId == q.ClienteId)
                 .Where(c => q.Estado is null || c.Estado == q.Estado)
+                .Where(c => q.GrupoEstado is not { } grupo || GruposEstadoConversacion.Estados(grupo).Contains(c.Estado))
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
                     || c.Asunto.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -690,7 +691,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
-        var (cut, _) = Renderizar(escenario);
+        var (cut, _) = Renderizar(escenario, "comunicaciones?estado=Resuelta");
         await SeleccionarFila(cut, "Documentación pendiente");
 
         cut.WaitForAssertion(() => cut.FindAll(".bandeja-centro-acciones").Should().NotBeEmpty());
@@ -1677,7 +1678,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Documentación pendiente");
 
         var cabecera = cut.Find(".bandeja-lista .bandeja-lis-cab");
-        cabecera.QuerySelector("h2")!.TextContent.Trim().Should().Be("Todas");
+        cabecera.QuerySelector("h2")!.TextContent.Trim().Should().Be("Abiertas");
         cabecera.QuerySelector(".bandeja-mini")!.TextContent.Trim().Should().Be("Tabla");
 
         await cabecera.QuerySelector(".bandeja-mini")!.ClickAsync(new MouseEventArgs());
@@ -3944,7 +3945,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         var resuelta = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
         var escenario = new Escenario { Detalle = _ => DetalleDe(resuelta) };
         escenario.Conversaciones.Add(resuelta);
-        var (cut, _) = Renderizar(escenario);
+        var (cut, _) = Renderizar(escenario, "comunicaciones?estado=Resuelta");
 
         await SeleccionarFila(cut, "Documentación pendiente");
 
@@ -4974,6 +4975,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
             return Task.FromResult<object?>(Result.Exito());
         };
         var (cut, _) = Renderizar(escenario);
+        await ElegirVistaAsync(cut, "Todas", enMasVistas: true);
         await SeleccionarFila(cut, "Primera");
 
         await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });

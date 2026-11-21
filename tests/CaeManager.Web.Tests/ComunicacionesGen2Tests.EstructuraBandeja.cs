@@ -33,7 +33,7 @@ public partial class ComunicacionesGen2Tests
 
         cut.FindAll(".bandeja-layout.bandeja-modo-lista").Should().ContainSingle();
         cut.FindAll(".bandeja-filtros .bandeja-lista .bandeja-fila").Should().ContainSingle();
-        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
+        cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
         cut.Find(".bandeja-lis-cab small").TextContent.Trim().Should().Be("1 conversación");
         cut.FindAll(".tabla-conversaciones").Should().BeEmpty("la tabla es un modo secundario");
         cut.Find(".bandeja-centro").TextContent.Should().Contain("Ninguna conversación abierta").And.Contain("Elige una de la lista.");
@@ -122,7 +122,7 @@ public partial class ComunicacionesGen2Tests
         cut.FindAll(".bandeja-filtros .bandeja-nav-item").Select(b => b.TextContent.Trim())
             .Should().Equal("Clientes", "Mi buzón personal");
         // Cabecera de la lista de main: título, recuento y «Tabla» (el selector «Vista» y los chips de canal los cubre VistasYCanales).
-        cut.Find(".bandeja-lista .bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Todas");
+        cut.Find(".bandeja-lista .bandeja-lis-cab-titulo").TextContent.Trim().Should().Be("Abiertas");
         cut.Find(".bandeja-lista .bandeja-lis-cab small").TextContent.Trim().Should().Be("1 conversación");
         cut.Find(".bandeja-lista .bandeja-lis-cab .bandeja-mini").TextContent.Trim().Should().Be("Tabla");
         var avanzados = cut.Find(".bandeja-filtros .bandeja-filtros-avanzados");
