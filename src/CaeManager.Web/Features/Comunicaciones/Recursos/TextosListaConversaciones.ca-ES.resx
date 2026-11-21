@@ -91,4 +91,19 @@
   <data name="SinBuzonesConectadosAyuda" xml:space="preserve"><value>Connecta-les a Configuració, Integracions.</value></data>
   <data name="NadaEnVista" xml:space="preserve"><value>No hi ha res a «{0}»</value></data>
   <data name="NadaEnVistaAyuda" xml:space="preserve"><value>Prova amb una altra vista o amb «Totes».</value></data>
+  <data name="EmpresaGestionada" xml:space="preserve"><value>Empresa gestionada</value></data>
+  <data name="EmpresaGestionadaAccesible" xml:space="preserve"><value>Empresa gestionada: {0}. Canviar d&apos;Empresa gestionada</value></data>
+  <data name="EmpresasGestionadas" xml:space="preserve"><value>Empreses gestionades</value></data>
+  <data name="EmpresasGestionadasResumen" xml:space="preserve"><value>Empreses gestionades · {0}</value></data>
+  <data name="BuscarEmpresaGestionada" xml:space="preserve"><value>Cercar Empresa gestionada</value></data>
+  <data name="TodasLasEmpresasGestionadas" xml:space="preserve"><value>Totes les Empreses gestionades</value></data>
+  <data name="NingunaEmpresaGestionadaCoincide" xml:space="preserve"><value>Cap Empresa gestionada coincideix amb «{0}»</value></data>
+  <data name="SoloConsultaEmpresa" xml:space="preserve"><value>Només consulta. Per respondre, obre a dalt, a «Treballant a», {0}.</value></data>
+  <data name="SoloConsultaTodas" xml:space="preserve"><value>Només consulta. Per respondre una conversa, obre la seva Empresa gestionada a dalt, a «Treballant a».</value></data>
+  <data name="EmpresasGestionadasSinLeer" xml:space="preserve"><value>No hem pogut llegir les converses de {0}.</value></data>
+  <data name="CargarMasConversaciones" xml:space="preserve"><value>Carrega més converses</value></data>
+  <data name="TituloTodasEmpresas" xml:space="preserve"><value>Totes les meves Empreses gestionades · {0}</value></data>
+  <data name="TituloEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="VistaUnificadaCentroTitulo" xml:space="preserve"><value>Vista de només consulta</value></data>
+  <data name="VistaUnificadaCentroAyuda" xml:space="preserve"><value>Aquí es llegeixen les converses obertes de les teves Empreses gestionades. Per obrir-ne i respondre&apos;n una, tria la seva Empresa gestionada a dalt, a «Treballant a».</value></data>
 </root>
