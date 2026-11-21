@@ -105,14 +105,16 @@ public class FilaConversacionDatosLienzoTests : BunitContext
     }
 
     [Theory]
-    [InlineData("Marta Gil Ríos", "MG")]
+    // Como el lienzo: la inicial de cada palabra, sin tope («Marta Gil Ríos» pinta «MGR»; antes se cortaba a dos letras).
+    [InlineData("Marta Gil Ríos", "MGR")]
+    [InlineData("Ana María Gil Ríos", "AMGR")]
     [InlineData("marta gil", "MG")]
     [InlineData("123 Marta Gil", "MG")]
     [InlineData("Marta", "M")]
     [InlineData("  Marta   Gil  ", "MG")]
     // Los cuatro siguientes distinguen el helper de la persona usuaria del de Empresa/Tenant (AvatarTenant.Iniciales, que parte solo por espacios y descarta
-    // la palabra que no empieza por letra): ese daría «AR», «M», «M» y «G».
-    [InlineData("Ana-Belén Ruiz", "AB")]
+    // la palabra que no empieza por letra): ese daría «AR», «M», «M» y «G». Siguen las reglas de InicialesDeUsuario.De salvo el tope de dos letras.
+    [InlineData("Ana-Belén Ruiz", "ABR")]
     [InlineData("marta.gil@operador.test", "MG")]
     [InlineData("Marta 2Gil", "MG")]
     [InlineData("(Marta) Gil", "MG")]
@@ -137,6 +139,60 @@ public class FilaConversacionDatosLienzoTests : BunitContext
 
         fila.FindAll(".fila-asignada").Should().BeEmpty();
         fila.Markup.Should().NotContain("Asignada").And.NotContain("Sin asignar");
+    }
+
+    [Fact]
+    public void La_persona_asignada_es_texto_plano_sin_circulo_ni_avatar()
+    {
+        var asignada = Render(Crear() with { EjecutivoAsignadoNombre = "Marta Gil Ríos" }).Find(".bandeja-fila-linea3 .fila-asignada");
+
+        asignada.TextContent.Trim().Should().Be("MGR");
+        asignada.Children.Should().BeEmpty("el lienzo pinta las iniciales como texto, no un avatar");
+        asignada.ClassList.Should().NotContain(c => c.Contains("avatar"));
+    }
+
+    [Fact]
+    public void Si_la_asignada_es_el_usuario_actual_no_se_pinta_nada()
+    {
+        var yo = Guid.NewGuid();
+        this.ConRolDeEscritura(usuarioId: yo);
+
+        var fila = Render(Crear() with { EjecutivoAsignadoId = yo, EjecutivoAsignadoNombre = "Marta Gil" });
+
+        fila.FindAll(".fila-asignada").Should().BeEmpty("el lienzo (otraAsig) oculta la persona cuando eres tú");
+        fila.Markup.Should().NotContain("Asignada a");
+    }
+
+    [Fact]
+    public void Si_la_asignada_es_otra_persona_se_pinta_con_sus_iniciales_y_el_titulo()
+    {
+        this.ConRolDeEscritura(usuarioId: Guid.NewGuid());
+
+        var fila = Render(Crear() with { EjecutivoAsignadoId = Guid.NewGuid(), EjecutivoAsignadoNombre = "Marta Gil Ríos" });
+
+        var asignada = fila.Find(".fila-asignada");
+        asignada.TextContent.Trim().Should().Be("MGR");
+        asignada.GetAttribute("title").Should().Be("Asignada a Marta Gil Ríos");
+    }
+
+    [Fact]
+    public void Sin_asignada_no_se_pinta_nada_aunque_se_conozca_al_usuario()
+    {
+        this.ConRolDeEscritura(usuarioId: Guid.NewGuid());
+
+        var fila = Render(Crear() with { EjecutivoAsignadoId = null, EjecutivoAsignadoNombre = null });
+
+        fila.FindAll(".fila-asignada").Should().BeEmpty();
+        fila.Markup.Should().NotContain("Asignada a").And.NotContain("Sin asignar");
+    }
+
+    [Fact]
+    public void Si_el_usuario_actual_no_se_conoce_la_asignada_se_pinta()
+    {
+        // Sin claim NameIdentifier (o sin estado de autenticación en cascada) no hay a quién comparar: se enseña, nunca se oculta por suposición.
+        this.ConRolDeEscritura(usuarioId: null);
+
+        Render(Crear() with { EjecutivoAsignadoId = Guid.NewGuid(), EjecutivoAsignadoNombre = "Marta Gil" }).FindAll(".fila-asignada").Should().ContainSingle();
     }
 
     [Fact]

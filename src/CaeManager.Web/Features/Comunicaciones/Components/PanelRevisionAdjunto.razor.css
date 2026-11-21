@@ -1,0 +1,215 @@
+/* Panel de revisión del visor (tablero «Visor-Documento» del lienzo de Comunicaciones). Solo tokens del DS. */
+
+.vz-aside {
+    flex: none;
+    width: min(400px, 40vw);
+    overflow-y: auto;
+    border-left: var(--border-default);
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-surface);
+}
+
+.vz-aside:focus-visible {
+    outline: none;
+}
+
+.vz-sec {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: var(--border-default);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.vz-sec-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.vz-etq {
+    font: var(--font-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.vz-nota,
+.vz-ayuda {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.vz-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.vz-cands {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.vz-cand {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    align-items: start;
+    width: 100%;
+    min-height: 56px;
+    padding: var(--space-3);
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
+.vz-cand:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.vz-cand[aria-checked="true"] {
+    border: 2px solid var(--color-primary-500);
+    padding: calc(var(--space-3) - 1px);
+}
+
+.vz-cand[aria-disabled="true"] {
+    cursor: not-allowed;
+}
+
+.vz-cand[aria-disabled="true"]:hover {
+    background-color: var(--color-surface);
+}
+
+.vz-radio {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vz-cand[aria-checked="true"] .vz-radio {
+    border-color: var(--color-primary-500);
+}
+
+.vz-cand[aria-checked="true"] .vz-radio::after {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-500);
+}
+
+.vz-cand-txt {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.vz-cand-l1 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    font-weight: 600;
+}
+
+.vz-cand-l2 {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.vz-aside ::deep .vz-buscar-btn {
+    align-self: flex-start;
+}
+
+.vz-busca {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.vz-busca-res {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.vz-campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.vz-solo-lectura {
+    font-weight: 600;
+    padding: var(--space-2) 0;
+}
+
+.vz-aviso {
+    margin: var(--space-4) var(--space-5) 0;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font: var(--font-caption);
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    text-wrap: pretty;
+}
+
+.vz-pie {
+    margin-top: auto;
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.vz-acciones {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.vz-acciones ::deep .vz-acc {
+    flex: 1 1 140px;
+}
+
+.vz-resuelto {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    font: var(--font-caption);
+}
+
+@media (max-width: 760px) {
+    .vz-aside {
+        width: auto;
+        max-height: 50%;
+        border-left: 0;
+        border-top: var(--border-default);
+        flex: none;
+    }
+}
