@@ -79,6 +79,20 @@ public class ObtenerActividadBuzonesQueryHandler(
         var visibles = await ConversacionesVisibles.FiltrarAsync(
             comunicacionesContext.Conversaciones, alcanceDatos, currentUserService, integracionesContext, tenantActual,
             cancellationToken);
+        return await MedirAsync(visibles, comunicacionesContext.Mensajes, ids, cancellationToken);
+    }
+
+    /// <summary>
+    /// «Abiertas» y «Último correo» de los buzones <paramref name="ids"/>, ya reducidos a los medibles, sobre las
+    /// conversaciones <paramref name="visibles"/> que la regla de visibilidad deja ver. Lo comparte la lectura de buzones de
+    /// la vista unificada (<c>ObtenerBuzonesVistaUnificadaQuery</c>), que lo llama dentro del ámbito autorizado de un Tenant
+    /// con las conversaciones que la vista lee de él: la misma medida, sin una segunda definición de «Abiertas».
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<Guid, ActividadBuzonDto>> MedirAsync(
+        IQueryable<Conversacion> visibles, IQueryable<Mensaje> mensajes, IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0) return new Dictionary<Guid, ActividadBuzonDto>();
         var deLosBuzones = visibles.Where(c => c.ConexionIntegracionId != null && ids.Contains(c.ConexionIntegracionId.Value));
 
         // «Abiertas» es el grupo de la bandeja, no un estado: la misma lista que usa su vista «Abiertas» (DN-O).
@@ -90,7 +104,7 @@ public class ObtenerActividadBuzonesQueryHandler(
             .ToListAsync(cancellationToken);
 
         var ultimos = await (
-            from m in comunicacionesContext.Mensajes
+            from m in mensajes
             where m.Direccion == DireccionMensaje.Entrante
             join c in deLosBuzones on m.ConversacionId equals c.Id
             group m by c.ConexionIntegracionId!.Value into g

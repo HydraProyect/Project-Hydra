@@ -15,16 +15,32 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["Titulo"]} — {Marca.Nombre}")" />
 
 <div class="@ClaseContenedorPagina">
-    <CabeceraPagina Titulo="@Textos["Titulo"]" Integrada="@IntegradaEnConfiguracion">
+    @* L-55: una pastilla por Empresa gestionada, encima del título como en el lienzo. Solo estrecha: las da el servidor y
+       cada una se vuelve a autorizar al pulsarla. *@
+    @if (MuestraEmpresas)
+    {
+        <div class="emps" role="group" aria-label="@Textos["EmpresaGestionada"]" data-testid="empresas-gestionadas">
+            @foreach (var empresa in _empresas)
+            {
+                <PastillaInterruptor Etiqueta="@empresa.TenantNombre" Activa="@(EmpresaVisible?.TenantId == empresa.TenantId)"
+                                     ActivaChanged="_ => ElegirEmpresaAsync(empresa)" />
+            }
+        </div>
+    }
+    <CabeceraPagina Titulo="@TituloVisible" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
             @Textos["Subtitulo"]
+            @if (EmpresaRotulada is { } empresaVisible)
+            {
+                <span data-testid="subtitulo-empresa">@Textos["SubtituloDeEmpresa", empresaVisible.TenantNombre]</span>
+            }
             @Textos["EnlaceConexiones"] <a href="/integraciones">@Textos["EnlaceConexionesVinculo"]</a>.
         </Descripcion>
         <Acciones>
             @* Secundario a la derecha del título (E31): abre el cajón con la elección de propietario y navega a la misma URL de
                conectar que Conexiones. Sin la URL pública no hay flujo OAuth posible y no se ofrece. Como los demás controles, solo
-               lo ve el Administrador; el endpoint de conectar lo vuelve a exigir en el servidor. *@
-            @if (ConexionDisponible)
+               lo ve el Administrador; el endpoint de conectar lo vuelve a exigir en el servidor. En solo consulta no está. *@
+            @if (ConexionDisponible && !SoloConsulta)
             {
                 <AuthorizeView Roles="@RolAdministrador" Context="autorizacionAnadir">
                     <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCajonAsync" data-testid="anadir-buzon">@Textos["AnadirBuzon"]</Boton>
@@ -33,22 +49,31 @@
         </Acciones>
     </CabeceraPagina>
 
-    @if (!ConexionDisponible)
+    @if (!ConexionDisponible && !SoloConsulta)
     {
         <p class="aviso-conexion-no-disponible" role="status" data-testid="aviso-conexion-no-disponible">@Textos["AvisoConexionNoDisponible"]</p>
     }
 
-    @if (_cargando)
+    @if (_empresaConsultada is { } consultada)
+    {
+        <p class="aviso-solo-consulta" role="status" data-testid="aviso-solo-consulta">@Textos["AvisoSoloConsulta", consultada.TenantNombre]</p>
+    }
+
+    @if (_cargando || (SoloConsulta && _cargandoConsulta))
     {
         <EstadoCargando Filas="3" />
     }
-    else if (_cargaFallida)
+    else if (SoloConsulta && _consultaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-buzones-empresa-no-cargados">@Textos["AvisoCargaEmpresaFallida", _empresaConsultada!.TenantNombre]</p>
+    }
+    else if (!SoloConsulta && _cargaFallida)
     {
         <p class="texto-error" role="alert" data-testid="aviso-buzones-no-cargados">@Textos["AvisoCargaFallida"]</p>
     }
     else if (_conexiones.Count == 0)
     {
-        <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioTexto"]" />
+        <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@(SoloConsulta ? null : Textos["VacioTexto"].Value)" />
     }
     else
     {
@@ -95,6 +120,10 @@
                                     {
                                         @Textos["ResponsablePersonal", NombreDe(propietarioId)]
                                     }
+                                    else if (SoloConsulta)
+                                    {
+                                        @NombreResponsable(conexion)
+                                    }
                                     else
                                     {
                                         <AuthorizeView Roles="@RolAdministrador" Context="autorizacionResponsable">
@@ -113,7 +142,7 @@
                                                 </select>
                                             </Authorized>
                                             <NotAuthorized>
-                                                @(conexion.ResponsableUsuarioId is { } responsableId ? NombreDe(responsableId) : Textos["SinResponsable"].Value)
+                                                @NombreResponsable(conexion)
                                             </NotAuthorized>
                                         </AuthorizeView>
                                     }
@@ -123,6 +152,10 @@
                                     @if (conexion.GestorPropietarioId is not null)
                                     {
                                         <span class="texto-secundario" data-testid="acuse-no-aplica">@Textos["AcuseNoAplica"]</span>
+                                    }
+                                    else if (SoloConsulta)
+                                    {
+                                        <Badge Tono="@(conexion.AcuseAutomaticoActivo ? TonoBadge.Exito : TonoBadge.Neutro)"><span data-testid="estado-acuse">@EtiquetaAcuse(conexion)</span></Badge>
                                     }
                                     else
                                     {
@@ -150,7 +183,7 @@
                                     @* L-57: «Comprobar acceso» en la fila, salvo en la que ya ofrece «Reconectar» en su franja de error (en el
                                        lienzo, un buzón con error solo lleva «Reconectar buzón»). «Pausar lectura» y «Quitar buzón…» no están
                                        (B4 y DN-I). *@
-                                    @if (!MuestraFranjaError(conexion))
+                                    @if (!SoloConsulta && !MuestraFranjaError(conexion))
                                     {
                                         <AuthorizeView Roles="@RolAdministrador" Context="autorizacionComprobar">
                                             <div class="acciones-buzon">
@@ -170,11 +203,14 @@
                                     <td colspan="9">
                                         <div class="franja-error" role="alert" data-testid="franja-error-buzon">
                                             <span class="franja-error-texto">@Textos["FranjaErrorBuzon", conexion.BuzonEmail]: @conexion.UltimoError</span>
-                                            <AuthorizeView Roles="@RolAdministrador" Context="autorizacionReconectar">
-                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                       Deshabilitado="@(_procesandoId is not null)"
-                                                       OnClick="() => ReconectarAsync(conexion)" data-testid="reconectar-buzon">@Textos["Reconectar"]</Boton>
-                                            </AuthorizeView>
+                                            @if (!SoloConsulta)
+                                            {
+                                                <AuthorizeView Roles="@RolAdministrador" Context="autorizacionReconectar">
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                           Deshabilitado="@(_procesandoId is not null)"
+                                                           OnClick="() => ReconectarAsync(conexion)" data-testid="reconectar-buzon">@Textos["Reconectar"]</Boton>
+                                                </AuthorizeView>
+                                            }
                                         </div>
                                     </td>
                                 </tr>

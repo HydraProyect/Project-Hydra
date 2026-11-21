@@ -47,11 +47,12 @@ public class EntradaVistaUnificadaTests
         EntradaVistaUnificada.Intersecar([], [Dentro]).Should().BeEmpty("con conjunto vacío no hay filtro que añada nada");
     }
 
-    public static TheoryData<bool> Consultas => [false, true];
+    /// <summary>0, la lista; 1, el selector; 2, los buzones de un Tenant beneficiario (pantalla de Buzones, L-55).</summary>
+    public static TheoryData<int> Consultas => [0, 1, 2];
 
     [Theory]
     [MemberData(nameof(Consultas))]
-    public async Task Con_Sesion_Privilegiada_seleccionada_ninguna_consulta_se_abre(bool selector)
+    public async Task Con_Sesion_Privilegiada_seleccionada_ninguna_consulta_se_abre(int selector)
     {
         var accion = () => ConsultarAsync(selector, new UsuarioDeLaVista(Guid.NewGuid(), Origen, "GestorCae"),
             new TenantsQueryContextFalso(), sesionPrivilegiada: true);
@@ -61,7 +62,7 @@ public class EntradaVistaUnificadaTests
 
     [Theory]
     [MemberData(nameof(Consultas))]
-    public async Task Con_papel_Inbound_ninguna_consulta_se_abre(bool selector)
+    public async Task Con_papel_Inbound_ninguna_consulta_se_abre(int selector)
     {
         var usuario = new UsuarioDeLaVista(Guid.NewGuid(), Origen, "GestorCae", PapelActivo.Inbound);
 
@@ -72,7 +73,7 @@ public class EntradaVistaUnificadaTests
 
     [Theory]
     [MemberData(nameof(Consultas))]
-    public async Task El_Usuario_de_Cliente_no_abre_ninguna_consulta(bool selector)
+    public async Task El_Usuario_de_Cliente_no_abre_ninguna_consulta(int selector)
     {
         var usuario = new UsuarioDeLaVista(Guid.NewGuid(), Origen, AutoridadSobreCuentas.RolCliente);
 
@@ -83,7 +84,7 @@ public class EntradaVistaUnificadaTests
 
     [Theory]
     [MemberData(nameof(Consultas))]
-    public async Task El_Soporte_TALVEG_no_abre_ninguna_consulta(bool selector)
+    public async Task El_Soporte_TALVEG_no_abre_ninguna_consulta(int selector)
     {
         var plataforma = new Tenant("Plataforma TALVEG de prueba");
         plataforma.MarcarComoPlataforma();
@@ -97,7 +98,7 @@ public class EntradaVistaUnificadaTests
 
     [Theory]
     [MemberData(nameof(Consultas))]
-    public async Task Sin_usuario_o_sin_Tenant_de_origen_ninguna_consulta_se_abre(bool selector)
+    public async Task Sin_usuario_o_sin_Tenant_de_origen_ninguna_consulta_se_abre(int selector)
     {
         var sinUsuario = () => ConsultarAsync(selector, new UsuarioDeLaVista(null, Origen, "GestorCae"), new TenantsQueryContextFalso());
         var sinOrigen = () => ConsultarAsync(selector, new UsuarioDeLaVista(Guid.NewGuid(), null, "GestorCae"), new TenantsQueryContextFalso());
@@ -125,18 +126,23 @@ public class EntradaVistaUnificadaTests
     /// porque una exclusión rechaza antes de leer conversaciones, operaciones ni alcance.
     /// </summary>
     private static Task ConsultarAsync(
-        bool selector, ICurrentUserService usuario, TenantsQueryContextFalso tenants, bool sesionPrivilegiada = false)
+        int selector, ICurrentUserService usuario, TenantsQueryContextFalso tenants, bool sesionPrivilegiada = false)
     {
         var coordenada = new Coordenada(sesionPrivilegiada);
-        return selector
-            ? new ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler(
+        return selector switch
+        {
+            1 => new ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler(
                     null!, null!, null!, tenants, null!, usuario, null!, coordenada,
                     NullLogger<ObtenerTenantsBeneficiariosVistaUnificadaQueryHandler>.Instance)
-                .Handle(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), CancellationToken.None)
-            : new ObtenerConversacionesUnificadasQueryHandler(
+                .Handle(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), CancellationToken.None),
+            2 => new ObtenerBuzonesVistaUnificadaQueryHandler(
+                    null!, null!, null!, null!, tenants, null!, usuario, null!, coordenada, null!)
+                .Handle(new ObtenerBuzonesVistaUnificadaQuery(Origen), CancellationToken.None),
+            _ => new ObtenerConversacionesUnificadasQueryHandler(
                     null!, null!, null!, tenants, null!, usuario, null!, coordenada,
                     NullLogger<ObtenerConversacionesUnificadasQueryHandler>.Instance)
-                .Handle(new ObtenerConversacionesUnificadasQuery(), CancellationToken.None);
+                .Handle(new ObtenerConversacionesUnificadasQuery(), CancellationToken.None),
+        };
     }
 
     private sealed class Coordenada(bool haySeleccionada) : ICoordenadaSesionPrivilegiada

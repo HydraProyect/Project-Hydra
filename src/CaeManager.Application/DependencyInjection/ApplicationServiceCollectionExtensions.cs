@@ -52,6 +52,10 @@ public static class ApplicationServiceCollectionExtensions
         // Puerto del Núcleo por el que la tabla de Buzones lee de Comunicaciones su último correo y sus conversaciones abiertas sin depender de Outbound.
         services.AddScoped<CaeManager.Application.Integraciones.IActividadBuzones,
             CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones.ActividadBuzonesService>();
+        // Puerto del Núcleo por el que la pantalla de Buzones lee, por la vista unificada de Comunicaciones, los buzones de
+        // cada Empresa gestionada (D-6 b, L-55) sin depender de Outbound. Solo lectura.
+        services.AddScoped<CaeManager.Application.Integraciones.IBuzonesDeTenantsBeneficiarios,
+            CaeManager.Application.Comunicaciones.VistaUnificada.BuzonesDeTenantsBeneficiariosService>();
         // Lectura de la «Nota interna» de las fichas 360: una sola decisión para todas (ver PoliticaNotaInterna).
         services.AddScoped<CaeManager.Application.Common.IPoliticaNotaInterna, CaeManager.Application.Common.PoliticaNotaInterna>();
         // Singleton a propósito (Horizonte 2.4): la ventana de tasa de

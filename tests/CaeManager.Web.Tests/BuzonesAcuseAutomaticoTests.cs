@@ -33,7 +33,7 @@ namespace CaeManager.Web.Tests;
 /// solo registra qué comandos se piden. La autorización real (Administrador, buzón visible, Tenant) la deciden los
 /// comandos y RLS (<c>FijarAcuseAutomaticoBuzonCommandHandlerTests</c>, <c>AcuseAutomaticoBuzonBajoRlsTests</c>).
 /// </summary>
-public class BuzonesAcuseAutomaticoTests : BunitContext
+public partial class BuzonesAcuseAutomaticoTests : BunitContext
 {
     public BuzonesAcuseAutomaticoTests()
     {
@@ -198,12 +198,16 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
     private IRenderedComponent<Buzones> Renderizar(
         MediadorBuzones mediador, string? rol = Roles.Administrador, IReadOnlyList<CuentaVisibleEnRol>? gestores = null,
-        IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>>? cuentasPorRol = null)
+        IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>>? cuentasPorRol = null,
+        EmpresasGestionadasFalsas? empresas = null)
     {
         var autorizacion = AddAuthorization();
         if (rol is not null) autorizacion.SetAuthorized("usuario").SetRoles(rol);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<IActividadBuzones>(_ => mediador);
+        var falsas = empresas ?? new EmpresasGestionadasFalsas();
+        Services.AddScoped<IBuzonesDeTenantsBeneficiarios>(_ => falsas);
+        Services.AddScoped<ITenantActual>(_ => falsas);
         Services.AddScoped<ToastService>();
         var directorio = cuentasPorRol ?? new Dictionary<string, IReadOnlyList<CuentaVisibleEnRol>>
         {

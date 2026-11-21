@@ -1,4 +1,5 @@
 using System.Globalization;
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
@@ -32,6 +33,8 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IActividadBuzones ActividadBuzones { get; set; } = default!;
+    [Inject] private IBuzonesDeTenantsBeneficiarios BuzonesDeTenants { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
@@ -71,6 +74,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         try
         {
             await CargarAsync(_cancelacion.Token);
+            await CargarEmpresasAsync(_cancelacion.Token);
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -84,6 +88,108 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         {
             if (!_dispuesto) _cargando = false;
         }
+    }
+
+    // ---- Empresa gestionada (lienzo, tablero de Buzones, L-55) ----
+    // Las pastillas son una coordenada que solo estrecha: los Tenants los da el servidor por la vista unificada de
+    // Comunicaciones, y cada consulta vuelve a pasar por su entrada y por el ámbito autorizado del Tenant, bajo su RLS
+    // (IBuzonesDeTenantsBeneficiarios). Los buzones de otra Empresa gestionada se ven en solo consulta: ninguna acción
+    // de la página se ofrece sobre ellos, porque sus comandos actúan en el Tenant activo.
+
+    private IReadOnlyList<TenantBeneficiarioDeBuzonesDto> _empresas = [];
+    private TenantBeneficiarioDeBuzonesDto? _empresaConsultada;
+    private bool _cargandoConsulta;
+    private bool _consultaFallida;
+
+    /// <summary>Se ven los buzones de otra Empresa gestionada, no los del Tenant activo.</summary>
+    private bool SoloConsulta => _empresaConsultada is not null;
+
+    /// <summary>Solo hay pastillas si el conjunto tiene alguna Empresa gestionada distinta de la activa.</summary>
+    private bool MuestraEmpresas => _empresas.Any(e => e.TenantId != TenantActual.TenantId);
+
+    private TenantBeneficiarioDeBuzonesDto? EmpresaVisible =>
+        _empresaConsultada ?? _empresas.FirstOrDefault(e => e.TenantId == TenantActual.TenantId);
+
+    /// <summary>La Empresa gestionada que nombran el título y el subtítulo: solo cuando hay pastillas entre las que elegir.</summary>
+    private TenantBeneficiarioDeBuzonesDto? EmpresaRotulada => MuestraEmpresas ? EmpresaVisible : null;
+
+    private string TituloVisible =>
+        EmpresaRotulada is { } empresa ? Textos["TituloDeEmpresa", empresa.TenantNombre] : Textos["Titulo"];
+
+    /// <summary>
+    /// Las Empresas gestionadas del selector. Fuera de la vista unificada (papel Inbound, Sesión Privilegiada, Usuario de
+    /// Cliente, Soporte TALVEG) el servidor la rechaza y la página sigue como siempre, sin pastillas; un fallo, igual.
+    /// </summary>
+    private async Task CargarEmpresasAsync(CancellationToken token)
+    {
+        try
+        {
+            _empresas = await BuzonesDeTenants.ObtenerTenantsAsync(token);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _empresas = [];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(ex, "Error al cargar las Empresas gestionadas de los buzones.");
+            _empresas = [];
+        }
+    }
+
+    /// <summary>
+    /// Pulsar otra Empresa gestionada carga sus buzones en solo consulta; pulsar la activa o la que ya se consulta vuelve a
+    /// los del Tenant activo. No se cambia mientras se procesa una acción sobre un buzón.
+    /// </summary>
+    private async Task ElegirEmpresaAsync(TenantBeneficiarioDeBuzonesDto empresa)
+    {
+        if (_procesandoId is not null || _dispuesto) return;
+        if (empresa.TenantId == TenantActual.TenantId || empresa.TenantId == _empresaConsultada?.TenantId)
+        {
+            await VolverAlTenantActivoAsync();
+            return;
+        }
+
+        var generacion = Interlocked.Increment(ref _generacionCarga);
+        _empresaConsultada = empresa;
+        _cargandoConsulta = true;
+        _consultaFallida = false;
+        _conexiones = [];
+        try
+        {
+            var buzones = await BuzonesDeTenants.ObtenerBuzonesAsync(empresa.TenantId, _cancelacion.Token);
+            if (generacion != _generacionCarga || _dispuesto) return;
+            // Null: el servidor no lee ese Tenant para quien pregunta (la asignación caducó, por ejemplo). No se distingue
+            // de un fallo: la página no afirma nada de sus buzones.
+            _consultaFallida = buzones is null;
+            _conexiones = buzones?.Conexiones ?? [];
+            _nombres = buzones?.Nombres ?? new Dictionary<Guid, string>();
+            _actividad = buzones?.Actividad ?? new Dictionary<Guid, ActividadBuzonDto>();
+            _elegibles = new Dictionary<Guid, IReadOnlySet<Guid>>();
+            _candidatos = [];
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (generacion == _generacionCarga) _consultaFallida = true;
+            Logger.LogError(ex, "Error al cargar los buzones de otra Empresa gestionada.");
+        }
+        finally
+        {
+            if (generacion == _generacionCarga && !_dispuesto) _cargandoConsulta = false;
+        }
+    }
+
+    private async Task VolverAlTenantActivoAsync()
+    {
+        _empresaConsultada = null;
+        _cargandoConsulta = false;
+        _consultaFallida = false;
+        _cargando = true;
+        await RecargarSinPropagarAsync();
+        if (!_dispuesto) _cargando = false;
     }
 
     /// <summary>
@@ -215,6 +321,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     }
 
     private string NombreDe(Guid usuarioId) => _nombres.TryGetValue(usuarioId, out var nombre) ? nombre : "—";
+
+    private string NombreResponsable(ConexionIntegracionListaDto conexion) =>
+        conexion.ResponsableUsuarioId is { } responsableId ? NombreDe(responsableId) : Textos["SinResponsable"].Value;
 
     /// <summary>
     /// Las cuentas que <see cref="ResponsableBuzonElegible"/> acepta para este buzón (la regla de <c>FijarResponsableBuzonCommand</c>
