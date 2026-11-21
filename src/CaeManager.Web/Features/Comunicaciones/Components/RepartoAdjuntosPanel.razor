@@ -17,6 +17,13 @@
     se aprueba lo que no se puede identificar: si el destino o el tipo no se pueden mostrar por su nombre (un selector no se pudo
     leer, o el valor no está en él), el adjunto queda «Revisar» y no se asigna ni uno a uno ni en el lote; si fue un selector,
     se avisa con «Reintentar».
+
+    «Revisar todos los adjuntos» abre el visor de documento a pantalla completa (lienzo Pulida-Bandeja, L-40; PR-A4) con el panel de
+    revisión de Comunicaciones a su derecha (PanelRevisionAdjunto, por el hueco Panel del visor del Núcleo). Lo que se resuelve en el
+    visor es lo mismo que aquí: pasa por los Commands de siempre y, al volver, el reparto se relee y la página se entera (OnCambiado),
+    que es lo que el lienzo hace con su evento talveg:adjunto-revisado (un adjunto asignado o rechazado deja de pedir acción) y con el
+    evento de la conversación (la página relee el hilo, que ya trae los eventos «Adjunto rechazado» y «Documento actualizado» que
+    escriben ResolverAdjunto y el alta del Documento). Dejar un adjunto para después no escribe nada: sigue pendiente, como en el lienzo.
 *@
 @using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote
 @using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto
@@ -28,6 +35,7 @@
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Comunicaciones.Recursos
+@using CaeManager.Web.Features.Documentos.Components
 @using System.Globalization
 @using FluentValidation
 @using MediatR
@@ -143,11 +151,12 @@
                 }
                 <div class="adjb-g">
                     @BotonAsignarListos(listos)
-                    @* En el lienzo este botón abre el Visor de documento con todos los adjuntos (PR-A4); hasta entonces abre la revisión
-                       uno a uno de este bloque, que recorre lo que pide una decisión. *@
+                    @* Como el lienzo (Pulida-Bandeja.dc.html:749 y 1571): abre el Visor de documento con todos los adjuntos del correo y se
+                       desactiva sin permiso de escritura o con menos de dos (`revisarOff: !puedeEscribir||fl.length<2`). La revisión uno a
+                       uno de este bloque se abre desde «Elegir» de cada fila. *@
                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                           Deshabilitado="@(Bloqueado || resumen.ParaRevisarUnoAUno == 0)"
-                           OnClick="() => AbrirUnoAUno(null)">@Textos["RevisarTodos"]</Boton>
+                           Deshabilitado="@(Bloqueado || !HayVariosParaElVisor)"
+                           OnClick="AbrirVisor">@Textos["RevisarTodos"]</Boton>
                 </div>
             </div>
         }
@@ -159,6 +168,18 @@ else if (_errorCarga is not null)
         <span>@_errorCarga</span>
         <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
     </div>
+}
+
+@if (_visorAbierto)
+{
+    @* Fuera del bloque: el visor es una capa a pantalla completa y no debe heredar su maquetación. El panel de revisión es de Comunicaciones
+       y entra por el hueco Panel del visor del Núcleo; el visor solo le da el adjunto actual y sus salidas. *@
+    <VisorDocumentoPantallaCompleta Visible="true" VisibleChanged="AlCambiarVisibleVisor" Adjuntos="_adjuntosVisor" IndiceInicial="0"
+                                    Titulo="@Textos["Visor_Titulo"].Value" AdjuntoResuelto="AlResolverEnVisorAsync">
+        <Panel Context="contexto">
+            <PanelRevisionAdjunto Contexto="contexto" Revision="_revisionVisor" />
+        </Panel>
+    </VisorDocumentoPantallaCompleta>
 }
 
 @code {
@@ -232,6 +253,9 @@ else if (_errorCarga is not null)
         _selectoresCargados = false;
         _selectorFallo = false;
         _plegado = _verResueltos = _agruparPorTrabajador = _enFoco = false;
+        // El visor es de la conversación que se dejó: no sigue abierto sobre otra.
+        _visorAbierto = false;
+        _adjuntosVisor = [];
         _listosAbiertos = true;
         _cola = [];
         _posicion = 0;
@@ -261,6 +285,8 @@ else if (_errorCarga is not null)
             _errorCarga = null;
             // Sin filas pendientes, o con el adjunto en foco ya fuera de la lista, no hay nada que mostrar «uno a uno»: se vuelve a la lista.
             if (_enFoco && (!_filas.Any(f => f.Pendiente) || FilaEnFoco is null)) _enFoco = false;
+            // Con el visor abierto, lo que lee sale también al visor (adjuntos y estados) y al panel de revisión.
+            if (_visorAbierto) ActualizarVisor();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -731,6 +757,87 @@ else if (_errorCarga is not null)
 
         CerrarUnoAUno();
     }
+
+    // ---------- Visor de documento (PR-A4) ----------
+
+    private bool _visorAbierto;
+    private IReadOnlyList<AdjuntoVisor> _adjuntosVisor = [];
+    private RevisionAdjuntos _revisionVisor = default!;
+
+    // Lo que se revisa en el visor: lo que está por decidir y lo que ya se asignó o rechazó (se ve y se puede volver a revisar). Un adjunto
+    // ignorado (Descartado) o dividido no es un documento que revisar: el visor solo conoce pendiente, asignado y rechazado.
+    private List<FilaReparto> FilasDelVisor() =>
+        _filas.Where(f => f.Adjunto.Estado is EstadoRepartoAdjunto.Pendiente or EstadoRepartoAdjunto.Asignado or EstadoRepartoAdjunto.Rechazado).ToList();
+
+    // Con uno solo no hay cola que revisar: el lienzo lo desactiva (`fl.length<2`).
+    private bool HayVariosParaElVisor => FilasDelVisor().Count > 1;
+
+    private void AbrirVisor()
+    {
+        if (Bloqueado || !HayVariosParaElVisor) return;
+        ActualizarVisor();
+        _visorAbierto = true;
+    }
+
+    private Task AlCambiarVisibleVisor(bool visible)
+    {
+        _visorAbierto = visible;
+        return Task.CompletedTask;
+    }
+
+    // Los datos del visor y del panel salen de lo que el reparto ya leyó (filas, selectores de Trabajadores, Empresas y tipos): ninguno
+    // lee nada del servidor para pintarse. Las fechas son las que la persona escribió en la fila del reparto (el panel no tiene campo de
+    // fecha de emisión): si no están o se contradicen, el panel no ofrece asignar y lo dice.
+    private void ActualizarVisor()
+    {
+        var filas = FilasDelVisor();
+        if (filas.Count == 0)
+        {
+            _visorAbierto = false;
+            _adjuntosVisor = [];
+            return;
+        }
+
+        _adjuntosVisor = filas.Select(f => new AdjuntoVisor(
+            f.Adjunto.Id, f.Adjunto.NombreArchivo, UrlArchivo(f), 1, FormatearTamano(f.Adjunto.TamanoBytes),
+            f.Adjunto.Estado switch
+            {
+                EstadoRepartoAdjunto.Asignado => EstadoAdjuntoVisor.Asignado,
+                EstadoRepartoAdjunto.Rechazado => EstadoAdjuntoVisor.Rechazado,
+                _ => EstadoAdjuntoVisor.Pendiente
+            })).ToList();
+
+        var propuestas = filas.ToDictionary(f => f.Adjunto.Id, f => new PropuestaRevision(
+            f.Adjunto.DestinoTrabajadorId, f.Adjunto.DestinoEmpresaId, f.Adjunto.TipoDocumentoId,
+            f.Edicion.FechasValidas ? f.Edicion.Emision : null, f.Edicion.Vencimiento, f.Edicion.NoCaduca, f.Adjunto.MotivoRechazo));
+        var empleadores = _trabajadores.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First().EmpleadorNombre);
+        var destinos = _etiquetasTrabajadores
+            .Select(e => new DestinoRevision(e.Id, false, e.Texto,
+                empleadores.GetValueOrDefault(e.Id) is { Length: > 0 } empleador ? Textos["Visor_DetalleTrabajador", empleador].Value : null))
+            .Concat(_empresas.Select(e => new DestinoRevision(e.Id, true, e.RazonSocial)))
+            .ToList();
+        var tipos = _tipos.Select(t => new TipoRevision(t.Id, t.Nombre, t.AmbitoAplicacion == AmbitoAplicacion.Empresa)).ToList();
+        _revisionVisor = new RevisionAdjuntos(ConversacionId, propuestas, destinos, tipos);
+    }
+
+    // El lienzo avisa con `talveg:adjunto-revisado` (Visor-Documento.dc.html:442) y la conversación lo recoge en `alRevisado`
+    // (Pulida-Bandeja.dc.html:1255): asignado o rechazado quita la acción pendiente del adjunto y deja el evento en el hilo; omitido la
+    // conserva. Aquí el aviso es el AdjuntoResuelto del visor: se relee el reparto (el adjunto cambia de estado y de grupo) y se avisa a la
+    // página, que relee el hilo con sus eventos y sus Documentos.
+    private async Task AlResolverEnVisorAsync(ResolucionAdjuntoVisor resolucion)
+    {
+        var conversacionId = ConversacionId;
+        await CargarAsync(conversacionId);
+        if (conversacionId != ConversacionId) return;
+        await OnCambiado.InvokeAsync();
+    }
+
+    private static string FormatearTamano(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
+    };
 
     // ---------- Acciones ----------
 

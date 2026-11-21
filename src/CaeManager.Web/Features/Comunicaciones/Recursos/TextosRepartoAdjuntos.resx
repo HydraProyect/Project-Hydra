@@ -333,4 +333,10 @@
   <data name="RechazarDe" xml:space="preserve">
     <value>Rechazar el documento {0}</value>
   </data>
+  <data name="Visor_Titulo" xml:space="preserve">
+    <value>Revisar los adjuntos del correo</value>
+  </data>
+  <data name="Visor_DetalleTrabajador" xml:space="preserve">
+    <value>Trabajador de {0}</value>
+  </data>
 </root>
