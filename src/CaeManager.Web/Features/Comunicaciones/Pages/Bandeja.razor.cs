@@ -578,6 +578,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     // «Todas» elegidas, la página no abre conversaciones ni ofrece acciones: abrir una de otra Empresa gestionada exige cambiar antes
     // de contexto, que es S4 (DN-J), y actuar desde la vista unificada es la decisión DN-S, pendiente (recomendación: solo consulta).
     private IReadOnlyList<TenantBeneficiarioVistaUnificadaDto> _empresasGestionadas = [];
+
+    // Los nombres de las Empresas gestionadas del conjunto que el servidor no pudo contar (NoConsultados): el selector marca su
+    // total como parcial.
+    private IReadOnlyList<string> _empresasSinContar = [];
     private EleccionEmpresaGestionada? _eleccionEmpresa;
 
     /// <summary>Otra Empresa gestionada o «Todas» elegidas: la lista es la de la vista unificada, en solo consulta.</summary>
@@ -598,6 +602,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         : TextosLista["TituloEmpresa", NombreEmpresaConsultada, TextosLista["Abiertas"].Value].Value;
 
     /// <summary>
+    /// Las Abiertas que el selector enseña para lo elegido (la de la Empresa gestionada, o la suma con «Todas»): con más de cero, la
+    /// lista vacía no pinta «Al día», porque el recuento y la lista no coinciden.
+    /// </summary>
+    private int? AbiertasSegunSelector => _eleccionEmpresa?.TenantId is { } id
+        ? _empresasGestionadas.FirstOrDefault(e => e.TenantId == id)?.Abiertas
+        : _empresasGestionadas.Sum(e => e.Abiertas);
+
+    /// <summary>
     /// Las Empresas gestionadas del selector con su recuento de Abiertas (ObtenerTenantsBeneficiariosVistaUnificadaQuery, #2407). Sin
     /// Tenant activo no se pide. La página no mira el plano de plataforma: con Sesión Privilegiada, papel Inbound, Usuario de Cliente o
     /// Soporte TALVEG es la entrada de la vista unificada la que rechaza (UnauthorizedAccessException), y entonces, o si falla, la lista
@@ -608,7 +620,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (TenantActual.TenantId is null || _ciclo.IsCancellationRequested) return;
         try
         {
-            _empresasGestionadas = (await Mediator.Send(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), _ciclo.Token)).Tenants;
+            var conjunto = await Mediator.Send(new ObtenerTenantsBeneficiariosVistaUnificadaQuery(), _ciclo.Token);
+            _empresasGestionadas = conjunto.Tenants;
+            _empresasSinContar = conjunto.NoConsultados.Select(n => n.TenantNombre).ToList();
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
         {
@@ -616,11 +630,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (UnauthorizedAccessException)
         {
             _empresasGestionadas = [];
+            _empresasSinContar = [];
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "No se pudieron leer las Empresas gestionadas del selector de Comunicaciones.");
             _empresasGestionadas = [];
+            _empresasSinContar = [];
         }
     }
 
@@ -751,6 +767,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Quien no lee el historial (Consulta) tampoco lo fija desde la URL: su Origen queda en «todos» y un enlace como «Ver
         // reclamación» del hilo no le cierra la conversación abierta.
         var origenUrl = _puedeLeerReclamaciones && OrigenInicial == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
+        var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
+
+        // Una vista o un Origen que llegan por la URL (Atrás, enlace) son del Tenant activo: salen de la vista unificada, como el botón.
+        if (origenUrl != _origen || vistaUrl != _vista) _eleccionEmpresa = null;
+
         if (origenUrl != _origen)
         {
             _origen = origenUrl;
@@ -758,7 +779,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 DescartarConversacionAbierta();
         }
 
-        var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
         if (vistaUrl == _vista) return;
 
         // La vista cambió desde la URL (atrás/adelante, enlace compartido), no por el botón: lo que espera sobre la conversación

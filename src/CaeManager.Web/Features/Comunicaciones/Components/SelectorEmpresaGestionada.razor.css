@@ -111,6 +111,12 @@
     font: 600 0.75rem/1rem var(--font-family);
 }
 
+/* Aviso de recuento parcial (NoConsultados): el tono de aviso de la app, sin color nuevo. */
+.eg-pop-aviso {
+    color: var(--color-warning-700);
+    font-weight: 400;
+}
+
 .eg-opcion {
     display: flex;
     align-items: center;

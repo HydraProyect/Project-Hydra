@@ -38,9 +38,10 @@
     }
     else if (_filas.Count == 0)
     {
-        @* «Al día» solo si se leyeron todas: con alguna Empresa gestionada sin leer, la lista vacía no dice que no quede nada (§ 4.3). *@
+        @* «Al día» solo si se leyeron todas: con alguna Empresa gestionada sin leer, la lista vacía no dice que no quede nada (§ 4.3).
+           Tampoco si el selector cuenta Abiertas para lo elegido: el recuento y la lista no coinciden y «Al día» lo contradiría. *@
         <div class="eu-vacio">
-            @if (_noConsultadas.Count == 0)
+            @if (_noConsultadas.Count == 0 && AbiertasSegunSelector is not > 0)
             {
                 <span class="eu-al-dia">@Textos["AlDia"]</span>
             }
@@ -92,6 +93,9 @@
 
     /// <summary>El nombre de la Empresa gestionada consultada, para el aviso de solo consulta; vacío con «Todas».</summary>
     [Parameter] public string NombreConsultada { get; set; } = string.Empty;
+
+    /// <summary>Las Abiertas que el selector cuenta para lo elegido; <c>null</c> si no las cuenta.</summary>
+    [Parameter] public int? AbiertasSegunSelector { get; set; }
 
     /// <summary>Filas por página: las de la lista del Tenant activo.</summary>
     private const int TamanoPagina = 20;

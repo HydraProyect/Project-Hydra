@@ -103,7 +103,7 @@
                no cambia el Tenant activo (PR-S2b). *@
             @if (MuestraSelectorEmpresas)
             {
-                <SelectorEmpresaGestionada Empresas="_empresasGestionadas" TenantActivoId="TenantActivoId" Elegida="_eleccionEmpresa" OnElegir="ElegirEmpresaGestionadaAsync" />
+                <SelectorEmpresaGestionada Empresas="_empresasGestionadas" NoConsultados="_empresasSinContar" TenantActivoId="TenantActivoId" Elegida="_eleccionEmpresa" OnElegir="ElegirEmpresaGestionadaAsync" />
             }
             @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
@@ -177,7 +177,8 @@
             @if (EnVistaUnificada)
             {
                 @* Vista unificada en solo consulta: sin filtros, sin buscador, sin tabla y sin abrir conversaciones (S4, DN-J). *@
-                <ListaConversacionesUnificadas Eleccion="_eleccionEmpresa!" Titulo="@TituloVistaUnificada" NombreConsultada="@NombreEmpresaConsultada" />
+                <ListaConversacionesUnificadas Eleccion="_eleccionEmpresa!" Titulo="@TituloVistaUnificada" NombreConsultada="@NombreEmpresaConsultada"
+                                               AbiertasSegunSelector="AbiertasSegunSelector" />
             }
             else if (_vista == "clientes")
             {
@@ -609,8 +610,10 @@
            no se puede editar ni guardar bajo la selección nueva. Única excepción: la nota fija en edición de ESTA conversación mantiene
            montado su componente aunque la recarga cambie el Cliente empresarial (PanelContextoVisible); desmontarlo destruiría el
            borrador sin confirmar el abandono (revisión Codex r3 de la #2167, MEDIO 1). Entonces solo se pinta la nota fija. *@
+        @* En la vista unificada (solo consulta, PR-S2b) no se pinta nunca: sus acciones y su nota fija son de una conversación del
+           Tenant activo. Elegir otra Empresa gestionada ya cierra la conversación abierta; esta condición es la segunda defensa. *@
         @{ var contextoVigente = ContextoEsDelDetalle; }
-        @if (_vista == "clientes" && PanelContextoVisible)
+        @if (_vista == "clientes" && PanelContextoVisible && !EnVistaUnificada)
         {
             <aside class="bandeja-columna bandeja-cliente">
                 @if (contextoVigente)

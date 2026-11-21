@@ -11,7 +11,15 @@
     <button type="button" class="eg-boton" aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
             aria-label="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]" title="@Textos["EmpresaGestionadaAccesible", NombreEnBoton]"
             @onclick="Alternar">
-        <span class="eg-mono">@Iniciales(NombreEnBoton)</span>
+        @if (Elegida is { TenantId: null })
+        {
+            @* «Todas» no tiene iniciales: el lienzo solo da el monograma del contexto (ctx.ini). *@
+            <span class="eg-mono" aria-hidden="true"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /></span>
+        }
+        else
+        {
+            <span class="eg-mono">@Iniciales(NombreEnBoton)</span>
+        }
         <span class="eg-tx" aria-live="polite"><span class="eg-sub">@Textos["EmpresaGestionada"]</span><span class="eg-nom">@NombreEnBoton</span></span>
         <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
     </button>
@@ -21,10 +29,15 @@
         <div class="eg-pop" role="listbox" aria-label="@Textos["EmpresasGestionadas"]" @onkeydown="TeclaAsync">
             <input class="eg-buscar" type="search" aria-label="@Textos["BuscarEmpresaGestionada"]" placeholder="@Textos["BuscarEmpresaGestionada"]"
                    value="@_busqueda" @oninput="e => _busqueda = e.Value?.ToString() ?? string.Empty" />
-            <span class="eg-pop-t">@Textos["EmpresasGestionadasResumen", Empresas.Count]</span>
+            <span class="eg-pop-t">@ResumenEmpresas</span>
+            @if (Parcial)
+            {
+                @* Contrato del DTO: las no contadas nunca son «cero». El aviso las nombra y los dos números de arriba son parciales (§ 4.3). *@
+                <span class="eg-pop-t eg-pop-aviso" role="status">@Textos["EmpresasGestionadasSinContar", string.Join(", ", NoConsultados)]</span>
+            }
             <button type="button" class="eg-opcion" role="option" aria-selected="@(Elegida is { TenantId: null } ? "true" : "false")"
                     @onclick="() => ElegirAsync(new EleccionEmpresaGestionada(null))">
-                <span class="eg-q">@Textos["TodasLasEmpresasGestionadas"]</span><span class="eg-contador">@TotalAbiertas</span>
+                <span class="eg-q">@Textos["TodasLasEmpresasGestionadas"]</span><span class="eg-contador" title="@TituloTotal">@TotalEnTodas</span>
             </button>
             @foreach (var empresa in Coincidentes)
             {
@@ -52,19 +65,39 @@
     /// <summary>Lo que muestra la lista: <c>null</c>, el Tenant activo; con valor, la vista unificada.</summary>
     [Parameter] public EleccionEmpresaGestionada? Elegida { get; set; }
 
+    /// <summary>
+    /// Los nombres de las Empresas gestionadas del conjunto que el servidor no pudo contar (<c>NoConsultados</c> del DTO): con alguna,
+    /// los totales son parciales.
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> NoConsultados { get; set; } = [];
+
     [Parameter] public EventCallback<EleccionEmpresaGestionada> OnElegir { get; set; }
 
     private bool _abierto;
     private string _busqueda = string.Empty;
 
+    private bool Parcial => NoConsultados.Count > 0;
+
+    /// <summary>La cabecera del desplegable: «Empresas gestionadas · N» o, con alguna sin contar, «· N de M contadas».</summary>
+    private string ResumenEmpresas => Parcial
+        ? Textos["EmpresasGestionadasResumenParcial", Empresas.Count, Empresas.Count + NoConsultados.Count].Value
+        : Textos["EmpresasGestionadasResumen", Empresas.Count].Value;
+
+    /// <summary>El total de «Todas»: con alguna Empresa gestionada sin contar es una cota inferior («N+»), nunca un número cerrado.</summary>
+    private string TotalEnTodas => Parcial ? Textos["ContadorParcial", TotalAbiertas].Value : TotalAbiertas.ToString();
+
+    private string? TituloTotal => Parcial ? Textos["RecuentoParcial"].Value : null;
+
     /// <summary>
-    /// El botón nombra la Empresa gestionada consultada o, si no hay una sola consultada («Todas» o ninguna), la del Tenant activo:
-    /// en el lienzo nombra el contexto (<c>ctx.nombre</c>), y aquí el contexto no cambia hasta S4.
+    /// El botón nombra lo que muestra la lista: «Todas las Empresas gestionadas» con «Todas» elegida, la Empresa gestionada consultada
+    /// con una elegida y, sin elección, la del Tenant activo. En el lienzo nombra el contexto (<c>ctx.nombre</c>), que aquí no cambia
+    /// hasta S4; por eso con «Todas» no puede nombrar el Tenant activo, que no es lo que se ve.
     /// </summary>
     private string NombreEnBoton
     {
         get
         {
+            if (Elegida is { TenantId: null }) return Textos["TodasLasEmpresasGestionadas"].Value;
             var mostrada = Elegida?.TenantId ?? TenantActivoId;
             return Empresas.FirstOrDefault(e => e.TenantId == mostrada)?.TenantNombre ?? string.Empty;
         }

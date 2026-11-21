@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Eventos;
@@ -7,6 +8,7 @@ using CaeManager.Application.Comunicaciones.VistaUnificada;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Web.Features.Comunicaciones.Pages;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -117,6 +119,9 @@ public partial class ComunicacionesGen2Tests
         Assert.Equal("true", opciones[2].GetAttribute("aria-selected"));
         Assert.Equal("false", opciones[0].GetAttribute("aria-selected"));
         Assert.DoesNotContain("Tenant", cut.Find(".eg-selector").TextContent, StringComparison.Ordinal);
+        // Con todas contadas, ni aviso ni total parcial.
+        Assert.Empty(cut.FindAll(".eg-pop-aviso"));
+        Assert.Null(opciones[0].QuerySelector(".eg-contador")!.GetAttribute("title"));
     }
 
     [Fact]
@@ -174,6 +179,11 @@ public partial class ComunicacionesGen2Tests
         Assert.Equal("Todas mis Empresas gestionadas · Abiertas", cut.Find(".eu-titulo").TextContent);
         Assert.Equal("Solo consulta. Para responder una conversación, abre su Empresa gestionada arriba, en «Trabajando en».",
             cut.Find(".eu-aviso").TextContent);
+        // El botón nombra lo que se ve, «Todas», y no el Tenant activo; tampoco lleva sus iniciales.
+        Assert.Equal("Todas las Empresas gestionadas", cut.Find(".eg-nom").TextContent);
+        Assert.Equal("Empresa gestionada: Todas las Empresas gestionadas. Cambiar de Empresa gestionada",
+            cut.Find(".eg-boton").GetAttribute("aria-label"));
+        Assert.DoesNotContain("TN", cut.Find(".eg-boton .eg-mono").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -193,7 +203,8 @@ public partial class ComunicacionesGen2Tests
         Assert.Contains("Documentación de marzo", cut.Markup, StringComparison.Ordinal);
         Assert.NotEmpty(cut.FindAll("button[aria-label='Redactar correo']"));
         Assert.Single(mediador.Enviados.OfType<ObtenerConversacionesUnificadasQuery>());
-        Assert.True(mediador.Enviados.Count(p => p is ObtenerConversacionesQuery) >= listasDeMain);
+        // Volver al Tenant activo no vuelve a pedir la lista: la de main sigue cargada y es la que se ve.
+        Assert.Equal(listasDeMain, mediador.Enviados.Count(p => p is ObtenerConversacionesQuery));
     }
 
     [Fact]
@@ -201,9 +212,11 @@ public partial class ComunicacionesGen2Tests
     {
         var (cut, _) = RenderizarConEmpresas(new Escenario(), peticion => peticion switch
         {
-            ObtenerTenantsBeneficiariosVistaUnificadaQuery => Task.FromResult<object?>(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)),
+            // Recuentos a cero: así «Al día» solo lo puede quitar el aviso de no leídas, no el recuento del selector.
+            ObtenerTenantsBeneficiariosVistaUnificadaQuery => Task.FromResult<object?>(ConjuntoDeEmpresas(
+                EmpresaActiva with { Abiertas = 0 }, EmpresaOtra with { Abiertas = 0 })),
             ObtenerConversacionesUnificadasQuery => Task.FromResult<object?>(new PaginaConversacionesUnificadasDto(
-                [], [new CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.TenantNoConsultadoDto(TenantOtro, "Construcciones Ebro", false)], null)),
+                [], [new TenantNoConsultadoDto(TenantOtro, "Construcciones Ebro", false)], null)),
             _ => null
         });
         cut.WaitForElement(".eg-boton");
@@ -225,6 +238,204 @@ public partial class ComunicacionesGen2Tests
         cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados, p => p is ObtenerTenantsBeneficiariosVistaUnificadaQuery));
         Assert.Empty(cut.FindAll(".eg-boton"));
         Assert.NotEmpty(cut.FindAll("button[aria-label='Redactar correo']"));
+    }
+
+    // ---------------------------------------------------------------- revisión r1 de PR-S2b
+
+    /// <summary>
+    /// MEDIA 1 (a): con una conversación abierta, elegir otra Empresa gestionada la cierra. No queda ni el detalle, ni las acciones, ni la
+    /// nota fija del contacto, y «conversacion» sale de la URL. Detecta quitar el bloque que descarta la conversación abierta en
+    /// <c>ElegirEmpresaGestionadaAsync</c> (la condición del panel de contexto es la segunda defensa y no basta para la URL ni el detalle).
+    /// </summary>
+    [Fact]
+    public async Task Con_una_conversacion_abierta_elegir_otra_Empresa_gestionada_la_cierra_sin_dejar_detalle_ni_acciones()
+    {
+        var conversacion = Conversacion("Documentación de marzo", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = RenderizarConEmpresas(escenario, Responde(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)));
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.WaitForElement(".eg-boton");
+        await SeleccionarFila(cut, "Documentación de marzo");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindComponents<AccionCenter>()));
+        Assert.NotEmpty(cut.FindComponents<NotaFijaContacto>());
+        Assert.Contains("conversacion=", navegacion.Uri, StringComparison.Ordinal);
+
+        Elegir(cut, "Construcciones Ebro");
+
+        cut.WaitForElement(".eu-lista");
+        Assert.Empty(cut.FindComponents<AccionCenter>());
+        Assert.Empty(cut.FindComponents<NotaFijaContacto>());
+        Assert.Empty(cut.FindAll(".bandeja-cliente"));
+        Assert.Empty(cut.FindAll(".bandeja-centro-acciones"));
+        Assert.Null(CampoPrivado<object?>(cut, "_detalle"));
+        Assert.Null(CampoPrivado<Guid?>(cut, "_conversacionSeleccionadaId"));
+        Assert.DoesNotContain("conversacion=", navegacion.Uri, StringComparison.Ordinal);
+    }
+
+    /// <summary>MEDIA 1 (b): un enlace «?conversacion=» abre una conversación del Tenant activo y saca de la vista unificada.</summary>
+    [Fact]
+    public async Task Un_enlace_a_una_conversacion_saca_de_la_vista_unificada()
+    {
+        var conversacion = Conversacion("Documentación de marzo", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = RenderizarConEmpresas(escenario, Responde(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)));
+        cut.WaitForElement(".eg-boton");
+        Elegir(cut, "Construcciones Ebro");
+        cut.WaitForElement(".eu-lista");
+
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo($"comunicaciones?conversacion={conversacion.Id}"));
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".eu-lista")));
+        Assert.Null(CampoPrivado<object?>(cut, "_eleccionEmpresa"));
+        Assert.Equal(conversacion.Id, CampoPrivado<Guid?>(cut, "_conversacionSeleccionadaId"));
+        Assert.Equal("Talleres Norte", cut.Find(".eg-nom").TextContent);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".bandeja-cliente")));
+    }
+
+    /// <summary>MEDIA 1 (c): «Clientes» y «Mi buzón personal» son del Tenant activo; pulsarlos saca de la vista unificada.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Cambiar_de_vista_saca_de_la_vista_unificada(int boton)
+    {
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)));
+        cut.WaitForElement(".eg-boton");
+        Elegir(cut, "Construcciones Ebro");
+        cut.WaitForElement(".eu-lista");
+
+        cut.FindAll(".bandeja-nav-item")[boton].Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".eu-lista")));
+        Assert.Null(CampoPrivado<object?>(cut, "_eleccionEmpresa"));
+        Assert.Equal("Talleres Norte", cut.Find(".eg-nom").TextContent);
+    }
+
+    /// <summary>BAJA 6: una vista que llega por la URL (Atrás del navegador) es del Tenant activo y saca de la vista unificada.</summary>
+    [Fact]
+    public async Task Atras_a_otra_vista_saca_de_la_vista_unificada()
+    {
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)));
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.WaitForElement(".eg-boton");
+        await cut.InvokeAsync(() => navegacion.NavigateTo("comunicaciones?vista=personal"));
+        cut.WaitForAssertion(() => Assert.Equal("personal", CampoPrivado<string>(cut, "_vista")));
+        Elegir(cut, "Construcciones Ebro");
+        cut.WaitForElement(".eu-lista");
+
+        // Atrás: el navegador vuelve a la URL anterior, la vista «Clientes».
+        await cut.InvokeAsync(() => navegacion.NavigateTo("comunicaciones"));
+
+        cut.WaitForAssertion(() => Assert.Equal("clientes", CampoPrivado<string>(cut, "_vista")));
+        Assert.Null(CampoPrivado<object?>(cut, "_eleccionEmpresa"));
+        Assert.Empty(cut.FindAll(".eu-lista"));
+    }
+
+    /// <summary>Con dos Empresas gestionadas que no incluyen el Tenant activo no hay selector: el conjunto no es el de esta sesión.</summary>
+    [Fact]
+    public void Sin_el_Tenant_activo_en_el_conjunto_no_hay_selector()
+    {
+        var (cut, mediador) = RenderizarConEmpresas(new Escenario(), Responde(ConjuntoDeEmpresas(
+            EmpresaOtra, new TenantBeneficiarioVistaUnificadaDto(Guid.Parse("e5e5e5e5-0000-0000-0000-000000000005"), "Montajes Sur", false, 1))));
+
+        cut.WaitForAssertion(() => Assert.Contains(mediador.Enviados, p => p is ObtenerTenantsBeneficiariosVistaUnificadaQuery));
+        Assert.Empty(cut.FindAll(".eg-boton"));
+        Assert.DoesNotContain(mediador.Enviados, p => p is ObtenerConversacionesUnificadasQuery);
+    }
+
+    /// <summary>
+    /// MEDIA 2: las Empresas gestionadas que el servidor no pudo contar (NoConsultados) nunca son «cero». El total de «Todas» y el
+    /// número de la cabecera se marcan como parciales y el desplegable avisa, sin «Tenant».
+    /// </summary>
+    [Fact]
+    public void Con_Empresas_gestionadas_sin_contar_el_selector_marca_el_total_como_parcial_y_avisa()
+    {
+        var conjunto = new TenantsBeneficiariosVistaUnificadaDto([EmpresaActiva, EmpresaOtra],
+            [new TenantNoConsultadoDto(Guid.Parse("e5e5e5e5-0000-0000-0000-000000000005"), "Montajes Sur", false)]);
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(conjunto));
+
+        cut.WaitForElement(".eg-boton").Click();
+
+        Assert.Equal("Empresas gestionadas · 2 de 3 contadas", cut.Find(".eg-pop-t").TextContent);
+        Assert.Equal("No se han podido contar las conversaciones de Montajes Sur; el total es parcial.", cut.Find(".eg-pop-aviso").TextContent);
+        var total = cut.FindAll(".eg-opcion")[0].QuerySelector(".eg-contador")!;
+        Assert.Equal("5+", total.TextContent);
+        Assert.Equal("Recuento parcial: faltan las Empresas gestionadas que no se han podido contar", total.GetAttribute("title"));
+        Assert.DoesNotContain("Tenant", cut.Find(".eg-selector").TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// La carrera de <c>_generacion</c>: la respuesta de una elección anterior que llega tarde no pisa la lista de la última elección.
+    /// </summary>
+    [Fact]
+    public async Task Una_respuesta_tardia_de_otra_eleccion_no_pisa_la_lista_de_la_ultima()
+    {
+        var tardia = Retenida();
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), peticion => peticion switch
+        {
+            ObtenerTenantsBeneficiariosVistaUnificadaQuery => Task.FromResult<object?>(ConjuntoDeEmpresas(EmpresaActiva, EmpresaOtra)),
+            ObtenerConversacionesUnificadasQuery { TenantIds: not null } => tardia.Task,
+            ObtenerConversacionesUnificadasQuery => Task.FromResult<object?>(new PaginaConversacionesUnificadasDto(
+                [FilaUnificada(TenantActivo, "Talleres Norte", "Alta de trabajador")], [], null)),
+            _ => null
+        });
+        cut.WaitForElement(".eg-boton");
+        Elegir(cut, "Construcciones Ebro");
+        Elegir(cut, "Todas las Empresas gestionadas");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".eu-fila")));
+
+        await cut.InvokeAsync(() => tardia.SetResult(new PaginaConversacionesUnificadasDto(
+            [FilaUnificada(TenantOtro, "Construcciones Ebro", "Respuesta tardía")],
+            [new TenantNoConsultadoDto(TenantActivo, "Talleres Norte", true)], null)));
+        cut.Render();
+
+        var fila = Assert.Single(cut.FindAll(".eu-fila"));
+        Assert.Contains("Alta de trabajador", fila.TextContent, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll(".eu-aviso-incompleto"));
+        Assert.Equal("Todas mis Empresas gestionadas · Abiertas", cut.Find(".eu-titulo").TextContent);
+    }
+
+    /// <summary>«Tenant» no sale en pantalla, tampoco en los atributos que lee un lector de pantalla o que salen al pasar el ratón.</summary>
+    [Fact]
+    public void Tenant_no_sale_en_aria_label_ni_en_title_del_selector_ni_de_la_vista_unificada()
+    {
+        var conjunto = new TenantsBeneficiariosVistaUnificadaDto([EmpresaActiva, EmpresaOtra],
+            [new TenantNoConsultadoDto(Guid.Parse("e5e5e5e5-0000-0000-0000-000000000005"), "Montajes Sur", false)]);
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(conjunto,
+            FilaUnificada(TenantOtro, "Construcciones Ebro", "Renovación del TC2")));
+        cut.WaitForElement(".eg-boton");
+        Elegir(cut, "Todas las Empresas gestionadas");
+        cut.WaitForElement(".eu-fila");
+        cut.Find(".eg-boton").Click();
+
+        var atributos = cut.FindAll(".eg-selector, .eg-selector *, .eu-lista, .eu-lista *")
+            .SelectMany(e => new[] { e.GetAttribute("aria-label"), e.GetAttribute("title") })
+            .Where(a => a is not null)
+            .ToList();
+        // Control positivo: el botón, el desplegable, el buscador, el total parcial y las filas llevan rótulo accesible o title.
+        Assert.True(atributos.Count >= 6, $"solo {atributos.Count} atributos inspeccionados");
+        Assert.All(atributos, a => Assert.DoesNotContain("Tenant", a, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// BAJA 5: con la lista vacía y un recuento del selector mayor que cero para lo elegido, no se pinta «Al día»; con cero, sí.
+    /// </summary>
+    [Theory]
+    [InlineData("Construcciones Ebro", 2, false)]
+    [InlineData("Construcciones Ebro", 0, true)]
+    [InlineData("Todas las Empresas gestionadas", 2, false)]
+    [InlineData("Todas las Empresas gestionadas", 0, true)]
+    public void Al_dia_no_se_pinta_si_el_selector_cuenta_abiertas_para_lo_elegido(string eleccion, int abiertas, bool alDia)
+    {
+        var (cut, _) = RenderizarConEmpresas(new Escenario(), Responde(ConjuntoDeEmpresas(
+            EmpresaActiva with { Abiertas = abiertas }, EmpresaOtra with { Abiertas = abiertas })));
+        cut.WaitForElement(".eg-boton");
+
+        Elegir(cut, eleccion);
+
+        cut.WaitForElement(".eu-vacio");
+        Assert.Equal(alDia, cut.FindAll(".eu-al-dia").Count == 1);
     }
 
     [Theory]

@@ -106,4 +106,8 @@
   <data name="TituloEmpresa" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="VistaUnificadaCentroTitulo" xml:space="preserve"><value>Vista de només consulta</value></data>
   <data name="VistaUnificadaCentroAyuda" xml:space="preserve"><value>Aquí es llegeixen les converses obertes de les teves Empreses gestionades. Per obrir-ne i respondre&apos;n una, tria la seva Empresa gestionada a dalt, a «Treballant a».</value></data>
+  <data name="EmpresasGestionadasResumenParcial" xml:space="preserve"><value>Empreses gestionades · {0} de {1} comptades</value></data>
+  <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No s&apos;han pogut comptar les converses de {0}; el total és parcial.</value></data>
+  <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
+  <data name="RecuentoParcial" xml:space="preserve"><value>Recompte parcial: hi falten les Empreses gestionades que no s&apos;han pogut comptar</value></data>
 </root>
