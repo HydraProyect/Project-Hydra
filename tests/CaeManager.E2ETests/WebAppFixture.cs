@@ -424,6 +424,25 @@ public class WebAppFixture : IAsyncLifetime
         ("nivel", "Gestionada"));
 
     /// <summary>
+    /// Clasifica como «datos personales, sin salud» un tipo de documento que el test acaba de crear desde la pantalla.
+    /// La pantalla no deja elegir la sensibilidad y un tipo sin clasificar cuenta como de salud, donde la lectura por IA
+    /// no se puede activar (decisión de Legal del 2026-11-17). El trigger <c>proteger_lectura_ia_inicial_salud</c> solo
+    /// actúa cuando el valor nuevo es de salud, así que este cambio no toca los interruptores. Devuelve cuántas filas
+    /// cambió: 1 si el nombre es el del test.
+    /// </summary>
+    public Task<int> ClasificarTipoDocumentoSinSaludAsync(string nombreTipoDocumento) => EjecutarSqlAsync(
+        """
+        UPDATE "TiposDocumento" AS t
+        SET "Sensibilidad" = @sensibilidad
+        FROM "AspNetUsers" AS u
+        WHERE u."Email" = @email AND t."TenantId" = u."TenantId" AND t."Nombre" = @nombre
+        """,
+        ("email", Ayudas.EmailAdministrador),
+        ("nombre", nombreTipoDocumento),
+        // SensibilidadDocumental.DatosPersonales.ToString(): el proyecto E2E no referencia Domain.
+        ("sensibilidad", "DatosPersonales"));
+
+    /// <summary>
     /// Conexiones abiertas a la base de esta fixture autenticadas como
     /// <see cref="RolDeRuntime"/>. Control positivo del instrumento: si el tráfico
     /// hubiera caído a la cadena propietaria, sería cero.

@@ -783,7 +783,8 @@ public static class TipoDocumentoSeedData
             Requerido = RequeridoDe(d.Id, d.Nombre, d.EsObligatorio),
             Naturaleza = NaturalezaDe(d.Nombre),
             Sensibilidad = SensibilidadDe(d.Nombre),
-            // Mismo criterio que el constructor de TipoDocumento: un tipo de salud nace apagado (DPA 16.4).
+            // Mismo criterio que el constructor de TipoDocumento: un tipo de salud nace apagado (DPA 16.4) y, desde la
+            // decisión de Legal del 2026-11-17, no se puede encender (TipoDocumento.EstablecerLecturaIaActiva).
             LecturaIaActiva = SensibilidadDe(d.Nombre) != SensibilidadDocumental.CategoriaEspecialSalud,
             // Ningún tipo semilla nace de «solo conclusión de aptitud» (Inbound M1, PR 4): marcarlo es decisión de cada Tenant.
             SoloConclusionAptitud = false,

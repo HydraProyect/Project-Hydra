@@ -46,7 +46,9 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(_empresa);
 
-        _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
+        // Un tipo de salud no admite lectura por IA (decisión de Legal del 2026-11-17): se elige uno que no revela salud.
+        _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+            && t.Sensibilidad != SensibilidadDocumental.CategoriaEspecialSalud);
         _tipoApto.EstablecerLecturaIaActiva(true);
         _tipoApto.EstablecerVerificacionIaActiva(true);
 
@@ -69,6 +71,37 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     private static EncargoVerificacionIa Encargo(Documento documento) => new(documento.Id, DateTime.UtcNow, documento.Version);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
+
+    /// <summary>
+    /// Decisión de Legal del 2026-11-17: la lectura con IA de un tipo de salud queda bloqueada también para una fila que
+    /// ya se guardó con la lectura encendida, cuando el comando aún lo permitía. El dominio ya no deja fabricarla, así
+    /// que se escribe por SQL; el trigger de la base solo apaga al insertar o al reclasificar como salud.
+    /// </summary>
+    [Fact]
+    public async Task No_lee_con_IA_un_tipo_de_salud_aunque_la_fila_guardada_tenga_la_lectura_encendida()
+    {
+        var salud = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+            && t.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud);
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "TiposDocumento" SET "LecturaIaActiva" = true, "VerificacionIaActiva" = true WHERE "Id" = {salud.Id}""");
+        await _dbContext.Entry(salud).ReloadAsync();
+        salud.LecturaIaActiva.Should().BeTrue("control positivo: la fila fabricada tiene la lectura encendida");
+        salud.VerificacionIaActiva.Should().BeTrue();
+
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, salud.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var llamadas = 0;
+        var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => llamadas++));
+
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
+
+        llamadas.Should().Be(0, "un documento de salud no sale hacia el proveedor de IA");
+        (await _dbContext.RevisionesIaDocumento.CountAsync(r => r.DocumentoId == documento.Id)).Should().Be(0);
+    }
 
     [Fact]
     public async Task Genera_una_revision_pendiente_cuando_la_confianza_es_baja()
