@@ -220,7 +220,7 @@ public partial class ComunicacionesGen2Tests
         (consulta.SoloAsignadasAMi, consulta.SoloEsperandoCliente, consulta.SoloSinAsignar, consulta.SoloFueraDeSla)
             .Should().Be((mias, esperando, sinAsignar, fueraDePlazo));
         consulta.GrupoEstado.Should().Be(GrupoEstadoConversacion.Abiertas,
-            "el lienzo deriva estas vistas de «Abiertas» (porVista.abiertas, línea 1355-1360 del tablero): cuentan y listan solo estados vivos");
+            "el lienzo deriva «Mías» y «Sin asignar» de lo que no está Resuelta (variable abiertas, línea 1354 del tablero) y DN-O fija el grupo Abiertas: cuentan y listan solo estados vivos");
         cut.FindAll(".bandeja-vista-panel").Should().BeEmpty("elegir una vista cierra el panel");
         DisparadorDeVista(cut).QuerySelector(".bandeja-vista-v")!.TextContent.Trim().Should().StartWith($"{vista} · ");
         cut.Find(".bandeja-lis-cab-titulo").TextContent.Trim().Should().Be(vista);
@@ -439,7 +439,9 @@ public partial class ComunicacionesGen2Tests
 
     /// <summary>
     /// Tres vivas y tres archivadas, con cada archivada en un caso en que su vista la contaría sin el grupo: una mía y resuelta, una sin
-    /// asignar y cerrada, y una con el plazo vencido y resuelta. Antes de acotarlas, «Mías» daba 2, «Sin asignar» 2 y «Fuera de plazo» 2.
+    /// asignar y cerrada, y una con el plazo vencido y resuelta. Contra el mediador falso, sin el grupo, «Mías» daba 2, «Sin asignar» 2 y «Fuera de plazo» 2. Contra la query real solo cambian «Mías» y
+    /// «Sin asignar»: «Fuera de plazo» y «Esperando respuesta» ya excluían las archivadas (<c>CalcularPlazosAsync</c> solo ve las vivas), y aquí
+    /// quedan como guarda contra una regresión.
     /// </summary>
     private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) RenderizarConArchivadasEnCadaVista()
     {

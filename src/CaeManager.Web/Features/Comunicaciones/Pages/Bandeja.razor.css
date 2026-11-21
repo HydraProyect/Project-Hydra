@@ -42,7 +42,9 @@
     min-height: 480px;
 }
 
-/* La banda del Rol Consulta (46 px más 12 de aire) se resta del alto del layout para que la página no desborde. */
+/* La banda del Rol Consulta (46 px más 12 de aire) se resta del alto del layout para que la página no desborde.
+   shortcut: alto fijo para una banda de una línea; con la ventana estrecha el texto envuelve (unos 66 px) y el layout desborda unos 20 px;
+   mejorar cuando la bandeja pase a ser una columna flex que reparta el alto sola. */
 .bandeja-contenedor:has(.bandeja-banda-consulta) {
     --bandeja-alto-reservado: 242px;
 }
@@ -115,7 +117,7 @@
 }
 
 /* Cabecera de página (maqueta 2026-11-01, `.cab`): banda de 52 px con el título (16/20 700), el buscador
-   (máx. 420 px, 36 px de alto) y «Nuevo correo» a la derecha. */
+   (máx. 420 px, 36 px de alto) y «Redactar correo» a la derecha. */
 .bandeja-cabecera-pagina {
     display: flex;
     align-items: center;

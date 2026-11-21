@@ -181,8 +181,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// lienzo. Faltan las que ese filtro no puede expresar hoy (Por aprobar, Cubro, Propuestas, Borradores, Pospuestas, Enviados y No
     /// deseado) y «Resueltas» y «En espera de tercero», que son un estado concreto y ya salen del filtro «Estado» de «Más filtros»:
     /// no se dibujan. «Mías», «Esperando respuesta», «Sin asignar» y «Fuera de plazo» se cuentan y se listan dentro de «Abiertas»
-    /// (mandan su mismo grupo), como en el lienzo, donde se derivan de <c>porVista.abiertas</c>: una conversación Resuelta o Cerrada
-    /// no cuenta en ninguna de ellas, aunque siga asignada a alguien o sin asignar.
+    /// (mandan su mismo grupo), como en el lienzo, donde «Mías» y «Sin asignar» salen de la variable local <c>abiertas</c> (todo lo que no
+    /// está Resuelta, línea 1354 del tablero): una conversación Resuelta o Cerrada no cuenta en ninguna de ellas, aunque siga asignada a
+    /// alguien o sin asignar. Consecuencia: con un estado archivado elegido, esas vistas dejan de existir (pasa a «Todas», ver
+    /// <c>AjustarVistaAlEstado</c>) y no hay combinación que liste solo mis archivadas o solo las archivadas sin asignar.
     /// </summary>
     private enum VistaLista { Abiertas, Mias, Esperando, Archivadas, SinAsignar, FueraDePlazo, Todas }
 

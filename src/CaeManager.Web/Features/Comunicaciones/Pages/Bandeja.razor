@@ -755,7 +755,8 @@
         <ChildContent>
             @if (_conexionesRedactar.Count > 1)
             {
-                @* Rótulos del cajón como en el lienzo (L-48: líneas 986-994 del tablero): «Desde», con «nombre · dirección» por opción. *@
+                @* Rótulos del cajón como en el lienzo (L-48: líneas 986-994 del tablero): «Desde», con «nombre · dirección» por opción.
+                   Diferencia con el lienzo (L989): aquí «Desde» solo se dibuja con más de un buzón conectado; con uno solo se usa ese. *@
                 <CampoSelect Etiqueta="@TextosLista["RedactarDesde"]" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
                     <option value="">Selecciona un buzón…</option>
                     @foreach (var conexion in _conexionesRedactar)
