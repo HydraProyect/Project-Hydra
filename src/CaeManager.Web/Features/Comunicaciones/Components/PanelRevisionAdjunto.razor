@@ -340,7 +340,7 @@
         b.Aviso = null;
     }
 
-    // shortcut: el lienzo no tiene campo de fecha de emisión, así que el panel no la pide: la aporta quien abre el visor en PropuestaRevision.FechaEmision (la conectará A4). Sin ella «Asignar el documento» queda deshabilitado con su ayuda; cuando A4 la lea del adjunto (o el lienzo añada el campo), esta ayuda desaparece.
+    // shortcut: el lienzo no tiene campo de fecha de emisión, así que el panel no la pide: la aporta quien abre el visor en PropuestaRevision.FechaEmision (el Reparto, PR-A4, la toma de la fecha que la persona escribió en la fila del adjunto). Sin ella «Asignar el documento» queda deshabilitado con su ayuda; cuando el adjunto guarde la fecha o el lienzo añada el campo, esta ayuda desaparece.
     private string? MotivoSinAsignar(BorradorRevision b) =>
         b.Destino is null ? Textos["Rev_Ayuda_Asignar_Destino"].Value
         : TipoVigente(b) is null ? Textos["Rev_Ayuda_Asignar_Tipo"].Value

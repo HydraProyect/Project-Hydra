@@ -49,9 +49,20 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         public IEnumerable<T> De<T>() => Enviados.OfType<T>();
 
+        /// <summary>Si se da, el próximo lote queda en vuelo hasta que el test complete esta tarea (después responde como siempre).</summary>
+        public TaskCompletionSource? RetenerLote { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
+            if (request is AsignarAdjuntosLoteCommand retenido && RetenerLote is { } espera)
+            {
+                RetenerLote = null;
+                return espera.Task.ContinueWith(
+                    _ => (TResponse)(object)(Lote is not null ? Lote(retenido) : Todos(retenido, EstadoAsignacionAdjunto.Asignado)),
+                    TaskScheduler.Default);
+            }
+
             if (SelectoresFallan.Contains(request.GetType())) throw new InvalidOperationException("falla el selector");
             if (request is ObtenerTrabajadoresParaSelectorQuery && RetenerTrabajadores is { } retenida)
             {
@@ -138,6 +149,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<RepartoAdjuntosPanel>>(_ => NullLogger<RepartoAdjuntosPanel>.Instance);
+        Services.AddSingleton<ILogger<PanelRevisionAdjunto>>(_ => NullLogger<PanelRevisionAdjunto>.Instance);
         return mediador;
     }
 
@@ -158,6 +170,10 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
     private static void EscribirEmision(IRenderedComponent<RepartoAdjuntosPanel> cut, string nombre, string fecha) =>
         cut.Find($"input[aria-label='Fecha de emisión de {nombre}']").Change(fecha);
+
+    // La revisión uno a uno del bloque se abre desde «Elegir» de la fila (el «Revisar todos los adjuntos» del pie abre el visor, PR-A4).
+    private static void AbrirUnoAUno(IRenderedComponent<RepartoAdjuntosPanel> cut, string nombre) =>
+        cut.Find($"button[aria-label='Elegir destino de {nombre}']").Click();
 
     // ---------- Rótulos y estados de la maqueta ----------
 
@@ -278,7 +294,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         Texto(cut).Should().Contain("No se puede asignar hasta cargar los nombres del destino y del tipo.").And.NotContain("1 listo");
         cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue("el lote no lleva lo que no se puede nombrar");
 
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+        AbrirUnoAUno(cut, "doc.pdf");
         cut.Find(".adjb-uno strong").TextContent.Should().Be("doc.pdf");
         cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
         mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
@@ -399,7 +415,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("no está entre los que puedes elegir: elige uno de la lista").And.NotContain("1 listo");
         cut.Find(".adjb-p .adjb-g button").HasAttribute("disabled").Should().BeTrue("el lote no lleva un tipo que no es de la clase del destino");
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+        AbrirUnoAUno(cut, "doc.pdf");
         cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
         mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
         cut.Find("[data-selectores='no-identificados'] button").TextContent.Trim().Should().Be("Reintentar");
@@ -811,7 +827,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
             [new(primero.Id, EstadoAsignacionAdjunto.Conflicto, null, "Ya hay un Documento vigente.")]);
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+        AbrirUnoAUno(cut, "a.pdf");
         cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
         cut.Find(".adjb-uno select[aria-label='Tipo de documento de a.pdf']").Change(TipoDniTrabajador.ToString());
         cut.Find(".adjb-uno input[aria-label='Fecha de emisión de a.pdf']").Change("2026-03-01");
@@ -829,7 +845,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+        AbrirUnoAUno(cut, "a.pdf");
 
         cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
         cut.Find(".adjb-uno-titulos .m-d").TextContent.Should().Contain("Adjunto 1 de 2");
@@ -841,14 +857,17 @@ public class RepartoAdjuntosPanelTests : BunitContext
     }
 
     [Fact]
-    public void Con_rol_Consulta_no_se_puede_abrir_el_uno_a_uno()
+    public void Con_rol_Consulta_no_se_puede_abrir_el_uno_a_uno_ni_el_visor()
     {
-        Preparar(Roles.Consulta, Adj("a.pdf", trabajador: Marta));
+        Preparar(Roles.Consulta, Adj("a.pdf", trabajador: Marta), Adj("b.pdf"));
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
 
+        // Como el lienzo (`revisarOff: !puedeEscribir||fl.length<2`): con dos adjuntos, lo único que lo desactiva aquí es el rol.
         cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).HasAttribute("disabled").Should().BeTrue();
+        cut.Find("button[aria-label='Elegir destino de a.pdf']").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll(".adjb-uno").Should().BeEmpty();
+        cut.FindAll(".vz-ov").Should().BeEmpty();
     }
 
     [Fact]
@@ -890,12 +909,12 @@ public class RepartoAdjuntosPanelTests : BunitContext
         botones.Select(b => b.TextContent.Trim()).Should().Equal("Asignar 1 listo a 1 Trabajador", "Revisar todos los adjuntos");
         botones.Should().OnlyContain(b => b.ClassList.Contains("boton-secundario") && b.ClassList.Contains("boton-pequeno"));
         botones[0].GetAttribute("title").Should().Be("Una sola aprobación. No envía nada al remitente.");
-        botones[1].HasAttribute("disabled").Should().BeFalse("queda un adjunto que pide una decisión");
+        botones[1].HasAttribute("disabled").Should().BeFalse("hay dos adjuntos que revisar en el visor");
         cut.Find(".adjb-s").TextContent.Should().Be("Marta Ruiz: DNI");
     }
 
     [Fact]
-    public void Sin_adjuntos_que_decidir_Revisar_todos_los_adjuntos_se_desactiva_y_el_pie_desaparece_al_resolverlo_todo()
+    public void Con_un_solo_adjunto_Revisar_todos_los_adjuntos_se_desactiva_y_el_pie_desaparece_al_resolverlo_todo()
     {
         Preparar(Roles.GestorCae, Adj("dni-marta.pdf", trabajador: Marta, tipo: TipoDniTrabajador));
         var cut = Pintar();
@@ -1096,7 +1115,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador));
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
-        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+        AbrirUnoAUno(cut, "a.pdf");
 
         var pie = TextosDe(cut.Find(".adjb-uno-pie"), "button");
 
@@ -1106,5 +1125,251 @@ public class RepartoAdjuntosPanelTests : BunitContext
         primarios.Should().ContainSingle().Which.TextContent.Trim().Should().Be("Asignar documento");
         // Aquí rechazar no reclama nada al remitente: el «Rechazar y reclamar el documento» es del Visor y es otra acción.
         Texto(cut).Should().NotContain("reclamar");
+    }
+
+    // ---------- PR-A4 (lienzo Pulida-Bandeja.dc.html:749, 1255 y 1571; Visor-Documento.dc.html:438-449): el reparto y el visor ----------
+
+    private static void AbrirVisor(IRenderedComponent<RepartoAdjuntosPanel> cut) =>
+        cut.FindAll(".adjb button").Single(b => b.TextContent.Contains("Revisar todos")).Click();
+
+    // Lo resuelto sale de la lista por defecto (como el lienzo quita la acción pendiente, Pulida-Bandeja.dc.html:1255): «Ver resueltos» lo recupera.
+    private static void VerResueltos(IRenderedComponent<RepartoAdjuntosPanel> cut, string recuento)
+    {
+        cut.WaitForAssertion(() => cut.FindAll(".adjb-hc button").Should().Contain(b => b.TextContent.Contains("Ver resueltos " + recuento)));
+        cut.FindAll(".adjb-hc button").First(b => b.TextContent.Contains("Ver resueltos")).Click();
+    }
+
+    private static AngleSharp.Dom.IElement BotonDelPanel(IRenderedComponent<RepartoAdjuntosPanel> cut, string texto) =>
+        cut.FindAll(".vz-aside button").First(b => b.TextContent.Trim() == texto);
+
+    [Fact]
+    public void Revisar_todos_los_adjuntos_abre_el_visor_con_los_adjuntos_del_correo_y_el_panel_de_revision()
+    {
+        var mediador = Preparar(Roles.GestorCae,
+            Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador),
+            Adj("b.pdf"),
+            Adj("asignado.pdf", trabajador: Pedro, tipo: TipoDniTrabajador, estado: EstadoRepartoAdjunto.Asignado),
+            Adj("ignorado.pdf", estado: EstadoRepartoAdjunto.Descartado));
+        mediador.Trabajadores = [new(Marta, "Marta Ruiz", null, "Obras Norte"), new(Pedro, "Pedro Gil", null, null)];
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll(".vz-ov").Should().BeEmpty("el visor no está abierto hasta que se pide");
+
+        AbrirVisor(cut);
+
+        cut.Find(".vz-tit-h").TextContent.Should().Be("Revisar los adjuntos del correo");
+        cut.Find(".vz-cola-n").TextContent.Trim().Should().Be("Documento 1 de 3", "el ignorado no es un documento que revisar");
+        var marcas = cut.FindAll(".vz-marcas button");
+        marcas.Should().HaveCount(3);
+        marcas[2].ClassList.Should().Contain("vz-marca-asignado", "lo ya asignado se ve en la cola");
+        cut.Find(".vz-cola-nombre").TextContent.Should().Be("a.pdf");
+        cut.Find("#vz-revision .vz-aside .vz-etq").TextContent.Should().Be("¿Es el documento correcto?");
+        cut.Find($"button[data-cand='{Marta}']").TextContent.Should().Contain("Marta Ruiz").And.Contain("Trabajador de Obras Norte");
+    }
+
+    [Fact]
+    public async Task Asignar_en_el_visor_usa_el_lote_con_la_fecha_de_la_fila_y_el_reparto_se_refresca_y_avisa_a_la_pagina()
+    {
+        var a = Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, a, Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "a.pdf", "2026-03-01");
+        var lecturas = mediador.De<ObtenerRepartoAdjuntosQuery>().Count();
+        AbrirVisor(cut);
+
+        await cut.Find($"button[data-cand='{Marta}']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await BotonDelPanel(cut, "Asignar el documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
+        var lote = mediador.De<AsignarAdjuntosLoteCommand>().Single();
+        lote.ConversacionId.Should().Be(Conversacion);
+        lote.Adjuntos.Should().ContainSingle().Which.Should().Be(
+            new AdjuntoAAsignar(a.Id, TipoDniTrabajador, Marta, null, new DateOnly(2026, 3, 1), null, false));
+        mediador.De<FijarDestinoAdjuntoCommand>().Should().BeEmpty("el servidor ya tenía ese destino y ese tipo");
+
+        // El lienzo quita la acción pendiente del adjunto asignado (alRevisado) y la conversación se entera.
+        VerResueltos(cut, "(1)");
+        cut.Find($"[data-adjunto='{a.Id}']").GetAttribute("data-situacion").Should().Be("Asignado");
+        mediador.De<ObtenerRepartoAdjuntosQuery>().Count().Should().BeGreaterThan(lecturas, "el reparto se relee tras asignar en el visor");
+        cut.Find(".vz-marcas button").ClassList.Should().Contain("vz-marca-asignado");
+        cut.Find(".vz-cola-n").TextContent.Trim().Should().Be("Documento 2 de 2", "al resolver pasa al siguiente pendiente");
+
+        // La página relee el hilo (con el evento de Documento actualizado) al cerrar el visor: releerlo antes desmontaría este panel con el visor dentro.
+        avisos.Should().Be(0, "con el visor abierto la página no recarga el hilo");
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        avisos.Should().Be(1, "al cerrar el visor la página relee el hilo, una sola vez");
+    }
+
+    [Fact]
+    public async Task Rechazar_en_el_visor_manda_el_motivo_y_el_reparto_pasa_el_adjunto_a_rechazado_y_avisa_a_la_pagina()
+    {
+        var a = Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, a, Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        AbrirVisor(cut);
+
+        await BotonDelPanel(cut, "Rechazar documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find(".vz-aside textarea").InputAsync(new ChangeEventArgs { Value = "No es de esta obra" });
+        await BotonDelPanel(cut, "Rechazar documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.De<ResolverAdjuntoCommand>().Should().ContainSingle());
+        mediador.De<ResolverAdjuntoCommand>().Single().Should().Be(new ResolverAdjuntoCommand(a.Id, ResolucionAdjunto.Rechazar, "No es de esta obra"));
+        VerResueltos(cut, "(1)");
+        cut.Find($"[data-adjunto='{a.Id}']").GetAttribute("data-situacion").Should().Be("Rechazado");
+        cut.Find(".vz-marcas button").ClassList.Should().Contain("vz-marca-rechazado");
+        avisos.Should().Be(0, "con el visor abierto la página no recarga el hilo");
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        avisos.Should().Be(1, "al cerrar el visor la página relee el hilo (con el evento de Adjunto rechazado), una sola vez");
+    }
+
+    [Fact]
+    public async Task Dejar_un_adjunto_para_despues_en_el_visor_no_escribe_nada_ni_cambia_el_reparto_como_en_el_lienzo()
+    {
+        var mediador = Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        AbrirVisor(cut);
+        var lecturas = mediador.De<ObtenerRepartoAdjuntosQuery>().Count();
+
+        await BotonDelPanel(cut, "Dejar el documento para después").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        // Omitido conserva la acción pendiente (Pulida-Bandeja.dc.html:1255 solo atiende «asignado» y «rechazado»): ni Commands ni relectura ni aviso.
+        cut.Find(".vz-cola-n").TextContent.Trim().Should().Be("Documento 2 de 2");
+        mediador.De<ResolverAdjuntoCommand>().Should().BeEmpty();
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
+        mediador.De<ObtenerRepartoAdjuntosQuery>().Count().Should().Be(lecturas);
+        avisos.Should().Be(0);
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        avisos.Should().Be(0, "cerrar sin haber resuelto nada no recarga el hilo");
+    }
+
+    [Fact]
+    public async Task Sin_fecha_de_emision_en_la_fila_el_visor_no_ofrece_asignar_y_lo_dice()
+    {
+        var mediador = Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("b.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        AbrirVisor(cut);
+
+        await cut.Find($"button[data-cand='{Marta}']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var asignar = BotonDelPanel(cut, "Asignar el documento");
+        await asignar.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        asignar.GetAttribute("aria-disabled").Should().Be("true");
+        cut.Find(".vz-aside").TextContent.Should().Contain("Falta la fecha de emisión del documento para asignarlo.");
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_visor_se_abre_en_el_primer_adjunto_por_decidir_y_no_en_uno_ya_resuelto()
+    {
+        Preparar(Roles.GestorCae,
+            Adj("asignado.pdf", trabajador: Marta, tipo: TipoDniTrabajador, estado: EstadoRepartoAdjunto.Asignado),
+            Adj("rechazado.pdf", estado: EstadoRepartoAdjunto.Rechazado, motivo: "No es de esta obra"),
+            Adj("pendiente.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        AbrirVisor(cut);
+
+        cut.Find(".vz-cola-n").TextContent.Trim().Should().Be("Documento 3 de 3");
+        cut.Find(".vz-cola-nombre").TextContent.Should().Be("pendiente.pdf");
+    }
+
+    [Fact]
+    public async Task Si_la_relectura_falla_tras_resolver_en_el_visor_se_cierra_y_el_reparto_queda_bloqueado_con_Reintentar()
+    {
+        var a = Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, a, Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "a.pdf", "2026-03-01");
+        AbrirVisor(cut);
+        await cut.Find($"button[data-cand='{Marta}']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        mediador.RepartoFalla = true;
+
+        await BotonDelPanel(cut, "Asignar el documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".vz-ov").Should().BeEmpty("sin lectura buena el visor no sigue ofreciendo asignar"));
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle();
+        Texto(cut).Should().Contain("Reintentar");
+        avisos.Should().Be(1, "el lote ya se escribió: la página relee el hilo");
+    }
+
+    [Fact]
+    public async Task Si_se_cierra_el_visor_con_el_lote_en_vuelo_la_pagina_se_entera_cuando_termina()
+    {
+        var a = Adj("a.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, a, Adj("b.pdf"));
+        var avisos = 0;
+        var cut = Pintar(() => avisos++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "a.pdf", "2026-03-01");
+        AbrirVisor(cut);
+        await cut.Find($"button[data-cand='{Marta}']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var lote = new TaskCompletionSource();
+        mediador.RetenerLote = lote;
+
+        _ = BotonDelPanel(cut, "Asignar el documento").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        cut.FindAll(".vz-ov").Should().BeEmpty();
+        avisos.Should().Be(0, "el lote sigue en vuelo: todavía no hay nada que la página deba releer");
+        lote.SetResult();
+
+        // Sin esta rama el aviso se perdía: el visor ya estaba cerrado cuando llegó la resolución y nadie lo cerraba después.
+        cut.WaitForAssertion(() => avisos.Should().Be(1, "la resolución llega con el visor ya cerrado y la página se entera igualmente, una sola vez"));
+    }
+
+    [Fact]
+    public void Un_vencimiento_que_no_es_fecha_no_llega_al_panel_como_fecha_de_emision_valida()
+    {
+        Preparar(Roles.GestorCae, Adj("dni-marta.pdf", trabajador: Marta, tipo: TipoDniTrabajador), Adj("b.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "dni-marta.pdf", "2026-03-01");
+        cut.Find("input[aria-label='Fecha de vencimiento de dni-marta.pdf']").Change("no es una fecha");
+
+        AbrirVisor(cut);
+        cut.Find($"button[data-cand='{Marta}']").Click();
+
+        BotonDelPanel(cut, "Asignar el documento").GetAttribute("aria-disabled").Should().Be("true");
+        cut.Find(".vz-aside").TextContent.Should().Contain("Falta la fecha de emisión del documento para asignarlo.");
+    }
+
+    [Fact]
+    public void Con_un_pendiente_y_los_demas_ignorados_no_hay_cola_que_revisar_y_el_boton_del_visor_se_desactiva()
+    {
+        Preparar(Roles.GestorCae, Adj("a.pdf"), Adj("ignorado.pdf", estado: EstadoRepartoAdjunto.Descartado));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.FindAll(".adjb button").Single(b => b.TextContent.Contains("Revisar todos")).HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Cerrar_el_visor_vuelve_al_reparto_y_cambiar_de_conversacion_lo_cierra()
+    {
+        Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta), Adj("b.pdf"));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        AbrirVisor(cut);
+        cut.FindAll(".vz-ov").Should().HaveCount(1);
+        cut.Find("button[aria-label='Cerrar el visor']").Click();
+        cut.FindAll(".vz-ov").Should().BeEmpty();
+        cut.FindAll(".adjb-w").Should().HaveCount(2, "el reparto sigue ahí");
+
+        AbrirVisor(cut);
+        cut.FindAll(".vz-ov").Should().HaveCount(1);
+        cut.Render(p => p.Add(x => x.ConversacionId, Guid.NewGuid()));
+
+        cut.WaitForAssertion(() => cut.FindAll(".vz-ov").Should().BeEmpty("el visor era de la otra conversación"));
     }
 }
