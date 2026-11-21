@@ -1,0 +1,198 @@
+@* Desplegable «Buzón» de Comunicaciones (lienzo «Comunicaciones multi-buzón», tablero Pulida-Bandeja, L-9: marcado de las líneas
+   629-630, CSS de las líneas 82-95 y unidades de las líneas 1832-1851). Las unidades son «Todos los buzones», «Mi buzón personal» y
+   los buzones compartidos agrupados por Empresa gestionada (Tenant beneficiario), cada uno con sus Abiertas o «Con error». El servidor
+   da los buzones y los recuentos; este componente no calcula ningún conjunto. Elegir es una coordenada que solo estrecha la lista:
+   el id de la conexión se suma con AND a la visibilidad del servidor y no da permiso para nada. *@
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosListaConversaciones> Textos
+
+<div class="bz-selector">
+    <button type="button" class="bz-boton" aria-haspopup="dialog" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-label="@Textos["BuzonAccesible", NombreEnBoton]" title="@Textos["BuzonAccesible", NombreEnBoton]"
+            @onclick="AlternarAsync">
+        <span class="bz-boton-tx"><span class="bz-sub">@Textos["Buzon"]</span><span class="bz-nom">@NombreEnBoton</span></span>
+        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+    </button>
+    @if (_abierto)
+    {
+        <div class="bz-superposicion" @onclick="Cerrar"></div>
+        <div class="bz-panel" role="dialog" aria-label="@Textos["BuzonElegir"]" @onkeydown="TeclaAsync">
+            <input class="bz-buscar" type="search" aria-label="@Textos["BuzonBuscar"]" placeholder="@Textos["BuzonBuscar"]"
+                   @bind="_busqueda" @bind:event="oninput" />
+            <span class="bz-pop-t">@Textos["BuzonOpciones", Opciones]</span>
+            <div class="bz-lista" role="listbox" aria-label="@Textos["Buzones"]">
+                @if (Coincide(Textos["TodosLosBuzones"].Value, string.Empty, SubtextoTodos))
+                {
+                    <button type="button" class="bz-fila @(Elegida.EsTodos ? "activo" : null)" role="option" aria-selected="@(Elegida.EsTodos ? "true" : "false")"
+                            @onclick="ElegirTodosAsync">
+                        <span class="bz-q"><span class="bz-tx"><span class="bz-n">@Textos["TodosLosBuzones"]</span></span></span>
+                        <span class="bz-d">@SubtextoTodos</span>
+                        <span class="bz-c">@AbiertasTodos</span>
+                    </button>
+                }
+                @if (MuestraPersonal && Coincide(Textos["NavBuzonPersonal"].Value, string.Empty, Textos["BuzonTipoPersonal"].Value))
+                {
+                    @* Sin recuento: la vista personal lista mensajes del buzón personal, no conversaciones (hueco declarado en la PR). *@
+                    <button type="button" class="bz-fila @(Elegida.Personal ? "activo" : null)" role="option" aria-selected="@(Elegida.Personal ? "true" : "false")"
+                            @onclick="ElegirPersonalAsync">
+                        <span class="bz-q"><span class="bz-tx"><span class="bz-n">@Textos["NavBuzonPersonal"]</span></span></span>
+                        <span class="bz-d">@Textos["BuzonTipoPersonal"]</span>
+                        <span class="bz-c"></span>
+                    </button>
+                }
+                @foreach (var grupo in GruposVisibles)
+                {
+                    @* Un grupo por Empresa gestionada: el listbox solo contiene opciones y grupos de opciones (la cabecera es presentación). *@
+                    <div @key="grupo.TenantId" class="bz-grupo" role="group" aria-label="@grupo.Nombre">
+                        @if (grupo.Nombre is not null)
+                        {
+                            <div class="bz-cab" role="presentation" title="@grupo.Titulo">
+                                <span class="bz-ic"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /></span><span class="bz-cn">@grupo.Nombre</span><span class="bz-cc">@grupo.Total</span>
+                            </div>
+                        }
+                        @foreach (var fila in grupo.Filas)
+                        {
+                            <button @key="fila.Buzon.ConexionId" type="button" class="bz-fila @fila.Clase" role="option" aria-selected="@fila.Seleccionada"
+                                    title="@fila.Titulo" @onclick="fila.Elegir">
+                                <span class="bz-q"><span class="bz-tx"><span class="bz-n">@fila.Buzon.Nombre</span><span class="bz-d">@fila.Buzon.Direccion</span></span></span>
+                                <span class="bz-d"></span>
+                                @if (fila.Buzon.ConError)
+                                {
+                                    <span class="bz-c bz-c-error">@Textos["BuzonConError"]</span>
+                                }
+                                else
+                                {
+                                    <span class="bz-c">@fila.Buzon.Abiertas</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+            @* Los avisos van fuera del listbox, que solo contiene opciones (como el selector de Empresa gestionada). *@
+            @if (Cargando)
+            {
+                <span class="bz-pop-t" role="status">@Textos["Cargando"]</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_busqueda) && !HayCoincidencias)
+            {
+                <span class="bz-pop-t">@Textos["NingunBuzonCoincide", _busqueda]</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Los buzones compartidos agrupados por Empresa gestionada, en el orden del selector de Empresas gestionadas.</summary>
+    [Parameter] public IReadOnlyList<GrupoBuzonesDelDesplegable> Grupos { get; set; } = [];
+
+    /// <summary>Lo que muestra la lista. Por defecto, «Todos los buzones».</summary>
+    [Parameter] public EleccionBuzon Elegida { get; set; } = new(null, null, string.Empty);
+
+    /// <summary>El subtexto de «Todos los buzones»: el ámbito vigente (el Tenant activo, la Empresa consultada o todas).</summary>
+    [Parameter] public string SubtextoTodos { get; set; } = string.Empty;
+
+    /// <summary>Las Abiertas del ámbito vigente; <c>null</c> si no se conocen.</summary>
+    [Parameter] public int? AbiertasTodos { get; set; }
+
+    /// <summary>«Mi buzón personal» solo se ofrece donde la página lo ofrece.</summary>
+    [Parameter] public bool MuestraPersonal { get; set; } = true;
+
+    /// <summary>Mientras llegan los buzones de las Empresas gestionadas.</summary>
+    [Parameter] public bool Cargando { get; set; }
+
+    /// <summary>Se avisa al abrir, para que la página cargue los buzones solo cuando hacen falta.</summary>
+    [Parameter] public EventCallback OnAbrir { get; set; }
+
+    [Parameter] public EventCallback<EleccionBuzon> OnElegir { get; set; }
+
+    private sealed record FilaBuzon(BuzonDelDesplegable Buzon, string Clase, string Seleccionada, string Titulo, Func<Task> Elegir);
+
+    private sealed record GrupoVisible(Guid TenantId, string? Nombre, string Total, string Titulo, IReadOnlyList<FilaBuzon> Filas);
+
+    /// <summary>
+    /// Los grupos con algún buzón que coincide con la búsqueda, ya preparados para pintar (clases in y ult del lienzo, selección y
+    /// title), para que el marcado no lleve lógica.
+    /// </summary>
+    private IEnumerable<GrupoVisible> GruposVisibles
+    {
+        get
+        {
+            foreach (var grupo in Grupos)
+            {
+                var buzones = grupo.Buzones.Where(b => Coincide(b.Nombre, b.Direccion, grupo.Nombre)).ToList();
+                if (buzones.Count == 0) continue;
+                var conCabecera = grupo.Nombre is not null;
+                var filas = buzones.Select((b, i) =>
+                {
+                    var activo = Elegida.ConexionId == b.ConexionId;
+                    var clases = new[] { activo ? "activo" : null, conCabecera ? "in" : null, conCabecera && i == buzones.Count - 1 ? "ult" : null };
+                    var eleccion = new EleccionBuzon(grupo.TenantId, b.ConexionId, b.Nombre);
+                    return new FilaBuzon(b, string.Join(' ', clases.Where(c => c is not null)), activo ? "true" : "false",
+                        $"{b.Nombre} · {b.Direccion}", () => ElegirAsync(eleccion));
+                }).ToList();
+                var total = TextoNumeroBuzones(grupo.Buzones.Count);
+                yield return new GrupoVisible(grupo.TenantId, grupo.Nombre, total, $"{grupo.Nombre} · {total}", filas);
+            }
+        }
+    }
+
+    private bool _abierto;
+    private string _busqueda = string.Empty;
+
+    private string NombreEnBoton => Elegida.EsTodos ? Textos["TodosLosBuzones"].Value
+        : Elegida.Personal ? Textos["NavBuzonPersonal"].Value
+        : Elegida.Nombre;
+
+    /// <summary>«Buzón · N opciones»: todas las unidades elegibles, sin las cabeceras y sin aplicar la búsqueda (lienzo <c>nav.length</c>).</summary>
+    private int Opciones => 1 + (MuestraPersonal ? 1 : 0) + Grupos.Sum(g => g.Buzones.Count);
+
+    private bool HayCoincidencias =>
+        Coincide(Textos["TodosLosBuzones"].Value, string.Empty, SubtextoTodos)
+        || (MuestraPersonal && Coincide(Textos["NavBuzonPersonal"].Value, string.Empty, Textos["BuzonTipoPersonal"].Value))
+        || Grupos.Any(g => g.Buzones.Any(b => Coincide(b.Nombre, b.Direccion, g.Nombre)));
+
+    /// <summary>La búsqueda del lienzo: nombre, dirección y Empresa gestionada de la unidad.</summary>
+    private bool Coincide(string nombre, string direccion, string? empresa)
+    {
+        var q = _busqueda.Trim();
+        return q.Length == 0 || $"{nombre} {direccion} {empresa}".Contains(q, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private string TextoNumeroBuzones(int n) =>
+        n == 1 ? Textos["BuzonesDeEmpresaUno"].Value : Textos["BuzonesDeEmpresaVarios", n].Value;
+
+    private async Task AlternarAsync()
+    {
+        _abierto = !_abierto;
+        if (!_abierto)
+        {
+            _busqueda = string.Empty;
+            return;
+        }
+        await OnAbrir.InvokeAsync();
+    }
+
+    private void Cerrar()
+    {
+        _abierto = false;
+        _busqueda = string.Empty;
+    }
+
+    private Task TeclaAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Cerrar();
+        return Task.CompletedTask;
+    }
+
+    private Task ElegirTodosAsync() => ElegirAsync(new EleccionBuzon(null, null, Textos["TodosLosBuzones"].Value));
+
+    private Task ElegirPersonalAsync() => ElegirAsync(new EleccionBuzon(null, null, Textos["NavBuzonPersonal"].Value, Personal: true));
+
+    private async Task ElegirAsync(EleccionBuzon eleccion)
+    {
+        Cerrar();
+        await OnElegir.InvokeAsync(eleccion);
+    }
+}

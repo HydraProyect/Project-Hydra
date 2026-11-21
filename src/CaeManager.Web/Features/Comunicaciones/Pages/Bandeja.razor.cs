@@ -22,6 +22,7 @@ using CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerActividadBuzones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
@@ -644,13 +645,19 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Elegir el Tenant activo vuelve a la lista de siempre; otra Empresa gestionada o «Todas» abren la vista unificada en solo consulta.
     /// Antes se pregunta por una respuesta a medias y se cierra la conversación abierta, que es del Tenant activo.
     /// </summary>
-    private async Task ElegirEmpresaGestionadaAsync(EleccionEmpresaGestionada eleccion)
+    private Task ElegirEmpresaGestionadaAsync(EleccionEmpresaGestionada eleccion) => AplicarEmpresaGestionadaAsync(eleccion);
+
+    /// <summary>
+    /// <see cref="ElegirEmpresaGestionadaAsync"/> diciendo si la elección quedó aplicada: «Seguir editando» la deja como estaba. El
+    /// desplegable «Buzón» la usa para no filtrar por un buzón de una Empresa gestionada que no llegó a abrirse.
+    /// </summary>
+    private async Task<bool> AplicarEmpresaGestionadaAsync(EleccionEmpresaGestionada eleccion)
     {
         var siguiente = eleccion.TenantId == TenantActual.TenantId ? null : eleccion;
-        if (siguiente == _eleccionEmpresa) return;
+        if (siguiente == _eleccionEmpresa) return true;
         if (siguiente is not null)
         {
-            if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+            if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return false;
             if (_conversacionSeleccionadaId is not null)
             {
                 DescartarConversacionAbierta();
@@ -659,6 +666,204 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _modoTabla = false;
         }
         _eleccionEmpresa = siguiente;
+        // El buzón de la vista unificada era de la Empresa gestionada anterior: no pasa a la nueva.
+        _buzonUnificado = null;
+        return true;
+    }
+
+    // Desplegable «Buzón» de esta página (lienzo «Comunicaciones multi-buzón», L-9). Elegir un buzón es una coordenada que solo estrecha
+    // la lista: el id de la conexión viaja a ObtenerConversacionesQuery (Tenant activo) o a ObtenerConversacionesUnificadasQuery (otra
+    // Empresa gestionada, en solo consulta), que lo suman con AND a la regla de visibilidad del servidor. Esta página no decide qué
+    // buzones existen ni qué conversaciones se ven: solo pide y pinta. Las lecturas son las que ya existen (#2407, #2415): ninguna nueva
+    // entre Tenants.
+    private IReadOnlyList<GrupoBuzonesDelDesplegable> _gruposBuzones = [];
+    private bool _cargandoBuzones;
+
+    /// <summary>El buzón que filtra la lista del Tenant activo; <c>null</c>, «Todos los buzones».</summary>
+    private EleccionBuzon? _buzonActivo;
+
+    /// <summary>El buzón que filtra la vista unificada; solo vale para la Empresa gestionada consultada (ver <see cref="ConexionFiltroUnificada"/>).</summary>
+    private EleccionBuzon? _buzonUnificado;
+
+    /// <summary>El id que viaja a <c>ObtenerConversacionesQuery</c>.</summary>
+    private Guid? ConexionFiltroLista => _buzonActivo?.ConexionId;
+
+    /// <summary>
+    /// El id que viaja a la vista unificada: solo si es de la Empresa gestionada que se consulta. Salir de la vista unificada por
+    /// cualquier camino (vista, Origen, URL, abrir una conversación) deja de aplicarlo, y volver a entrar lo limpia
+    /// (<see cref="AplicarEmpresaGestionadaAsync"/>): nunca queda un buzón de la selección anterior.
+    /// </summary>
+    private Guid? ConexionFiltroUnificada =>
+        _buzonUnificado is { } b && _eleccionEmpresa?.TenantId is { } consultada && b.TenantId == consultada ? b.ConexionId : null;
+
+    /// <summary>Lo que el botón dice que muestra la lista.</summary>
+    private EleccionBuzon BuzonEnBoton =>
+        EnVistaUnificada
+            ? ConexionFiltroUnificada is not null ? _buzonUnificado! : new EleccionBuzon(null, null, string.Empty)
+            : _vista == "personal" ? new EleccionBuzon(null, null, string.Empty, Personal: true)
+            : _buzonActivo ?? new EleccionBuzon(null, null, string.Empty);
+
+    /// <summary>El subtexto de «Todos los buzones»: el ámbito vigente de la lista.</summary>
+    private string SubtextoTodosLosBuzones =>
+        EnVistaUnificada
+            ? _eleccionEmpresa!.TenantId is null ? TextosLista["TodasLasEmpresasGestionadas"].Value : NombreEmpresaConsultada
+            : _empresasGestionadas.FirstOrDefault(e => e.TenantId == TenantActivoId)?.TenantNombre ?? string.Empty;
+
+    /// <summary>Las Abiertas del ámbito vigente, del mismo recuento que el selector de Empresa gestionada.</summary>
+    private int? AbiertasTodosLosBuzones =>
+        EnVistaUnificada ? AbiertasSegunSelector : _empresasGestionadas.FirstOrDefault(e => e.TenantId == TenantActivoId)?.Abiertas;
+
+    /// <summary>
+    /// Carga los buzones al abrir el desplegable: los del Tenant activo con <see cref="ObtenerConexionesIntegracionQuery"/> y su
+    /// actividad, y los de cada otra Empresa gestionada con <see cref="ObtenerBuzonesVistaUnificadaQuery"/> (#2415), que pasa por la
+    /// entrada de la vista unificada. Una Empresa gestionada que no se puede leer no sale (no se inventa que no tiene buzones).
+    /// </summary>
+    // shortcut: una lectura por Empresa gestionada en cada apertura del desplegable; mejorarlo con una query de buzones de todo el
+    // conjunto (o una caché con invalidación) si el número de Empresas gestionadas de un Gestor CAE crece.
+    private async Task CargarBuzonesDelDesplegableAsync()
+    {
+        if (TenantActual.TenantId is not { } activo || _cargandoBuzones) return;
+        _cargandoBuzones = true;
+        StateHasChanged();
+        try
+        {
+            var grupos = new List<GrupoBuzonesDelDesplegable>();
+            if (!MuestraSelectorEmpresas)
+            {
+                if (await GrupoDelTenantActivoAsync(activo, null) is { } unico) grupos.Add(unico);
+            }
+            else
+            {
+                foreach (var empresa in _empresasGestionadas)
+                {
+                    var grupo = empresa.TenantId == activo
+                        ? await GrupoDelTenantActivoAsync(activo, empresa.TenantNombre)
+                        : await GrupoDeOtraEmpresaAsync(empresa);
+                    if (grupo is not null) grupos.Add(grupo);
+                }
+            }
+            _gruposBuzones = grupos;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _cargandoBuzones = false;
+        }
+    }
+
+    /// <summary>Los buzones compartidos del Tenant activo: el personal tiene su propia unidad, «Mi buzón personal».</summary>
+    private async Task<GrupoBuzonesDelDesplegable?> GrupoDelTenantActivoAsync(Guid activo, string? nombre)
+    {
+        try
+        {
+            var conexiones = (await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true), _ciclo.Token))
+                .Where(c => c.GestorPropietarioId is null).ToList();
+            IReadOnlyDictionary<Guid, ActividadBuzonDto> actividad = new Dictionary<Guid, ActividadBuzonDto>();
+            if (conexiones.Count > 0)
+            {
+                try
+                {
+                    actividad = await Mediator.Send(new ObtenerActividadBuzonesQuery(conexiones.Select(c => c.Id).ToList()), _ciclo.Token);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Sin actividad, los buzones salen sin recuento: nunca con un cero que no se ha contado.
+                    Logger.LogWarning(ex, "No se pudo leer la actividad de los buzones del desplegable de Comunicaciones.");
+                }
+            }
+            return new GrupoBuzonesDelDesplegable(activo, nombre, conexiones.Select(c => Buzon(c, actividad)).ToList());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "No se pudieron leer los buzones del Tenant activo para el desplegable de Comunicaciones.");
+            return null;
+        }
+    }
+
+    private async Task<GrupoBuzonesDelDesplegable?> GrupoDeOtraEmpresaAsync(TenantBeneficiarioVistaUnificadaDto empresa)
+    {
+        try
+        {
+            var buzones = await Mediator.Send(new ObtenerBuzonesVistaUnificadaQuery(empresa.TenantId), _ciclo.Token);
+            if (buzones is null) return null;
+            return new GrupoBuzonesDelDesplegable(empresa.TenantId, empresa.TenantNombre,
+                buzones.Conexiones.Where(c => c.GestorPropietarioId is null).Select(c => Buzon(c, buzones.Actividad)).ToList());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "No se pudieron leer los buzones de una Empresa gestionada para el desplegable de Comunicaciones.");
+            return null;
+        }
+    }
+
+    // «En pausa» no se pinta: no hay estado de pausa persistido (L-57, necesita migración). «Con error» sí: EstadoConexionIntegracion.ConError.
+    private static BuzonDelDesplegable Buzon(ConexionIntegracionListaDto c, IReadOnlyDictionary<Guid, ActividadBuzonDto> actividad) =>
+        new(c.Id, c.Nombre, c.BuzonEmail, actividad.TryGetValue(c.Id, out var a) ? a.ConversacionesAbiertas : null,
+            c.Estado == EstadoConexionIntegracion.ConError);
+
+    /// <summary>
+    /// Elegir una unidad del desplegable. «Todos los buzones» quita solo el filtro de buzón y conserva la Empresa gestionada elegida;
+    /// «Mi buzón personal» es la vista personal; un buzón del Tenant activo filtra su lista; el de otra Empresa gestionada abre su
+    /// vista unificada en solo consulta por el mismo camino que el selector (pregunta por la respuesta a medias, cierra la conversación
+    /// abierta) y la filtra por ese buzón.
+    /// </summary>
+    private async Task ElegirBuzonAsync(EleccionBuzon eleccion)
+    {
+        if (eleccion.Personal)
+        {
+            await CambiarVistaAsync("personal");
+            return;
+        }
+
+        if (eleccion.EsTodos)
+        {
+            if (EnVistaUnificada)
+            {
+                _buzonUnificado = null;
+                return;
+            }
+            var habia = _buzonActivo is not null;
+            _buzonActivo = null;
+            if (_vista == "personal") await CambiarVistaAsync("clientes");
+            else if (habia) await RecargarListaFiltradaAsync();
+            return;
+        }
+
+        if (eleccion.TenantId == TenantActual.TenantId)
+        {
+            var veniaDeUnificada = EnVistaUnificada;
+            if (veniaDeUnificada && !await AplicarEmpresaGestionadaAsync(new EleccionEmpresaGestionada(eleccion.TenantId))) return;
+            var previo = _buzonActivo;
+            _buzonActivo = eleccion;
+            if (_vista == "personal")
+            {
+                // Como cualquier otro filtro, la lista filtrada empieza en la página 1 (revisión puente, MEDIA 1).
+                var paginaPrevia = _pagina;
+                _pagina = 1;
+                await CambiarVistaAsync("clientes");
+                // «Seguir editando» deja la vista personal: el buzón no se queda puesto a escondidas.
+                if (_vista == "personal")
+                {
+                    _buzonActivo = previo;
+                    _pagina = paginaPrevia;
+                }
+                return;
+            }
+            if (veniaDeUnificada || previo?.ConexionId != eleccion.ConexionId) await RecargarListaFiltradaAsync();
+            return;
+        }
+
+        if (!await AplicarEmpresaGestionadaAsync(new EleccionEmpresaGestionada(eleccion.TenantId))) return;
+        _buzonUnificado = eleccion;
+    }
+
+    private Task RecargarListaFiltradaAsync()
+    {
+        // Como cualquier otro filtro: vuelve a la página 1.
+        _pagina = 1;
+        return CargarListaAsync();
     }
 
     /// <summary>
@@ -983,7 +1188,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Canal: canal,
             Pagina: pagina,
             TamanoPagina: tamanoPagina,
-            GrupoEstado: GrupoDeVista(vista));
+            GrupoEstado: GrupoDeVista(vista),
+            ConexionIntegracionId: ConexionFiltroLista);
     }
 
     /// <summary>
@@ -1187,10 +1393,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>
     /// Los filtros de la bandeja: cuatro que viajan en la URL (estado,
-    /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Abiertas» y el canal.
+    /// mes, Cliente empresarial y búsqueda), intención CAE, la vista distinta de «Abiertas», el canal y el buzón del desplegable.
     /// </summary>
     private bool HayFiltrosActivos =>
-        HayFiltrosAvanzados || HayBusqueda || _vistaLista != VistaLista.Abiertas || _canalFiltro is not null;
+        HayFiltrosAvanzados || HayBusqueda || _vistaLista != VistaLista.Abiertas || _canalFiltro is not null || _buzonActivo is not null;
 
     // --- Vacíos de la lista (lienzo «Pulida: bandeja de la cartera», L-15) ---
 
@@ -1214,10 +1420,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool EsVistaAbiertas => _vistaLista == VistaLista.Abiertas;
 
     /// <summary>
-    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros» o un chip de canal, en cualquier vista. El lienzo dice
-    /// «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era «Sin resultados».
+    /// El vacío es el de un filtro de resultados: búsqueda, «Más filtros», un chip de canal o un buzón del desplegable, en cualquier
+    /// vista. El lienzo dice «Al día» con un chip de canal, pero «Al día» junto a «Quitar los filtros» se contradice y en main era
+    /// «Sin resultados».
     /// </summary>
-    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || _canalFiltro is not null;
+    private bool VacioPorFiltros => HayBusqueda || HayFiltrosAvanzados || _canalFiltro is not null || _buzonActivo is not null;
 
     /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda ni filtros, en la vista por defecto y con buzones conectados.</summary>
     private bool AlDiaVacio => !VacioPorFiltros && !_sinBuzonesConectados && EsVistaAbiertas;
@@ -1271,6 +1478,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _busqueda = string.Empty;
         _vistaLista = VistaLista.Abiertas;
         _canalFiltro = null;
+        _buzonActivo = null;
         return AplicarFiltrosAsync();
     }
 

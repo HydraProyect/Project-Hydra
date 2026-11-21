@@ -50,12 +50,19 @@ namespace CaeManager.Application.Comunicaciones.VistaUnificada;
 /// Grupo de estados de la vista (DN-O), sumado con AND; <c>null</c>, todos. Con <see cref="GrupoEstadoConversacion.Abiertas"/>
 /// la lista de un Tenant cuenta lo mismo que su recuento en <see cref="ObtenerTenantsBeneficiariosVistaUnificadaQuery"/>.
 /// </param>
+/// <param name="ConexionIntegracionId">
+/// Desplegable «Buzón» (L-9): solo los hilos que entraron por esa conexión de buzón; <c>null</c>, todos. Coordenada que solo
+/// estrecha: se aplica en cada Tenant después de su regla de visibilidad y bajo su RLS, sumada con AND. Una conexión de otro
+/// Tenant, inexistente o el buzón personal de otro Gestor CAE no coincide con ninguna fila visible: la página sale vacía, sin
+/// error y sin marcar al Tenant como no consultado.
+/// </param>
 [AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesUnificadasQuery(
     IReadOnlyList<Guid>? TenantIds = null,
     CursorConversacionesUnificadas? Cursor = null,
     int TamanoPagina = 20,
-    GrupoEstadoConversacion? GrupoEstado = null)
+    GrupoEstadoConversacion? GrupoEstado = null,
+    Guid? ConexionIntegracionId = null)
     : IRequest<PaginaConversacionesUnificadasDto>;
 
 /// <param name="CotaSuperiorUtc"><c>T0</c>: la fecha tope de todo el recorrido, tomada en la primera página.</param>
@@ -159,7 +166,8 @@ public class ObtenerConversacionesUnificadasQueryHandler(
                 var (autorizado, delTenant) = await AmbitoTenantAutorizado.EjecutarAsync(
                     identidad, operaciones, tenants, tenantId,
                     ambito => LeerTenantAsync(
-                        ambito, nombre, esOrigen, cota, request.Cursor, tamano, request.GrupoEstado, cancellationToken),
+                        ambito, nombre, esOrigen, cota, request.Cursor, tamano, request.GrupoEstado,
+                        request.ConexionIntegracionId, cancellationToken),
                     cancellationToken);
                 if (autorizado && delTenant is not null)
                     filas.AddRange(delTenant);
@@ -190,13 +198,17 @@ public class ObtenerConversacionesUnificadasQueryHandler(
     private async Task<List<ConversacionUnificadaDto>?> LeerTenantAsync(
         AmbitoTenantAutorizado ambito, string tenantNombre, bool esOrigen, DateTime cota,
         CursorConversacionesUnificadas? cursor, int tamano, GrupoEstadoConversacion? grupoEstado,
-        CancellationToken cancellationToken)
+        Guid? conexionIntegracionId, CancellationToken cancellationToken)
     {
         var consulta = await EntradaVistaUnificada.ConversacionesDelTenantAsync(
             ambito, esOrigen, cota, grupoEstado, comunicacionesContext, integracionesContext, alcanceDatos,
             currentUserService, tenantActual, cancellationToken);
         if (consulta is null)
             return null;
+
+        // Desplegable «Buzón» (L-9): sobre lo que ya dejó pasar la visibilidad de este Tenant, nunca en su lugar.
+        if (conexionIntegracionId is { } conexionId)
+            consulta = consulta.Where(c => c.ConexionIntegracionId == conexionId);
 
         if (cursor is not null)
         {

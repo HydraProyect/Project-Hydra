@@ -99,6 +99,14 @@
             {
                 <SelectorEmpresaGestionada Empresas="_empresasGestionadas" NoConsultados="_empresasSinContar" TenantActivoId="TenantActivoId" Elegida="_eleccionEmpresa" OnElegir="ElegirEmpresaGestionadaAsync" />
             }
+            @* Desplegable «Buzón» (lienzo, L-9): solo estrecha la lista por una conexión de buzón; el servidor lo suma con AND a su
+               visibilidad. Un buzón de otra Empresa gestionada abre su vista unificada en solo consulta, como el selector de arriba.
+               No se ofrece mientras se ve el historial de Reclamaciones, que no depende del buzón. *@
+            @if (TenantActual.TenantId is not null && !MostrandoHistorial)
+            {
+                <SelectorBuzon Grupos="_gruposBuzones" Elegida="BuzonEnBoton" SubtextoTodos="@SubtextoTodosLosBuzones" AbiertasTodos="AbiertasTodosLosBuzones"
+                               Cargando="_cargandoBuzones" OnAbrir="CargarBuzonesDelDesplegableAsync" OnElegir="ElegirBuzonAsync" />
+            }
             @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
                a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
@@ -170,9 +178,10 @@
 
             @if (EnVistaUnificada)
             {
-                @* Vista unificada en solo consulta: sin filtros, sin buscador, sin tabla y sin abrir conversaciones (S4, DN-J). *@
+                @* Vista unificada en solo consulta: sin más filtro que el desplegable «Buzón» (L-9), sin buscador, sin tabla y sin abrir
+                   conversaciones (S4, DN-J). *@
                 <ListaConversacionesUnificadas Eleccion="_eleccionEmpresa!" Titulo="@TituloVistaUnificada" NombreConsultada="@NombreEmpresaConsultada"
-                                               AbiertasSegunSelector="AbiertasSegunSelector" />
+                                               AbiertasSegunSelector="AbiertasSegunSelector" ConexionId="ConexionFiltroUnificada" />
             }
             else if (_vista == "clientes")
             {

@@ -702,6 +702,59 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(conversacionPersonalId);
     }
 
+    /// <summary>
+    /// Desplegable «Buzón» (L-9) con el filtro de Tenant de EF y PostgreSQL de verdad: el id de una conexión del Tenant activo deja
+    /// sus hilos; el de una conexión de otro Tenant, con un hilo propio allí, da la lista vacía (ni sus hilos ni error), y el del
+    /// buzón personal de otro Gestor CAE del mismo Tenant, también.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_por_buzon_solo_estrecha_y_un_buzon_de_otro_Tenant_o_personal_ajeno_da_la_lista_vacia()
+    {
+        var otroTenant = Guid.NewGuid();
+        Guid buzonPropio, buzonPersonalAjeno, buzonDeOtroTenant, hiloPropio;
+        await using (var contexto = CrearContexto())
+        {
+            var conexion = new ConexionIntegracion("cae@propio.example.invalid", "CAE propio");
+            var personalAjeno = new ConexionIntegracion("otro@propio.example.invalid", "Personal ajeno", gestorPropietarioId: Guid.NewGuid());
+            contexto.ConexionesIntegracion.AddRange(conexion, personalAjeno);
+            await contexto.SaveChangesAsync();
+
+            var propio = new Conversacion("Hilo del buzón propio");
+            propio.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@externo.test", "<p>Uno</p>");
+            propio.AsociarConexion(conexion.Id, "hilo-buzon-propio");
+            var sinBuzon = new Conversacion("Hilo sin buzón");
+            sinBuzon.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@externo.test", "<p>Dos</p>");
+            var dePersonalAjeno = new Conversacion("Hilo del buzón personal ajeno");
+            dePersonalAjeno.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@externo.test", "<p>Tres</p>");
+            dePersonalAjeno.AsociarConexion(personalAjeno.Id, "hilo-personal-ajeno");
+            contexto.Conversaciones.AddRange(propio, sinBuzon, dePersonalAjeno);
+            await contexto.SaveChangesAsync();
+            (buzonPropio, buzonPersonalAjeno, hiloPropio) = (conexion.Id, personalAjeno.Id, propio.Id);
+        }
+
+        await using (var contextoOtro = CrearContexto(otroTenant))
+        {
+            var conexionAjena = new ConexionIntegracion("cae@ajeno.example.invalid", "CAE de otro Tenant");
+            contextoOtro.ConexionesIntegracion.Add(conexionAjena);
+            await contextoOtro.SaveChangesAsync();
+            var ajeno = new Conversacion("Hilo de otro Tenant");
+            ajeno.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@externo.test", "<p>Ajeno</p>");
+            ajeno.AsociarConexion(conexionAjena.Id, "hilo-otro-tenant");
+            contextoOtro.Conversaciones.Add(ajeno);
+            await contextoOtro.SaveChangesAsync();
+            buzonDeOtroTenant = conexionAjena.Id;
+        }
+
+        (await EjecutarAsync(new ObtenerConversacionesQuery())).TotalElementos.Should().Be(2,
+            "control del instrumento: sin filtro se ven el hilo del buzón propio y el que no tiene buzón");
+        (await EjecutarAsync(new ObtenerConversacionesQuery(ConexionIntegracionId: buzonPropio)))
+            .Elementos.Should().ContainSingle().Which.Id.Should().Be(hiloPropio);
+        (await EjecutarAsync(new ObtenerConversacionesQuery(ConexionIntegracionId: buzonDeOtroTenant)))
+            .TotalElementos.Should().Be(0, "el id de una conexión de otro Tenant no trae sus hilos");
+        (await EjecutarAsync(new ObtenerConversacionesQuery(ConexionIntegracionId: buzonPersonalAjeno)))
+            .TotalElementos.Should().Be(0, "el filtro nunca abre el buzón personal de otro Gestor CAE");
+    }
+
     private async Task<Application.Common.ResultadoPaginado<ConversacionListaDto>> EjecutarAsync(ObtenerConversacionesQuery query)
     {
         await using var contexto = CrearContexto();

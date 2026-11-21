@@ -51,6 +51,12 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// Resuelta y Cerrada (<see cref="GruposEstadoConversacion"/>). Convive con <see cref="Estado"/> (un estado concreto): si vienen los
 /// dos se suman con AND, y sin <see cref="GrupoEstado"/> el filtro por <see cref="Estado"/> se comporta como siempre. Como el resto, es un
 /// filtro de servidor sumado con AND a la visibilidad, y los recuentos de vista de la pantalla reutilizan esta misma consulta.
+///
+/// <see cref="ConexionIntegracionId"/> es el desplegable «Buzón» de la bandeja (lienzo «Comunicaciones multi-buzón», L-9): deja
+/// solo los hilos que entraron por esa conexión de buzón. Es una coordenada que solo estrecha, nunca autoridad: se suma con AND a
+/// <see cref="ConversacionesVisibles.FiltrarAsync"/>, así que no abre ninguna conversación nueva. Un id que no sea de una conexión
+/// del Tenant activo (de otro Tenant, eliminada o inexistente) o que sea el buzón personal de otro Gestor CAE no coincide con
+/// ninguna conversación visible y devuelve la lista vacía, sin error que distinga un caso de otro.
 /// </summary>
 [AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesQuery(
@@ -67,7 +73,8 @@ public record ObtenerConversacionesQuery(
     int TamanoPagina = 20,
     IntencionCae? Intencion = null,
     bool SoloFueraDeSla = false,
-    GrupoEstadoConversacion? GrupoEstado = null)
+    GrupoEstadoConversacion? GrupoEstado = null,
+    Guid? ConexionIntegracionId = null)
     : IRequest<ResultadoPaginado<ConversacionListaDto>>;
 
 public record ConversacionListaDto(
@@ -177,6 +184,10 @@ public class ObtenerConversacionesQueryHandler(
         // el dato para cualquier otra UI o API que llegue después.
         consulta = await ConversacionesVisibles.FiltrarAsync(
             consulta, alcanceDatos, currentUserService, integracionesContext, tenantActual, cancellationToken);
+
+        // Desplegable «Buzón» (L-9): estrecha lo que la visibilidad ya dejó pasar, después de ella y nunca en su lugar.
+        if (request.ConexionIntegracionId is { } conexionId)
+            consulta = consulta.Where(c => c.ConexionIntegracionId == conexionId);
 
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);

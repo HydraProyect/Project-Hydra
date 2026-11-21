@@ -108,4 +108,18 @@
   <data name="EmpresasGestionadasSinContar" xml:space="preserve"><value>No s&apos;han pogut comptar les converses de {0}; el total és parcial.</value></data>
   <data name="ContadorParcial" xml:space="preserve"><value>{0}+</value></data>
   <data name="RecuentoParcial" xml:space="preserve"><value>Recompte parcial: hi falten les Empreses gestionades que no s&apos;han pogut comptar</value></data>
+  <data name="Buzon" xml:space="preserve"><value>Bústia</value></data>
+  <data name="BuzonAccesible" xml:space="preserve"><value>Bústia: {0}. Canviar de bústia</value></data>
+  <data name="BuzonElegir" xml:space="preserve"><value>Triar bústia</value></data>
+  <data name="BuzonBuscar" xml:space="preserve"><value>Cercar bústia o Empresa gestionada</value></data>
+  <data name="BuzonOpciones" xml:space="preserve"><value>Bústia · {0} opcions</value></data>
+  <data name="Buzones" xml:space="preserve"><value>Bústies</value></data>
+  <data name="TodosLosBuzones" xml:space="preserve"><value>Totes les bústies</value></data>
+  <data name="BuzonTipoPersonal" xml:space="preserve"><value>Personal</value></data>
+  <data name="BuzonesDeEmpresaUno" xml:space="preserve"><value>1 bústia</value></data>
+  <data name="BuzonesDeEmpresaVarios" xml:space="preserve"><value>{0} bústies</value></data>
+  <data name="BuzonConError" xml:space="preserve"><value>Amb error</value></data>
+  <data name="NingunBuzonCoincide" xml:space="preserve"><value>Cap bústia coincideix amb «{0}»</value></data>
+  <data name="SinConversacionesIncompleta" xml:space="preserve"><value>Llista incompleta</value></data>
+  <data name="SinConversacionesIncompletaAyuda" xml:space="preserve"><value>No hi ha converses obertes en el que hem pogut llegir, però falten Empreses gestionades per llegir.</value></data>
 </root>

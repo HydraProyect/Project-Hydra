@@ -1,0 +1,233 @@
+/* Desplegable «Buzón» (lienzo, tablero Pulida-Bandeja, L-9: CSS bz-* de las líneas 82-95). Las clases son propias del componente
+   (CSS aislado). El botón sigue al del selector «Empresa gestionada» porque comparten la columna de filtros de la bandeja. */
+.bz-selector {
+    position: relative;
+}
+
+.bz-boton {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.bz-boton:hover {
+    background-color: var(--color-surface-subtle);
+}
+
+.bz-boton:focus-visible,
+.bz-fila:focus-visible,
+.bz-buscar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.bz-boton-tx {
+    display: block;
+    flex: 1;
+    min-width: 0;
+}
+
+.bz-sub {
+    display: block;
+    color: var(--color-text-muted);
+    font: 500 0.75rem/1rem var(--font-family);
+}
+
+.bz-nom {
+    display: block;
+    overflow: hidden;
+    font: 600 0.875rem/1.25rem var(--font-family);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bz-superposicion {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+}
+
+/* Fixed y no absolute, como el selector de Empresa gestionada: la columna de filtros recorta con overflow: hidden. */
+.bz-panel {
+    position: fixed;
+    z-index: 1031;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    box-sizing: border-box;
+    width: min(620px, calc(100vw - 2 * var(--space-4)));
+    max-width: calc(100vw - 2 * var(--space-4));
+    max-height: 70vh;
+    margin-top: var(--space-1);
+    overflow: auto;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+    scrollbar-width: thin;
+}
+
+.bz-buscar {
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.bz-pop-t {
+    padding: var(--space-1) var(--space-2);
+    color: var(--color-text-muted);
+    font: 600 0.75rem/1rem var(--font-family);
+}
+
+.bz-lista {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+/* El grupo de opciones de una Empresa gestionada: no cambia la maqueta del lienzo, solo da la estructura accesible. */
+.bz-grupo {
+    display: flex;
+    flex-direction: column;
+}
+
+.bz-fila {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 36px;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.bz-fila > span {
+    min-width: 0;
+}
+
+.bz-fila:last-child {
+    border-bottom: 0;
+}
+
+.bz-fila:hover {
+    background: var(--color-fila-hover);
+}
+
+.bz-fila.activo,
+.bz-fila[aria-selected="true"] {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.bz-q {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.bz-tx {
+    flex: 1;
+    min-width: 0;
+}
+
+.bz-ic {
+    display: inline-flex;
+    flex: none;
+    color: var(--color-text-muted);
+}
+
+.bz-cab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) var(--space-2) 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    border-radius: var(--radius-card-sm) var(--radius-card-sm) 0 0;
+    background: var(--color-surface-subtle);
+}
+
+.bz-cn {
+    min-width: 0;
+    overflow: hidden;
+    font: 600 0.875rem/1.25rem var(--font-family);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bz-cc {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font: 400 0.8125rem/1.25rem var(--font-family);
+    white-space: nowrap;
+}
+
+.bz-fila.in {
+    width: calc(100% - 2 * var(--space-2));
+    margin: 0 var(--space-2);
+    padding-left: calc(var(--space-3) + var(--space-6));
+}
+
+.bz-fila.in:not(.activo) {
+    background: var(--color-surface-subtle);
+}
+
+.bz-fila.in:not(.activo):hover {
+    background: var(--color-fila-hover);
+}
+
+.bz-fila.in.ult {
+    margin-bottom: var(--space-2);
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-card-sm) var(--radius-card-sm);
+}
+
+.bz-n {
+    display: block;
+    overflow: hidden;
+    font: 600 0.875rem/1.25rem var(--font-family);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bz-d {
+    display: block;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font: 500 0.75rem/1rem var(--font-family);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bz-c {
+    font: 600 0.875rem/1.25rem var(--font-family);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* «Con error» (lienzo e-mal): el tono de error de la app, sin color nuevo. */
+.bz-c-error {
+    color: var(--color-danger-700);
+}

@@ -45,7 +45,17 @@
             {
                 <span class="eu-al-dia">@Textos["AlDia"]</span>
             }
-            <EstadoVacio SinIcono="true" Titulo="@Textos["SinConversaciones"]" Descripcion="@Textos["SinConversacionesAyuda"]" />
+            @if (_noConsultadas.Count > 0)
+            {
+                @* Con alguna Empresa gestionada sin leer, «No quedan conversaciones» afirmaría lo que no se sabe: la lista está incompleta. *@
+                <EstadoVacio SinIcono="true" Titulo="@Textos["SinConversacionesIncompleta"]" Descripcion="@Textos["SinConversacionesIncompletaAyuda"]">
+                    <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RecargarAsync">@Textos["RecargarLista"]</Boton></Accion>
+                </EstadoVacio>
+            }
+            else
+            {
+                <EstadoVacio SinIcono="true" Titulo="@Textos["SinConversaciones"]" Descripcion="@Textos["SinConversacionesAyuda"]" />
+            }
         </div>
     }
     else
@@ -97,11 +107,18 @@
     /// <summary>Las Abiertas que el selector cuenta para lo elegido; <c>null</c> si no las cuenta.</summary>
     [Parameter] public int? AbiertasSegunSelector { get; set; }
 
+    /// <summary>
+    /// El buzón del desplegable «Buzón»; <c>null</c>, todos. Viaja a la query, que lo suma con AND a la visibilidad del Tenant: un id
+    /// que no es de la Empresa gestionada consultada da la lista vacía, nunca filas de otro sitio.
+    /// </summary>
+    [Parameter] public Guid? ConexionId { get; set; }
+
     /// <summary>Filas por página: las de la lista del Tenant activo.</summary>
     private const int TamanoPagina = 20;
 
     private readonly CancellationTokenSource _ciclo = new();
     private EleccionEmpresaGestionada? _cargada;
+    private Guid? _conexionCargada;
     private int _generacion;
     private List<ConversacionUnificadaDto> _filas = [];
     private CursorConversacionesUnificadas? _siguiente;
@@ -114,11 +131,12 @@
             : Textos["SoloConsultaEmpresa", NombreConsultada].Value;
 
     protected override Task OnParametersSetAsync() =>
-        Eleccion == _cargada ? Task.CompletedTask : RecargarAsync();
+        Eleccion == _cargada && ConexionId == _conexionCargada ? Task.CompletedTask : RecargarAsync();
 
     private Task RecargarAsync()
     {
         _cargada = Eleccion;
+        _conexionCargada = ConexionId;
         _filas = [];
         _noConsultadas = [];
         _siguiente = null;
@@ -143,7 +161,8 @@
         try
         {
             var pagina = await Mediator.Send(
-                new ObtenerConversacionesUnificadasQuery(tenantIds, cursor, TamanoPagina, GrupoEstadoConversacion.Abiertas), _ciclo.Token);
+                new ObtenerConversacionesUnificadasQuery(tenantIds, cursor, TamanoPagina, GrupoEstadoConversacion.Abiertas, ConexionIntegracionId: _conexionCargada),
+                _ciclo.Token);
             if (generacion != _generacion) return;
             _filas.AddRange(pagina.Filas);
             _noConsultadas = _noConsultadas.Union(pagina.NoConsultados.Select(n => n.TenantNombre)).ToList();
